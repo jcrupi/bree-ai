@@ -1,0 +1,63 @@
+import { useState, useCallback, useRef } from 'react';
+import { startRecording, speechToText, isAudioRecordingSupported } from '../utils/openai-audio';
+export function useSpeechToText() {
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const startListening = useCallback(async () => {
+    if (!isAudioRecordingSupported()) {
+      setError('Audio recording not supported in this browser');
+      return;
+    }
+    try {
+      setError(null);
+      setIsRecording(true);
+      const mediaRecorder = await startRecording(async audioBlob => {
+        setIsRecording(false);
+        setIsTranscribing(true);
+        try {
+          const text = await speechToText(audioBlob);
+          setIsTranscribing(false);
+          return text;
+        } catch (err) {
+          setIsTranscribing(false);
+          setError(err instanceof Error ? err.message : 'Failed to transcribe audio');
+          console.error('STT error:', err);
+          return '';
+        }
+      });
+      mediaRecorderRef.current = mediaRecorder;
+    } catch (err) {
+      setIsRecording(false);
+      setError(err instanceof Error ? err.message : 'Failed to start recording');
+      console.error('Recording error:', err);
+    }
+  }, []);
+  const stopListening = useCallback((): Promise<string> => {
+    return new Promise(resolve => {
+      if (mediaRecorderRef.current && isRecording) {
+        const mediaRecorder = mediaRecorderRef.current;
+        const originalOnStop = mediaRecorder.onstop;
+        mediaRecorder.onstop = async event => {
+          if (originalOnStop) {
+            const result = await originalOnStop.call(mediaRecorder, event);
+            resolve(result || '');
+          }
+        };
+        mediaRecorder.stop();
+        mediaRecorderRef.current = null;
+      } else {
+        resolve('');
+      }
+    });
+  }, [isRecording]);
+  return {
+    startListening,
+    stopListening,
+    isRecording,
+    isTranscribing,
+    error,
+    isSupported: isAudioRecordingSupported()
+  };
+}

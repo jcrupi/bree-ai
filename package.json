@@ -1,0 +1,31 @@
+{
+  "name": "bree-ai-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BREE AI - Multi-tenant document intelligence platform",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:kat": "bun --filter kat-ai dev",
+    "dev:habitaware": "bun --filter habitaware-ai dev",
+    "dev:genius": "bun --filter genius-talent dev",
+    "dev:api": "bun --filter bree-ai-api dev",
+    "dev:all": "bun run dev:api & bun run dev:kat & bun run dev:habitaware & bun run dev:genius",
+    "build:kat": "bun --filter kat-ai build",
+    "build:habitaware": "bun --filter habitaware-ai build",
+    "build:genius": "bun --filter genius-talent build",
+    "build:api": "bun --filter bree-ai-api build",
+    "build:all": "bun run build:api && bun run build:kat && bun run build:habitaware && bun run build:genius",
+    "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

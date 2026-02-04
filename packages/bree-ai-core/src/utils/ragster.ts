@@ -1,0 +1,391 @@
+/**
+ * Ragster API Utilities
+ * Provides functions to interact with Ragster service for document search, collections, and embeddings
+ */
+
+const RAGSTER_API_URL = import.meta.env.VITE_RAGSTER_API_URL || 'http://localhost:8898/api';
+const DEFAULT_ORG_ID = import.meta.env.VITE_RAGSTER_DEFAULT_ORG_ID || 'default-org';
+const DEFAULT_USER_ID = import.meta.env.VITE_RAGSTER_DEFAULT_USER_ID || 'default-user';
+const DEFAULT_COLLECTION_ID = import.meta.env.VITE_RAGSTER_DEFAULT_COLLECTION_ID || '';
+
+export interface RagsterSearchResult {
+  id: string;
+  text: string;
+  score: number;
+  collection?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface RagsterSearchResponse {
+  results: RagsterSearchResult[];
+  query: string;
+  count: number;
+}
+
+export interface RagsterCollection {
+  id: string;
+  name: string;
+  org_id: string;
+  owner_id: string;
+  embedding_provider: string;
+  embedding_model: string;
+  embedding_dimension: number;
+  chunking_strategy: string;
+  description?: string;
+  metadata?: Record<string, any>;
+  chunk_size?: number;
+  chunk_overlap?: number;
+  chunk_count?: number;
+  created_at?: string;
+  updated_at?: string;
+  created_by_member?: string;
+}
+
+export interface CreateCollectionRequest {
+  name: string;
+  org_id: string;
+  user_id: string;
+  created_by_member: string;
+  embedding_provider?: string;
+  embedding_model?: string;
+  embedding_dimension?: number;
+  chunking_strategy?: string;
+  description?: string;
+  metadata?: Record<string, any>;
+  chunk_size?: number;
+  chunk_overlap?: number;
+  chunking_config?: Record<string, any>;
+}
+
+export interface UploadResourceRequest {
+  file: File;
+  org_id: string;
+  user_id: string;
+  collection_id?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface RagsterResource {
+  id: string;
+  filename: string;
+  org_id: string;
+  user_id: string;
+  size: number;
+  type: string;
+  collection_id?: string;
+  metadata?: Record<string, any>;
+  created_at?: string;
+}
+
+/**
+ * Get default headers for Ragster API requests
+ */
+function getDefaultHeaders(): HeadersInit {
+  return {
+    'Content-Type': 'application/json',
+    'x-user-id': DEFAULT_USER_ID,
+    'x-org-id': DEFAULT_ORG_ID,
+  };
+}
+
+/**
+ * Search for documents in a collection
+ * @param query - Search query text
+ * @param collectionId - Collection ID (uses default if not provided)
+ * @param options - Additional search options
+ * @returns Search results
+ */
+export async function searchRagster(
+  query: string,
+  collectionId?: string,
+  options?: {
+    limit?: number;
+    threshold?: number;
+    topK?: number;
+    min_score?: number;
+    with_scores?: boolean;
+    with_metadata?: boolean;
+    filter?: Record<string, any>;
+  }
+): Promise<RagsterSearchResponse> {
+  // Try to get from localStorage first, then fallback to env var
+  const storedCollectionId = typeof window !== 'undefined' 
+    ? localStorage.getItem('katai_default_collection') 
+    : null;
+  
+  const collection = collectionId || storedCollectionId || DEFAULT_COLLECTION_ID;
+  
+  if (!collection) {
+    throw new Error('Collection ID is required. Please select a collection in KAT.ai settings or set VITE_RAGSTER_DEFAULT_COLLECTION_ID.');
+  }
+
+  // Map limit/threshold to topK/min_score for server alignment
+  const topK = options?.topK || options?.limit || 10;
+  const min_score = options?.min_score || options?.threshold || 0.0;
+
+  const response = await fetch(`${RAGSTER_API_URL}/search`, {
+    method: 'POST',
+    headers: getDefaultHeaders(),
+    body: JSON.stringify({
+      query,
+      collection,
+      topK,
+      min_score,
+      filter: options?.filter,
+    }),
+  });
+
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(`Ragster search error: ${error.error || error.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.data || data;
+}
+
+/**
+ * List collections for the default organization
+ * @param options - Query options
+ * @returns List of collections
+ */
+export async function listCollections(options?: {
+  limit?: number;
+  offset?: number;
+}): Promise<{ collections: RagsterCollection[]; count: number; total: number }> {
+  const params = new URLSearchParams({
+    org_id: DEFAULT_ORG_ID,
+    ...(options?.limit && { limit: options.limit.toString() }),
+    ...(options?.offset && { offset: options.offset.toString() }),
+  });
+
+  const response = await fetch(`${RAGSTER_API_URL}/collections?${params}`, {
+    method: 'GET',
+    headers: getDefaultHeaders(),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(`Ragster list collections error: ${error.error || error.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.data || data;
+}
+
+/**
+ * Get collection by ID
+ * @param collectionId - Collection ID
+ * @returns Collection details
+ */
+export async function getCollection(collectionId: string): Promise<RagsterCollection> {
+  const response = await fetch(`${RAGSTER_API_URL}/collections/${collectionId}`, {
+    method: 'GET',
+    headers: getDefaultHeaders(),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(`Ragster get collection error: ${error.error || error.message || response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Create a new collection
+ * @param request - Collection creation request
+ * @returns Created collection
+ */
+export async function createCollection(request: CreateCollectionRequest): Promise<RagsterCollection> {
+  const response = await fetch(`${RAGSTER_API_URL}/collections`, {
+    method: 'POST',
+    headers: getDefaultHeaders(),
+    body: JSON.stringify({
+      name: request.name,
+      org_id: request.org_id || DEFAULT_ORG_ID,
+      user_id: request.user_id || DEFAULT_USER_ID,
+      created_by_member: request.created_by_member || DEFAULT_USER_ID,
+      embedding_provider: request.embedding_provider || 'openai',
+      embedding_model: request.embedding_model || 'text-embedding-3-large',
+      embedding_dimension: request.embedding_dimension || 3072,
+      chunking_strategy: request.chunking_strategy || 'semantic',
+      description: request.description,
+      metadata: request.metadata,
+      chunk_size: request.chunk_size || 1024,
+      chunk_overlap: request.chunk_overlap || 200,
+      chunking_config: request.chunking_config,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(`Ragster create collection error: ${error.error || error.message || response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Upload a document to Ragster and index it immediately
+ * Goes directly from KAT.ai (Vite) to Ragster API
+ * @param request - Upload request with file and metadata
+ * @returns Uploaded and indexed resource
+ */
+export async function uploadDocument(request: UploadResourceRequest): Promise<RagsterResource> {
+  const formData = new FormData();
+  formData.append('file', request.file);
+  formData.append('org_id', request.org_id || DEFAULT_ORG_ID);
+  formData.append('user_id', request.user_id || DEFAULT_USER_ID);
+  
+  if (request.collection_id) {
+    formData.append('collection_id', request.collection_id);
+  }
+  
+  if (request.metadata) {
+    formData.append('metadata', JSON.stringify(request.metadata));
+  }
+
+  const headers: HeadersInit = {
+    'x-user-id': request.user_id || DEFAULT_USER_ID,
+    'x-org-id': request.org_id || DEFAULT_ORG_ID,
+  };
+
+  // Use /api/index/file endpoint which both uploads AND indexes the document
+  // This ensures the file is immediately searchable after upload
+  const response = await fetch(`${RAGSTER_API_URL}/index/file`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(`Ragster upload error: ${error.error || error.message || response.statusText}`);
+  }
+
+  const result = await response.json();
+  
+  // The /api/index/file endpoint returns a different format, so we adapt it
+  if (result.results && result.results.length > 0) {
+    // Return a resource-like object for compatibility
+    return {
+      id: result.results[0].resource_id || '',
+      filename: result.results[0].filename || request.file.name,
+      org_id: request.org_id || DEFAULT_ORG_ID,
+      user_id: request.user_id || DEFAULT_USER_ID,
+      size: request.file.size,
+      type: request.file.type,
+      collection_id: request.collection_id,
+      metadata: request.metadata,
+    } as RagsterResource;
+  }
+  
+  return result;
+}
+
+/**
+ * List resources in a collection
+ * Goes directly from KAT.ai (Vite) to Ragster API
+ * @param collectionId - Collection ID
+ * @returns List of resources filtered by collection
+ */
+export async function listResources(collectionId: string): Promise<{ resources: any[]; count: number }> {
+  // Get all resources for the org/user, then filter by collection_id
+  const params = new URLSearchParams({
+    org_id: DEFAULT_ORG_ID,
+    user_id: DEFAULT_USER_ID,
+  });
+
+  const response = await fetch(`${RAGSTER_API_URL}/resources?${params}`, {
+    method: 'GET',
+    headers: getDefaultHeaders(),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(`Ragster list resources error: ${error.error || error.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  const allResources = data.resources || data.data?.resources || [];
+  
+  // Filter resources by collection_id (check both metadata.collection_id and collection_id field)
+  const filteredResources = allResources.filter((r: any) => 
+    r.metadata?.collection_id === collectionId || 
+    r.collection_id === collectionId ||
+    r.metadata?.collection === collectionId
+  );
+
+  return { resources: filteredResources, count: filteredResources.length };
+}
+
+/**
+ * Delete a collection
+ * @param collectionId - Collection ID to delete
+ */
+export async function deleteCollection(collectionId: string): Promise<void> {
+  const response = await fetch(`${RAGSTER_API_URL}/collections/${collectionId}`, {
+    method: 'DELETE',
+    headers: getDefaultHeaders(),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(`Ragster delete collection error: ${error.error || error.message || response.statusText}`);
+  }
+}
+
+/**
+ * Check Ragster service health
+ * @returns Health status
+ */
+export async function checkRagsterHealth(): Promise<{ status: string; service: string }> {
+  const response = await fetch(`${RAGSTER_API_URL}/health`, {
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Ragster health check failed: ${response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Generate a chat response using Ragster's LLM proxy
+ * @param messages - Array of chat messages
+ * @param options - Chat options
+ * @returns The AI response text
+ */
+export async function generateChatResponse(
+  messages: { role: string; content: string }[],
+  options?: {
+    model?: string;
+    temperature?: number;
+    max_tokens?: number;
+  }
+): Promise<string> {
+  const response = await fetch(`${RAGSTER_API_URL}/chat`, {
+    method: 'POST',
+    headers: getDefaultHeaders(),
+    body: JSON.stringify({
+      messages,
+      options,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(`Ragster chat error: ${error.error || error.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.response;
+}
+
+
+
+
+

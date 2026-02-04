@@ -1,0 +1,18 @@
+rror(err instanceof Error ? err.message : 'Failed to generate speech');
+      console.error('TTS error:', err);
+          }
+	    }, []);
+	      const stop = useCallback(() => {
+	          if (audioRef.current) {
+		        audioRef.current.pause();
+			      audioRef.current = null;
+			            setIsSpeaking(false);
+				        }
+					  }, []);
+					    return {
+					        speak,
+						    stop,
+						        isSpeaking,
+							    error
+							      };
+							      }~

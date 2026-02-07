@@ -3,13 +3,20 @@ FROM oven/bun:1 AS base
 
 WORKDIR /app
 
+# Install build dependencies for native modules (like better-sqlite3)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy workspace files
 COPY package.json bun.lock ./
 COPY packages/ ./packages/
 COPY apps/api/ ./apps/api/
 
 # Install dependencies
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Build the API
 WORKDIR /app/apps/api

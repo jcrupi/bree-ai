@@ -13,6 +13,7 @@ All applications in this monorepo (`kat-ai`, `genius-talent`, `keen-ai`) can be 
 ## Environment Variables
 
 Each app uses Vite environment variables (prefixed with `VITE_`) to configure API endpoints.
+The API server (`apps/api`) uses server-side environment variables for secrets.
 
 ### Core Configuration
 
@@ -31,6 +32,12 @@ Each app uses Vite environment variables (prefixed with `VITE_`) to configure AP
 | `VITE_RAGSTER_DEFAULT_USER_ID`       | Default user ID            | `user@kat.ai` or `user@genius-talent.com` |
 | `VITE_RAGSTER_DEFAULT_COLLECTION_ID` | Default Ragster collection | (empty)                                   |
 | `VITE_APP_NAME`                      | Application display name   | `KAT.ai` or `Genius Talent`               |
+
+### API Server Configuration
+
+| Variable          | Description                         | Default |
+| ----------------- | ----------------------------------- | ------- |
+| `OPENAI_API_KEY`  | OpenAI API key for proxy endpoints  | (none)  |
 
 ## Setup Instructions
 

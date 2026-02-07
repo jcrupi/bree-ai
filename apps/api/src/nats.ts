@@ -134,7 +134,14 @@ class NatsService {
   }
 
   /**
-   * Subscribe to a subject
+   * Get JetStream context
+   */
+  jetstream() {
+    return this.ensureConnection().jetstream();
+  }
+
+  /**
+   * Subscribe to a subject (Core NATS)
    */
   async subscribe(
     subject: string,

@@ -11,7 +11,7 @@
  * - Easier testing and mocking
  */
 
-import { api as edenClient } from './api-client';
+import { api as edenClient, API_URL } from './api-client';
 import type { App } from '../../../../apps/api/src/index';
 
 // Re-export types for convenience
@@ -293,6 +293,77 @@ export const breeAPI = {
       const { data, error } = await edenClient.api.config({ brandId }).post(config);
       if (error) throw new Error(error.value as string);
       return data;
+    }
+  },
+
+  /**
+   * OpenAI Proxy Service
+   * Routes through the API gateway with auth
+   */
+  openai: {
+    /**
+     * Chat completion via proxy
+     */
+    chat: async (params: {
+      query: string;
+      context: string;
+      options?: {
+        model?: string;
+        temperature?: number;
+        max_tokens?: number;
+        systemPrompt?: string;
+      };
+    }) => {
+      const token = localStorage.getItem('bree_jwt');
+      const response = await fetch(`${API_URL}/api/openai/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(params)
+      });
+      if (!response.ok) throw new Error(await response.text());
+      return response.json();
+    },
+
+    /**
+     * Text-to-speech via proxy
+     */
+    tts: async (params: {
+      text: string;
+      voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+      speed?: number;
+    }) => {
+      const token = localStorage.getItem('bree_jwt');
+      const response = await fetch(`${API_URL}/api/openai/tts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(params)
+      });
+      if (!response.ok) throw new Error(await response.text());
+      return response.blob();
+    },
+
+    /**
+     * Speech-to-text via proxy
+     */
+    stt: async (file: File) => {
+      const token = localStorage.getItem('bree_jwt');
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch(`${API_URL}/api/openai/stt`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { authorization: `Bearer ${token}` } : {})
+        },
+        body: formData
+      });
+      if (!response.ok) throw new Error(await response.text());
+      return response.json();
     }
   }
 };

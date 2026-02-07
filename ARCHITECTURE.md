@@ -69,6 +69,11 @@
 └─────────────────────────────────────────────┘
 ```
 
+> **🔥 IMPORTANT:** We follow a specific "Bun Monorepo" pattern for production.
+> Please review **[BUN_MONOREPO_BEST_PRACTICES.md](BUN_MONOREPO_BEST_PRACTICES.md)** for the definitive guide on repo structure and Fly.io deployment.
+
+**🔗 See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.**
+
 ## Frontend Stack
 
 ### Applications

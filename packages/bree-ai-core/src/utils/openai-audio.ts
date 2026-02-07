@@ -3,7 +3,7 @@
  * Provides text-to-speech and speech-to-text functionality
  */
 
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+import { API_URL } from './api-client';
 
 /**
  * Convert text to speech using OpenAI TTS API
@@ -16,21 +16,18 @@ export async function textToSpeech(
   voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'alloy',
   speed: number = 1.0
 ): Promise<Blob> {
-  if (!OPENAI_API_KEY) {
-    throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your .env file');
-  }
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('bree_jwt') : null;
 
-  const response = await fetch('https://api.openai.com/v1/audio/speech', {
+  const response = await fetch(`${API_URL}/api/openai/tts`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {})
     },
     body: JSON.stringify({
-      model: 'tts-1',
-      input: text,
-      voice: voice,
-      speed: speed
+      text,
+      voice,
+      speed
     })
   });
   if (!response.ok) {
@@ -60,16 +57,13 @@ export function playAudio(audioBlob: Blob): HTMLAudioElement {
  * @returns Transcribed text
  */
 export async function speechToText(audioBlob: Blob): Promise<string> {
-  if (!OPENAI_API_KEY) {
-    throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your .env file');
-  }
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('bree_jwt') : null;
   const formData = new FormData();
   formData.append('file', audioBlob, 'audio.webm');
-  formData.append('model', 'whisper-1');
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+  const response = await fetch(`${API_URL}/api/openai/stt`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`
+      ...(token ? { authorization: `Bearer ${token}` } : {})
     },
     body: formData
   });
@@ -79,5 +73,5 @@ export async function speechToText(audioBlob: Blob): Promise<string> {
   }
   
   const result = await response.json();
-  return result.text;
+  return result.text || '';
 }

@@ -5,10 +5,28 @@ import { jwt } from '@elysiajs/jwt';
 import { getNatsService, type AgentMessage } from './nats';
 import { authService, seedDatabase, type JWTPayload } from './auth';
 
+async function requireAuth(headers: Record<string, string | undefined>, jwt: any, set: any): Promise<JWTPayload | null> {
+  const authHeader = headers['authorization'];
+  if (!authHeader?.startsWith('Bearer ')) {
+    set.status = 401;
+    return null;
+  }
+
+  const token = authHeader.slice(7);
+  const payload = await jwt.verify(token);
+  if (!payload) {
+    set.status = 401;
+    return null;
+  }
+
+  return payload as JWTPayload;
+}
+
 // Configuration (use environment variables or defaults)
 const RAGSTER_API_URL = process.env.RAGSTER_API_URL || 'https://agent-collective-ragster.fly.dev/api';
 const AGENTX_URL = process.env.AGENTX_URL || 'https://agent-collective-agentx.fly.dev';
 const ANTIMATTER_URL = process.env.ANTIMATTER_URL || 'https://agent-collective-antimatter.fly.dev';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 export const app = new Elysia()
   .use(cors())
@@ -42,6 +60,10 @@ export const app = new Elysia()
   // Knowledge (Ragster) Proxy Group
   .group('/api/knowledge', (app) =>
     app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
       .get('/collections', async ({ query: { org_id } }) => {
         const url = `${RAGSTER_API_URL}/collections?org_id=${org_id || 'default-org'}`;
         const res = await fetch(url, {
@@ -133,6 +155,10 @@ export const app = new Elysia()
   // Collective Proxy Group
   .group('/api/collective', (app) =>
     app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
       .post('/chat', async ({ body }) => {
         const res = await fetch(`${AGENTX_URL}/api/collective/chat`, {
           method: 'POST',
@@ -158,6 +184,10 @@ export const app = new Elysia()
   // Identity Proxy Group
   .group('/api/identity', (app) =>
     app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
       .get('/instructions', async () => {
         const res = await fetch(`${AGENTX_URL}/api/identity/entries?path=config/instructions.md`);
         const data = await res.json();
@@ -187,6 +217,10 @@ export const app = new Elysia()
   // Configuration Group (Database Level Persistence)
   .group('/api/config', (app) =>
     app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
       .get('/:brandId', async ({ params: { brandId } }) => {
         const url = `${AGENTX_URL}/api/identity/entries?path=config/${brandId}.json`;
         const res = await fetch(url);
@@ -330,9 +364,179 @@ export const app = new Elysia()
       })
   )
 
+  // OpenAI Proxy Group
+  .group('/api/openai', (app) =>
+    app
+      .post('/chat', async ({ body, headers, jwt, set }) => {
+        if (!OPENAI_API_KEY) {
+          set.status = 500;
+          return { error: 'OPENAI_API_KEY not configured on server' };
+        }
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+
+        const {
+          query,
+          context,
+          options = {},
+        } = body as {
+          query: string;
+          context: string;
+          options?: {
+            model?: string;
+            temperature?: number;
+            max_tokens?: number;
+            systemPrompt?: string;
+          };
+        };
+
+        const {
+          model = 'gpt-4o',
+          temperature = 0.7,
+          max_tokens = 2000,
+          systemPrompt = 'You are KAT.ai, a helpful document assistant.'
+        } = options;
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              {
+                role: 'user',
+                content: `Context information from documents:\n\n${context}\n\nQuestion: ${query}\n\nPlease answer the question based on the provided context and follow your system instructions.`
+              }
+            ],
+            temperature,
+            max_tokens
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: response.statusText }));
+          set.status = response.status;
+          return { error: error.error?.message || response.statusText };
+        }
+
+        const result = await response.json();
+        return { response: result.choices?.[0]?.message?.content || '' };
+      }, {
+        headers: t.Object({
+          authorization: t.String()
+        }),
+        body: t.Object({
+          query: t.String(),
+          context: t.String(),
+          options: t.Optional(t.Object({
+            model: t.Optional(t.String()),
+            temperature: t.Optional(t.Number()),
+            max_tokens: t.Optional(t.Number()),
+            systemPrompt: t.Optional(t.String())
+          }))
+        })
+      })
+      .post('/tts', async ({ body, headers, jwt, set }) => {
+        if (!OPENAI_API_KEY) {
+          set.status = 500;
+          return { error: 'OPENAI_API_KEY not configured on server' };
+        }
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+
+        const { text, voice = 'alloy', speed = 1.0 } = body as {
+          text: string;
+          voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+          speed?: number;
+        };
+
+        const response = await fetch('https://api.openai.com/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'tts-1',
+            input: text,
+            voice,
+            speed
+          })
+        });
+
+        if (!response.ok) {
+          set.status = response.status;
+          return { error: response.statusText };
+        }
+
+        const audioBuffer = await response.arrayBuffer();
+        return new Response(audioBuffer, {
+          headers: {
+            'Content-Type': response.headers.get('Content-Type') || 'audio/mpeg'
+          }
+        });
+      }, {
+        headers: t.Object({
+          authorization: t.String()
+        }),
+        body: t.Object({
+          text: t.String(),
+          voice: t.Optional(t.String()),
+          speed: t.Optional(t.Number())
+        })
+      })
+      .post('/stt', async ({ request, headers, jwt, set }) => {
+        if (!OPENAI_API_KEY) {
+          set.status = 500;
+          return { error: 'OPENAI_API_KEY not configured on server' };
+        }
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+
+        const form = await request.formData();
+        const file = form.get('file') as File | null;
+        if (!file) {
+          set.status = 400;
+          return { error: 'No audio file provided' };
+        }
+
+        const formData = new FormData();
+        formData.append('file', file, file.name || 'audio.webm');
+        formData.append('model', 'whisper-1');
+
+        const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${OPENAI_API_KEY}`
+          },
+          body: formData
+        });
+
+        if (!response.ok) {
+          set.status = response.status;
+          return { error: response.statusText };
+        }
+
+        const result = await response.json();
+        return { text: result.text || '' };
+      }, {
+        headers: t.Object({
+          authorization: t.String()
+        })
+      })
+  )
+
   // Agents (NATS) Group - AI Agent Communication
   .group('/api/agents', (app) =>
     app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
       .get('/', async () => {
         try {
           const nats = await getNatsService();
@@ -410,6 +614,16 @@ export const app = new Elysia()
 
 // Only listen if this file is run directly (not imported)
 if (import.meta.main) {
+  // Serve static assets if configured (for single-container deployment)
+  if (process.env.STATIC_ASSETS_PATH) {
+    const { staticPlugin } = await import('@elysiajs/static');
+    app.use(staticPlugin({
+      assets: process.env.STATIC_ASSETS_PATH,
+      prefix: '/'
+    }));
+    console.log(`📦 Serving static assets from ${process.env.STATIC_ASSETS_PATH}`);
+  }
+
   app.listen(3000);
   console.log(
     `🦊 BREE AI Gateway is running at ${app.server?.hostname}:${app.server?.port}`

@@ -1,8 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { textToSpeech, playAudio } from '../utils/openai-audio';
 
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-
 export function useTextToSpeech() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,27 +41,25 @@ export function useTextToSpeech() {
       const text = queueRef.current.shift()!;
       
       try {
-        if (OPENAI_API_KEY && OPENAI_API_KEY.length > 5) {
-          try {
-            const audioBlob = await textToSpeech(text, 'shimmer', currentRateRef.current);
-            if (stopRequestedRef.current) break;
+        try {
+          const audioBlob = await textToSpeech(text, 'shimmer', currentRateRef.current);
+          if (stopRequestedRef.current) break;
 
-            await new Promise<void>((resolve, reject) => {
-              const audio = playAudio(audioBlob);
-              audioRef.current = audio;
-              audio.onended = () => {
-                audioRef.current = null;
-                resolve();
-              };
-              audio.onerror = () => {
-                audioRef.current = null;
-                reject(new Error('Audio playback error'));
-              };
-            });
-            continue; // Move to next chunk
-          } catch (err) {
-            console.warn('OpenAI chunk failed, falling back to browser:', err);
-          }
+          await new Promise<void>((resolve, reject) => {
+            const audio = playAudio(audioBlob);
+            audioRef.current = audio;
+            audio.onended = () => {
+              audioRef.current = null;
+              resolve();
+            };
+            audio.onerror = () => {
+              audioRef.current = null;
+              reject(new Error('Audio playback error'));
+            };
+          });
+          continue; // Move to next chunk
+        } catch (err) {
+          console.warn('OpenAI chunk failed, falling back to browser:', err);
         }
 
         // Fallback to browser for this chunk

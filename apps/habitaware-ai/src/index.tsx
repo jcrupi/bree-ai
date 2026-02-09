@@ -13,9 +13,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       subtitle="HabitAware Intelligence"
       description="Explore our knowledge base on awareness-building and habit change."
       showAdmin={true}
-      brandLogo="/logos/keen-ai.png"
-      brandColor="#D448AA"
-      instructionsPath="/instructions/habitaware-ai.md"
+      brandLogo={currentBrand.logo}
+      brandColor={currentBrand.colors.primary}
+      instructionsPath={currentBrand.instructionsPath || "/instructions/habitaware-ai.md"}
     />
   </React.StrictMode>
 );

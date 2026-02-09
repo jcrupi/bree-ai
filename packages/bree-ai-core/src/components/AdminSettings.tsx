@@ -440,10 +440,16 @@ export function AdminSettings({
 
               {/* Collections Section */}
               <section>
-                <h3 className="text-sm font-medium text-slate-300 mb-4 flex items-center gap-2">
-                  <FolderPlusIcon className="w-4 h-4 text-blue-400" /> Ragster Collections
+                <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 transition-colors ${isLightTheme ? 'text-slate-700' : 'text-slate-300'}`}>
+                  <FolderPlusIcon className={`w-4 h-4 ${isLightTheme ? 'text-purple-500' : 'text-blue-400'}`} /> Ragster Collections
                 </h3>
-                <div className={`p-4 rounded-xl border mb-4 ${mode === 'play' ? 'bg-slate-800/20 border-slate-700/30 opacity-60' : 'bg-slate-800/30 border-slate-700/50'}`}>
+                <div className={`p-5 rounded-2xl border mb-6 transition-all ${
+                  mode === 'play' 
+                    ? 'opacity-60 bg-slate-50 border-slate-200 cursor-not-allowed' 
+                    : isLightTheme 
+                      ? 'bg-white border-slate-100 shadow-sm hover:shadow-md transition-shadow' 
+                      : 'bg-slate-800/30 border-slate-700/50'
+                }`}>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -451,12 +457,20 @@ export function AdminSettings({
                       onChange={e => setNewCollectionName(e.target.value)}
                       placeholder="New collection name..."
                       disabled={mode === 'play'}
-                      className="flex-1 bg-slate-900 text-slate-200 text-sm rounded-lg px-3 py-2 border border-slate-700"
+                      className={`flex-1 text-sm rounded-xl px-4 py-2 border transition-all outline-none ${
+                        isLightTheme 
+                          ? 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-500/5' 
+                          : 'bg-slate-900 text-slate-200 border-slate-700'
+                      }`}
                     />
                     <button
                       onClick={handleCreateCollection}
                       disabled={!newCollectionName.trim() || creatingCollection || mode === 'play'}
-                      className="px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/30 hover:bg-blue-500/40"
+                      className={`px-4 py-2 rounded-lg border transition-all ${
+                        isLightTheme
+                          ? 'bg-purple-50 text-purple-600 border-purple-100 hover:bg-purple-100'
+                          : 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/40'
+                      }`}
                     >
                       {creatingCollection ? <Loader2Icon className="animate-spin w-4 h-4" /> : 'Create'}
                     </button>
@@ -472,7 +486,11 @@ export function AdminSettings({
                           // Save to brand-specific localStorage key
                           localStorage.setItem(`${currentBrand.name}_default_collection`, selectedId);
                         }}
-                        className="w-full bg-slate-900 text-slate-200 text-sm rounded-lg px-3 py-2 border border-slate-700"
+                        className={`w-full text-sm rounded-xl px-4 py-2.5 border transition-all outline-none ${
+                          isLightTheme
+                            ? 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-500/5'
+                            : 'bg-slate-900 text-slate-200 border-slate-700'
+                        }`}
                       >
                         {collections.map((c, idx) => (
                           <option key={c.id || `col-${idx}`} value={c.id}>
@@ -486,14 +504,18 @@ export function AdminSettings({
                         Default: "{currentBrand.collection.collectionId}" (if available). Selected collection is saved automatically.
                       </p>
                       
-                      <div className="mt-4 pt-4 border-t border-slate-700/50">
-                        <label className="text-xs text-slate-500 mb-2 block">Target Search Documents</label>
-                        <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                      <div className="mt-6 pt-6 border-t border-slate-100">
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 block">Target Search Documents</label>
+                        <div className="space-y-3 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
                           {/* All Documents Toggle */}
-                          <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                          <label className={`flex items-center gap-4 p-4 rounded-2xl border cursor-pointer transition-all ${
                             defaultDocumentIds.includes('all-docs') 
-                              ? 'bg-blue-500/10 border-blue-500/50 text-blue-100' 
-                              : 'bg-slate-900/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                              ? isLightTheme
+                                ? 'bg-purple-50 border-purple-200 text-purple-700 font-semibold shadow-sm'
+                                : 'bg-blue-500/10 border-blue-500/50 text-blue-100' 
+                              : isLightTheme
+                                ? 'bg-slate-50/50 border-slate-100 text-slate-600 hover:border-slate-300 hover:bg-white hover:shadow-sm'
+                                : 'bg-slate-900/50 border-slate-700 text-slate-400 hover:border-slate-600'
                           }`}>
                             <input
                               type="checkbox"
@@ -503,7 +525,9 @@ export function AdminSettings({
                                   onDefaultDocumentChange(['all-docs']);
                                 }
                               }}
-                              className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-blue-500 focus:ring-blue-500/30"
+                              className={`w-4 h-4 rounded border-slate-300 transition-all ${
+                                isLightTheme ? 'text-purple-600 focus:ring-purple-500/30' : 'text-blue-500 focus:ring-blue-500/30'
+                              }`}
                             />
                             <div className="flex-1">
                               <div className="text-sm font-medium italic">All Documents</div>
@@ -511,14 +535,17 @@ export function AdminSettings({
                             </div>
                           </label>
 
-                          {/* Individual Documents */}
                           {documents.filter(d => d.id !== 'all-docs').map(doc => {
                             const isChecked = defaultDocumentIds.includes(doc.id) && !defaultDocumentIds.includes('all-docs');
                             return (
-                              <label key={doc.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                              <label key={doc.id} className={`flex items-center gap-4 p-4 rounded-2xl border cursor-pointer transition-all ${
                                 isChecked 
-                                  ? 'bg-blue-500/10 border-blue-500/50 text-blue-100' 
-                                  : 'bg-slate-900/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                                  ? isLightTheme
+                                    ? 'bg-purple-50 border-purple-200 text-purple-700 font-semibold shadow-sm'
+                                    : 'bg-blue-500/10 border-blue-500/50 text-blue-100' 
+                                  : isLightTheme
+                                    ? 'bg-slate-50/50 border-slate-100 text-slate-600 hover:border-slate-300 hover:bg-white hover:shadow-sm'
+                                    : 'bg-slate-900/50 border-slate-700 text-slate-400 hover:border-slate-600'
                               }`}>
                                 <input
                                   type="checkbox"
@@ -535,7 +562,9 @@ export function AdminSettings({
                                       onDefaultDocumentChange(newIds);
                                     }
                                   }}
-                                  className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-blue-500 focus:ring-blue-500/30"
+                                  className={`w-4 h-4 rounded border-slate-300 transition-all ${
+                                    isLightTheme ? 'text-purple-600 focus:ring-purple-500/30' : 'text-blue-500 focus:ring-blue-500/30'
+                                  }`}
                                 />
                                 <div className="flex-1">
                                   <div className="text-sm font-medium">{doc.title}</div>
@@ -554,15 +583,19 @@ export function AdminSettings({
 
               {/* Uploads Section */}
               <section>
-                <h3 className="text-sm font-medium text-slate-300 mb-4 flex items-center gap-2">
-                  <UploadIcon className="w-4 h-4 text-emerald-400" /> Document Management
+                <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 transition-colors ${isLightTheme ? 'text-slate-700' : 'text-slate-300'}`}>
+                  <UploadIcon className={`w-4 h-4 ${isLightTheme ? 'text-teal-500' : 'text-emerald-400'}`} /> Document Management
                 </h3>
                 <div className="mb-4">
                   <label className="text-xs text-slate-500 mb-2 block">Upload to Collection:</label>
                   <select
                     value={uploadCollectionId || globalCollectionId || ''}
                     onChange={e => setUploadCollectionId(e.target.value)}
-                    className="w-full bg-slate-800 text-slate-200 text-sm rounded-lg px-3 py-2 border border-slate-700"
+                    className={`w-full text-sm rounded-xl px-4 py-2.5 border transition-all outline-none ${
+                      isLightTheme
+                        ? 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-500/5'
+                        : 'bg-slate-800 text-slate-200 border-slate-700'
+                    }`}
                   >
                     {collections.length === 0 ? (
                       <option value="">No collections available</option>
@@ -582,7 +615,9 @@ export function AdminSettings({
                   <label className="text-xs text-slate-500 mb-2 block">Apply Tags to Uploads:</label>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {activeTags.map(tag => (
-                      <span key={tag} className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-[10px] flex items-center gap-1">
+                      <span key={tag} className={`px-2 py-1 rounded text-[10px] flex items-center gap-1 font-medium ${
+                        isLightTheme ? 'bg-teal-50 text-teal-600 border border-teal-100' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                      }`}>
                         #{tag}
                         <button onClick={() => setActiveTags(prev => prev.filter(t => t !== tag))} className="hover:text-white"><XIcon size={10} /></button>
                       </span>
@@ -601,7 +636,11 @@ export function AdminSettings({
                         }
                       }}
                       placeholder="Add tag (e.g. #react)..."
-                      className="flex-1 bg-slate-900/50 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-blue-500/50"
+                       className={`flex-1 rounded-lg px-3 py-1.5 text-xs transition-all border ${
+                         isLightTheme 
+                          ? 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-teal-500' 
+                          : 'bg-slate-900/50 border-slate-700/50 text-slate-300 focus:border-blue-500/50'
+                       }`}
                     />
                     <button 
                       onClick={() => {
@@ -611,39 +650,55 @@ export function AdminSettings({
                           setNewTagInput('');
                         }
                       }}
-                      className="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-400 hover:text-white"
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all border ${
+                        isLightTheme
+                          ? 'bg-teal-50 text-teal-600 border-teal-100 hover:bg-teal-100'
+                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                      }`}
                     >
                       Add
                     </button>
                   </div>
                 </div>
 
-                <div onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave} className={`border-2 border-dashed rounded-2xl p-8 transition-all text-center ${isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700 bg-slate-800/30'} ${uploadingToRagster ? 'opacity-50' : ''}`}>
+                <div onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave} className={`border-2 border-dashed rounded-3xl p-10 transition-all text-center ${
+                  isDragging 
+                    ? isLightTheme ? 'border-teal-400 bg-teal-50' : 'border-blue-500 bg-blue-500/10' 
+                    : isLightTheme ? 'border-slate-100 bg-white hover:border-teal-200 hover:bg-teal-50/30' : 'border-slate-700 bg-slate-800/30'
+                } ${uploadingToRagster ? 'opacity-50' : ''}`}>
                   <input type="file" id="doc-upload" multiple onChange={handleFileSelect} className="hidden" />
                   <label htmlFor="doc-upload" className="cursor-pointer">
-                    <div className="w-12 h-12 rounded-xl bg-slate-700/50 flex items-center justify-center mx-auto mb-3">
-                      {uploadingToRagster ? <Loader2Icon className="animate-spin text-blue-400" /> : <UploadIcon className="text-slate-400" />}
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${
+                      isLightTheme ? 'bg-slate-50 shadow-inner' : 'bg-slate-700/50'
+                    }`}>
+                      {uploadingToRagster ? <Loader2Icon className="animate-spin text-teal-500" /> : <UploadIcon className={`${isLightTheme ? 'text-teal-400' : 'text-slate-400'}`} />}
                     </div>
-                    <p className="text-sm text-slate-300 font-medium">Click or Drag to Upload to Ragster</p>
-                    <p className="text-xs text-slate-500 mt-1">PDF, DOCX, TXT supported</p>
+                    <p className={`text-sm font-semibold ${isLightTheme ? 'text-slate-600' : 'text-slate-300'}`}>Click or Drag to Upload to Ragster</p>
+                    <p className="text-xs text-slate-400 mt-1">PDF, DOCX, TXT supported</p>
                   </label>
                 </div>
                 {documents.length > 0 && (
-                  <div className="mt-4 space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="mt-6 space-y-2 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
                     {documents.map(doc => (
-                      <div key={doc.id} className="flex items-center gap-3 p-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-xs shadow-sm">
-                        <FileTextIcon className="w-4 h-4 text-slate-500" />
+                      <div key={doc.id} className={`group flex items-center gap-4 p-3 rounded-2xl text-xs transition-all border ${
+                        isLightTheme ? 'bg-white border-slate-100 hover:border-teal-100 hover:shadow-sm' : 'bg-slate-800/50 border-slate-700/50'
+                      }`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isLightTheme ? 'bg-slate-50 text-slate-400' : 'bg-slate-700'}`}>
+                          <FileTextIcon className="w-4 h-4" />
+                        </div>
                         <div className="flex-1 truncate">
-                          <p className="text-slate-200 truncate">{doc.title}</p>
+                          <p className={`truncate font-semibold ${isLightTheme ? 'text-slate-700' : 'text-slate-200'}`}>{doc.title}</p>
                           {doc.tags && doc.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-1">
                               {doc.tags.map(t => (
-                                <span key={t} className="text-[9px] text-blue-400 uppercase tracking-tighter">#{t}</span>
+                                <span key={t} className={`text-[9px] uppercase tracking-wider font-bold ${isLightTheme ? 'text-teal-500' : 'text-blue-400'}`}>#{t}</span>
                               ))}
                             </div>
                           )}
                         </div>
-                        <button onClick={() => onDeleteDocument(doc.id)} className="text-slate-500 hover:text-red-400"><XIcon className="w-3 h-3" /></button>
+                        <button onClick={() => onDeleteDocument(doc.id)} className="p-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50">
+                          <XIcon size={14} />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -653,7 +708,7 @@ export function AdminSettings({
               {/* Response Settings Section */}
               <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-sm font-medium text-slate-300 mb-3">Response Style</h3>
+                <h3 className={`text-sm font-semibold mb-3 transition-colors ${isLightTheme ? 'text-slate-700' : 'text-slate-300'}`}>Response Style</h3>
                   <div className="flex gap-2">
                     {['thorough', 'succinct'].map((style) => (
                       <button
@@ -675,7 +730,7 @@ export function AdminSettings({
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-sm font-medium text-slate-300 mb-3">Language</h3>
+                  <h3 className={`text-sm font-semibold mb-3 transition-colors ${isLightTheme ? 'text-slate-700' : 'text-slate-300'}`}>Language</h3>
                   <div className="flex gap-2">
                     {['english', 'spanish'].map((lang) => (
                       <button
@@ -776,7 +831,11 @@ export function AdminSettings({
                       className="w-full h-[400px] bg-white text-slate-800 text-sm rounded-xl p-5 border border-slate-200 font-mono resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                       placeholder={`Define rules like 'Always say your name is ${currentBrand.aiName}'...`}
                     />
-                    <button onClick={() => setInstructions(defaultTemplate)} className="absolute bottom-4 left-4 text-[10px] text-slate-500 hover:text-purple-400 flex items-center gap-1 bg-slate-950/40 px-2 py-1 rounded">
+                    <button onClick={() => setInstructions(defaultTemplate)} className={`absolute bottom-4 left-4 text-[10px] flex items-center gap-1 px-2 py-1 rounded transition-all ${
+                      isLightTheme 
+                        ? 'text-slate-500 hover:text-purple-600 bg-slate-100 hover:bg-white border border-slate-200 shadow-sm' 
+                        : 'text-slate-500 hover:text-purple-400 bg-slate-950/40'
+                    }`}>
                       <RefreshCw size={10} /> Reset to Template
                     </button>
                   </>
@@ -797,10 +856,10 @@ export function AdminSettings({
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                    <CheckCircle2Icon className="w-4 h-4 text-emerald-400" /> Identity Management
+                  <h3 className={`text-sm font-semibold flex items-center gap-2 transition-colors ${isLightTheme ? 'text-slate-800' : 'text-white'}`}>
+                    <CheckCircle2Icon className={`w-4 h-4 ${isLightTheme ? 'text-teal-500' : 'text-emerald-400'}`} /> Identity Management
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1">Manage Organizations and Users via AntiMatterDB</p>
+                  <p className={`text-xs mt-1 transition-colors ${isLightTheme ? 'text-slate-500' : 'text-slate-500'}`}>Manage Organizations and Users via AntiMatterDB</p>
                 </div>
                 {!amHealthy && (
                   <div className="px-3 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-[10px] text-red-400 uppercase font-bold">
@@ -812,27 +871,35 @@ export function AdminSettings({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Org List */}
                 <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-700/50">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Create Organization</h4>
+                  <div className={`p-4 rounded-xl border transition-all ${isLightTheme ? 'bg-slate-50/50 border-slate-200' : 'bg-slate-800/30 border-slate-700/50'}`}>
+                    <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 transition-colors ${isLightTheme ? 'text-teal-600' : 'text-slate-400'}`}>Create Organization</h4>
                     <div className="space-y-2">
                       <input
                         type="text"
                         placeholder="Organization Name (e.g. Kick)"
                         value={newOrgName}
                         onChange={e => setNewOrgName(e.target.value)}
-                        className="w-full bg-slate-900 text-sm rounded-lg px-3 py-2 border border-slate-700 text-slate-200"
+                        className={`w-full text-sm rounded-lg px-3 py-2 border transition-all ${
+                          isLightTheme ? 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-teal-500' : 'bg-slate-900 border-slate-700 text-slate-200'
+                        }`}
                       />
                       <input
                         type="text"
                         placeholder="Org Slug (e.g. kick)"
                         value={newOrgSlug}
                         onChange={e => setNewOrgSlug(e.target.value)}
-                        className="w-full bg-slate-900 text-sm rounded-lg px-3 py-2 border border-slate-700 text-slate-200"
+                        className={`w-full text-sm rounded-lg px-3 py-2 border transition-all ${
+                          isLightTheme ? 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-teal-500' : 'bg-slate-900 border-slate-700 text-slate-200'
+                        }`}
                       />
                       <button
                         onClick={handleCreateOrg}
                         disabled={!newOrgName || !newOrgSlug || !amHealthy}
-                        className="w-full py-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/30 transition-all text-xs font-bold"
+                        className={`w-full py-2 rounded-lg border transition-all text-xs font-bold ${
+                          isLightTheme 
+                            ? 'bg-teal-50 text-teal-600 border-teal-100 hover:bg-teal-100' 
+                            : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30'
+                        }`}
                       >
                         Create Organization
                       </button>
@@ -840,13 +907,21 @@ export function AdminSettings({
                   </div>
 
                   <div className="space-y-2">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Organizations</h4>
+                    <h4 className={`text-xs font-bold uppercase tracking-wider transition-colors ${isLightTheme ? 'text-slate-400' : 'text-slate-400'}`}>Organizations</h4>
                     <div className="space-y-1 max-h-64 overflow-y-auto pr-2">
                       {orgs.map(org => (
                         <button
                           key={org.slug}
                           onClick={() => setSelectedOrg(org)}
-                          className={`w-full text-left p-3 rounded-xl border transition-all ${selectedOrg?.slug === org.slug ? 'bg-blue-500/20 border-blue-500 text-blue-100' : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'}`}
+                          className={`w-full text-left p-3 rounded-xl border transition-all ${
+                            selectedOrg?.slug === org.slug 
+                              ? isLightTheme 
+                                ? 'bg-purple-50 border-purple-200 text-purple-700' 
+                                : 'bg-blue-500/20 border-blue-500 text-blue-100' 
+                              : isLightTheme
+                                ? 'bg-white border-slate-100 text-slate-600 hover:border-slate-300'
+                                : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600'
+                          }`}
                         >
                           <div className="font-semibold text-sm">{org.name}</div>
                           <div className="text-[10px] opacity-60">Slug: {org.slug}</div>
@@ -860,27 +935,33 @@ export function AdminSettings({
                 <div className="space-y-4">
                   {selectedOrg ? (
                     <>
-                      <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-700/50">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Add User to {selectedOrg.name}</h4>
+                      <div className={`p-4 rounded-xl border transition-all ${isLightTheme ? 'bg-slate-50/50 border-slate-200' : 'bg-slate-800/30 border-slate-700/50'}`}>
+                        <h4 className={`text-xs font-bold uppercase tracking-wider mb-3 transition-colors ${isLightTheme ? 'text-purple-600' : 'text-slate-400'}`}>Add User to {selectedOrg.name}</h4>
                         <div className="space-y-2">
                           <input
                             type="text"
                             placeholder="Full Name"
                             value={newUserName}
                             onChange={e => setNewUserName(e.target.value)}
-                            className="w-full bg-slate-900 text-sm rounded-lg px-3 py-2 border border-slate-700 text-slate-200"
+                            className={`w-full text-sm rounded-lg px-3 py-2 border transition-all ${
+                              isLightTheme ? 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-purple-500' : 'bg-slate-900 border-slate-700 text-slate-200'
+                            }`}
                           />
                           <input
                             type="email"
                             placeholder="Email Address"
                             value={newUserEmail}
                             onChange={e => setNewUserEmail(e.target.value)}
-                            className="w-full bg-slate-900 text-sm rounded-lg px-3 py-2 border border-slate-700 text-slate-200"
+                            className={`w-full text-sm rounded-lg px-3 py-2 border transition-all ${
+                              isLightTheme ? 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-purple-500' : 'bg-slate-900 border-slate-700 text-slate-200'
+                            }`}
                           />
                           <select
                             value={newUserRole}
                             onChange={e => setNewUserRole(e.target.value as any)}
-                            className="w-full bg-slate-900 text-sm rounded-lg px-3 py-2 border border-slate-700 text-slate-200"
+                            className={`w-full text-sm rounded-lg px-3 py-2 border transition-all ${
+                              isLightTheme ? 'bg-white text-slate-800 border-slate-200' : 'bg-slate-900 text-slate-200'
+                            }`}
                           >
                             <option value="member">Member</option>
                             <option value="admin">Admin</option>
@@ -889,7 +970,11 @@ export function AdminSettings({
                           <button
                             onClick={handleCreateUser}
                             disabled={!newUserName || !newUserEmail || !amHealthy}
-                            className="w-full py-2 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg hover:bg-blue-500/30 transition-all text-xs font-bold"
+                            className={`w-full py-2 rounded-lg border transition-all text-xs font-bold ${
+                              isLightTheme 
+                                ? 'bg-purple-50 text-purple-600 border-purple-100 hover:bg-purple-100' 
+                                : 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30'
+                            }`}
                           >
                             Add User
                           </button>
@@ -897,19 +982,23 @@ export function AdminSettings({
                       </div>
 
                       <div className="space-y-2">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Users ({users.length})</h4>
+                        <h4 className={`text-xs font-bold uppercase tracking-wider transition-colors ${isLightTheme ? 'text-slate-400' : 'text-slate-400'}`}>Users ({users.length})</h4>
                         <div className="space-y-1 max-h-64 overflow-y-auto pr-2">
                           {loadingIdentity ? (
                             <div className="p-8 flex justify-center"><Loader2Icon size={24} className="animate-spin text-slate-600" /></div>
                           ) : users.length > 0 ? (
                             users.map(user => (
-                              <div key={user.email} className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/50 flex items-center justify-between">
-                                <div>
-                                  <div className="font-semibold text-sm text-slate-200">{user.name}</div>
-                                  <div className="text-[10px] text-slate-500">{user.email}</div>
+                                <div key={user.email} className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                                  isLightTheme ? 'bg-white border-slate-100' : 'bg-slate-800/40 border-slate-700/50'
+                                }`}>
+                                  <div>
+                                    <div className={`font-semibold text-sm transition-colors ${isLightTheme ? 'text-slate-700' : 'text-slate-200'}`}>{user.name}</div>
+                                    <div className="text-[10px] text-slate-500">{user.email}</div>
+                                  </div>
+                                  <div className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold ${
+                                    isLightTheme ? 'bg-slate-100 text-slate-500' : 'bg-slate-700 text-slate-300'
+                                  }`}>{user.role}</div>
                                 </div>
-                                <div className="px-2 py-0.5 rounded-full bg-slate-700 text-[10px] text-slate-300 uppercase font-bold">{user.role}</div>
-                              </div>
                             ))
                           ) : (
                             <div className="text-center p-8 text-xs text-slate-600 italic">No users in this organization yet.</div>
@@ -918,9 +1007,11 @@ export function AdminSettings({
                       </div>
                     </>
                   ) : (
-                    <div className="h-full flex flex-col items-center justify-center p-8 rounded-2xl bg-slate-800/10 border border-slate-700/30 border-dashed text-center">
-                      <SettingsIcon className="w-12 h-12 text-slate-700 mb-4 opacity-20" />
-                      <p className="text-sm text-slate-500 font-medium">Select an organization to manage its users</p>
+                    <div className={`h-full flex flex-col items-center justify-center p-8 rounded-2xl border border-dashed text-center transition-all ${
+                      isLightTheme ? 'bg-slate-50/50 border-slate-200' : 'bg-slate-800/10 border-slate-700/30'
+                    }`}>
+                      <SettingsIcon className={`w-12 h-12 mb-4 opacity-20 transition-colors ${isLightTheme ? 'text-slate-400' : 'text-slate-700'}`} />
+                      <p className={`text-sm font-medium transition-colors ${isLightTheme ? 'text-slate-400' : 'text-slate-500'}`}>Select an organization to manage its users</p>
                     </div>
                   )}
                 </div>
@@ -930,11 +1021,16 @@ export function AdminSettings({
         </AnimatePresence>
       </div>
 
-      {/* Footer Actions */}
-      <div className="p-6 border-t border-slate-800">
+      <div className={`p-6 border-t ${isLightTheme ? 'border-slate-100 bg-slate-50/30' : 'border-slate-800'}`}>
         <motion.button
           onClick={handleSave}
-          className={`w-full py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-all ${isSaved ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:shadow-lg'}`}
+          className={`w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-[0.98] ${
+            isSaved 
+              ? isLightTheme 
+                ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
+                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+              : 'bg-gradient-to-r from-purple-500 via-pink-500 to-purple-600 text-white hover:shadow-purple-200/50'
+          }`}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
         >

@@ -4,10 +4,23 @@ import { swagger } from '@elysiajs/swagger';
 import { jwt } from '@elysiajs/jwt';
 import { getNatsService, type AgentMessage } from './nats';
 import { authService, seedDatabase, type JWTPayload } from './auth';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import crypto from 'node:crypto';
 
 async function requireAuth(headers: Record<string, string | undefined>, jwt: any, set: any): Promise<JWTPayload | null> {
   const authHeader = headers['authorization'];
+  
+  // Allow guest access if no auth header is provided and we are in demo mode
   if (!authHeader?.startsWith('Bearer ')) {
+    if (process.env.DEMO_MODE === 'true') {
+      return {
+        userId: 0,
+        email: 'guest@bree.ai',
+        name: 'Guest User',
+        roles: [{ role: 'member' }]
+      } as JWTPayload;
+    }
     set.status = 401;
     return null;
   }
@@ -15,6 +28,14 @@ async function requireAuth(headers: Record<string, string | undefined>, jwt: any
   const token = authHeader.slice(7);
   const payload = await jwt.verify(token);
   if (!payload) {
+    if (process.env.DEMO_MODE === 'true') {
+      return {
+        userId: 0,
+        email: 'guest@bree.ai',
+        name: 'Guest User',
+        roles: [{ role: 'member' }]
+      } as JWTPayload;
+    }
     set.status = 401;
     return null;
   }
@@ -27,6 +48,15 @@ const RAGSTER_API_URL = process.env.RAGSTER_API_URL || 'https://agent-collective
 const AGENTX_URL = process.env.AGENTX_URL || 'https://agent-collective-agentx.fly.dev';
 const ANTIMATTER_URL = process.env.ANTIMATTER_URL || 'https://agent-collective-antimatter.fly.dev';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const FEEDBACK_DIR = process.env.FEEDBACK_DIR || 'data/feedback';
+
+async function ensureFeedbackDir() {
+  try {
+    await mkdir(FEEDBACK_DIR, { recursive: true });
+  } catch (err) {
+    console.error('Failed to create feedback directory:', err);
+  }
+}
 
 export const app = new Elysia()
   .use(cors())
@@ -607,6 +637,39 @@ export const app = new Elysia()
       }, {
         body: t.Object({
           content: t.String(),
+          metadata: t.Optional(t.Any())
+        })
+      })
+  )
+  
+  // Feedback Group - Save feedback to filesystem
+  .group('/api/feedback', (app) =>
+    app
+      .post('/', async ({ body, set }) => {
+        try {
+          await ensureFeedbackDir();
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const filename = `feedback-${timestamp}-${crypto.randomUUID().slice(0, 8)}.json`;
+          const filepath = join(FEEDBACK_DIR, filename);
+          
+          await writeFile(filepath, JSON.stringify({
+            ...body,
+            receivedAt: new Date().toISOString()
+          }, null, 2));
+          
+          console.log(`📝 Feedback saved to ${filepath}`);
+          return { success: true, message: 'Feedback saved' };
+        } catch (error: any) {
+          console.error('Failed to save feedback:', error);
+          set.status = 500;
+          return { success: false, error: error.message || 'Failed to save feedback' };
+        }
+      }, {
+        body: t.Object({
+          type: t.String(),
+          name: t.String(),
+          email: t.Optional(t.String()),
+          description: t.String(),
           metadata: t.Optional(t.Any())
         })
       })

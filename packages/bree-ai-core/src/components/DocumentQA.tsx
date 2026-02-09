@@ -12,6 +12,7 @@ import {
   ActionToggle, 
   PageHeader 
 } from './ui';
+import { FeedbackButton } from './FeedbackButton';
 import { useTextToSpeech } from '../hooks/useTextToSpeech';
 import { useSpeechToText } from '../hooks/useSpeakToText';
 import { api, API_URL } from '../utils/api-client';
@@ -130,6 +131,7 @@ export function DocumentQA({
   const [speakingRate, setSpeakingRate] = useState(1.1);
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [avatarMode, setAvatarMode] = useState(false);
+  const [avatarSessionStart, setAvatarSessionStart] = useState<number>(0);
   const [adminInstructions, setAdminInstructions] = useState('Be professional and gentle in your responses. If you do not know the answer to a question based on the provided context, politely inform the user that you will get back to them and thank them for their patience.');
   const [responseStyle, setResponseStyle] = useState<'thorough' | 'succinct'>('thorough');
   const [language, setLanguage] = useState<'english' | 'spanish'>('english');
@@ -140,6 +142,13 @@ export function DocumentQA({
   const [expertMode, setExpertMode] = useState(true);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const isLightTheme = currentBrand.name === 'habitaware-ai' || currentBrand.name === 'genius-talent';
+  
+  // Reset avatar session message tracking when entering avatar mode
+  useEffect(() => {
+    if (avatarMode) {
+      setAvatarSessionStart(messages.length);
+    }
+  }, [avatarMode]);
 
   // Load brand config from DB on mount
   useEffect(() => {
@@ -680,7 +689,7 @@ export function DocumentQA({
     if (input.trim()) await handleSend();
   };
 
-  const currentAvatarResponse = messages.length > 0 ? messages[messages.length - 1].content : undefined;
+  const currentAvatarResponse = messages.length > avatarSessionStart ? messages[messages.length - 1].content : undefined;
 
   return (
     <>
@@ -689,7 +698,7 @@ export function DocumentQA({
           ? 'bg-[#F8F9FA] text-slate-900' 
           : 'bg-slate-950 text-slate-100'
       }`}>
-        <div className="max-w-[1600px] mx-auto px-6 py-12">
+        <div className="max-w-[940px] mx-auto px-6 py-8">
           <PageHeader
             title={propTitle || `${currentBrand.displayName} Chat`}
             subtitle={propSubtitle || 'AI Assistant'}
@@ -796,7 +805,7 @@ export function DocumentQA({
             }
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4 lg:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6 lg:gap-8">
             <aside>
               <DocumentSelector 
                 documents={documents} 
@@ -808,9 +817,9 @@ export function DocumentQA({
             </aside>
 
             <main className="flex flex-col">
-              <div className={`backdrop-blur-sm border transition-all duration-500 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col h-[500px] sm:h-[600px] lg:h-[calc(100vh-220px)] lg:min-h-[700px] ${
+              <div className={`backdrop-blur-sm border transition-all duration-500 rounded-3xl shadow-xl flex flex-col h-[500px] sm:h-[600px] lg:h-[calc(100vh-200px)] lg:min-h-[650px] overflow-hidden ${
                 isLightTheme 
-                  ? 'bg-white border-slate-200' 
+                  ? 'bg-white border-slate-100 shadow-slate-200/50' 
                   : 'bg-slate-900/50 border-slate-800'
               }`}>
                 {showAdminSettings ? (
@@ -855,7 +864,7 @@ export function DocumentQA({
                       <div ref={messagesEndRef} />
                     </div>
 
-                    <div className={`p-6 border-t ${isLightTheme ? 'border-slate-100' : 'border-slate-800'}`}>
+                    <div className={`p-6 border-t ${isLightTheme ? 'border-slate-50 bg-slate-50/30' : 'border-slate-800'}`}>
                       {/* Suggested Questions */}
                       {!isLoading && (
                         <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
@@ -939,6 +948,9 @@ export function DocumentQA({
           </div>
         </div>
       </div>
+      
+      <FeedbackButton brandColor={brandColor} />
+
       <AnimatePresence>
         {avatarMode && <AvatarMode 
             isSpeaking={isActuallySpeaking} 

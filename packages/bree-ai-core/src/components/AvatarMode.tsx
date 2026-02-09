@@ -100,7 +100,7 @@ export function AvatarMode({
                 exit={{ opacity: 0 }}
                 className="text-slate-600 text-base italic"
               >
-                {isRecording ? "🎤 Listening..." : isTranscribing ? "💭 Thinking..." : "Ask me anything..."}
+                {isRecording ? "🎤 Listening..." : isTranscribing ? "💭 Thinking..." : "We're here to help you..."}
               </motion.p>
             )}
           </AnimatePresence>
@@ -122,7 +122,7 @@ export function AvatarMode({
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && onSend()}
-            placeholder="Type your message..."
+            placeholder="We're here to help you..."
             className="flex-1 bg-transparent border-none focus:ring-0 text-black placeholder-slate-400 text-lg px-4"
           />
           <button

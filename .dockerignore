@@ -1,0 +1,14 @@
+**/node_modules
+.git
+.next
+**/dist
+**/build
+.env
+.env.local
+.agent
+.gemini
+*.log
+tmp
+demos
+screenshots
+recording

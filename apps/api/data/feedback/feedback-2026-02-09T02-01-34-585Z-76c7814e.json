@@ -1,0 +1,12 @@
+{
+  "type": "enhancement",
+  "name": "Antigravity Test",
+  "description": "Persistent feedback test from agent",
+  "metadata": {
+    "brand": "habitaware-ai",
+    "source": "ai_feedback_button",
+    "url": "http://localhost:5005/",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+  },
+  "receivedAt": "2026-02-09T02:01:34.586Z"
+}

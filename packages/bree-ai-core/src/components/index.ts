@@ -4,5 +4,6 @@ export * from './DocumentSelector';
 export * from './AdminSettings';
 export * from './ChatMessage';
 export * from './SpeakingAvatar';
+export * from './FeedbackButton';
 export * from './ui';
 export * from './layout';

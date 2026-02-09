@@ -83,7 +83,7 @@ export const BRAND_CONFIGS: Record<string, BrandConfig> = {
   'habitaware-ai': {
     name: 'habitaware-ai',
     displayName: 'HabitAware.ai',
-    logo: '/logos/keen-ai.png',
+    logo: '/logos/habitaware-ai.png',
     tagline: 'Empowering Habit Awareness',
     colors: {
       primary: '#D448AA',  // HabitAware Pink

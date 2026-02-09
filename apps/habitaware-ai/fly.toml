@@ -7,6 +7,16 @@ app = 'habitaware-ai'
 primary_region = 'ord'
 
 [build]
+  [build.args]
+    VITE_API_URL = "https://bree-api.fly.dev"
+    VITE_RAGSTER_API_URL = "https://agent-collective-ragster.fly.dev/api"
+    VITE_AGENTX_URL = "https://agent-collective-agentx.fly.dev"
+    VITE_COLLECTIVE_URL = "https://agent-collective-agentx.fly.dev"
+    VITE_ANTIMATTER_URL = "https://agent-collective-antimatter.fly.dev"
+    VITE_RAGSTER_DEFAULT_ORG_ID = "habitaware.ai"
+    VITE_RAGSTER_DEFAULT_USER_ID = "user@habitaware.ai"
+    VITE_APP_NAME = "HabitAware.ai"
+    VITE_BRAND_ID = "habitaware-ai"
 
 [http_service]
   internal_port = 8080

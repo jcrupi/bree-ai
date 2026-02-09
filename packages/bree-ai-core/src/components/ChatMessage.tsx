@@ -25,9 +25,9 @@ export function ChatMessage({ role, content, index, isSpeaking, sources, brandCo
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.1 }}
-      className={`flex flex-col ${isAssistant ? 'items-start' : 'items-end'}`}
+      className="flex flex-col w-full"
     >
-      <div className={`flex gap-3 max-w-[85%] ${isAssistant ? 'flex-row' : 'flex-row-reverse'}`}>
+      <div className={`flex gap-3 w-full ${isAssistant ? 'flex-row' : 'flex-row-reverse'}`}>
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm border`} 
              style={{ 
                backgroundColor: isAssistant ? `${brandColor}15` : brandColor,
@@ -37,8 +37,8 @@ export function ChatMessage({ role, content, index, isSpeaking, sources, brandCo
           {isAssistant ? <BotIcon size={18} /> : <UserIcon size={18} />}
         </div>
         
-        <div className={`flex flex-col gap-2`}>
-          <div className={`rounded-2xl px-4 py-3 text-sm prose prose-sm max-w-none shadow-sm ${
+        <div className="flex flex-col gap-2 flex-1 min-w-0">
+          <div className={`rounded-2xl px-4 py-3 text-sm prose prose-sm max-w-none shadow-sm w-full ${
             isAssistant 
               ? isLightTheme ? 'bg-white border border-slate-200 text-slate-800 prose-slate' : 'bg-slate-900/50 border border-slate-800 text-slate-100 prose-invert'
               : 'text-white prose-invert !text-white'

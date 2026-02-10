@@ -720,10 +720,16 @@ export const app = new Elysia()
     try {
       const nats = await getNatsService();
       
-      // Set SSE headers
-      set.headers['Content-Type'] = 'text/event-stream';
-      set.headers['Cache-Control'] = 'no-cache';
-      set.headers['Connection'] = 'keep-alive';
+      // Set SSE headers with CORS support
+      set.headers = {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'X-Accel-Buffering': 'no' // Disable nginx buffering
+      };
       
       // Send initial connection event
       yield `data: ${JSON.stringify({ type: 'connected', vineId: id })}\n\n`;

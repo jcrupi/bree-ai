@@ -724,6 +724,9 @@ export const app = new Elysia()
       async start(controller) {
         const encoder = new TextEncoder();
         
+        // Send retry directive first
+        controller.enqueue(encoder.encode(`retry: 2000\n\n`));
+        
         // Send initial connection event
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type: 'connected', vineId: id })}\n\n`)
@@ -744,7 +747,7 @@ export const app = new Elysia()
           }
         );
         
-        // Stream messages
+        // Stream messages with shorter keepalive to prevent buffering
         const intervalId = setInterval(() => {
           try {
             // Send queued messages
@@ -755,7 +758,7 @@ export const app = new Elysia()
               );
             }
             
-            // Send keepalive
+            // Send keepalive comment (prevents proxy buffering)
             controller.enqueue(encoder.encode(`: keepalive\n\n`));
           } catch (error) {
             console.error('SSE stream error:', error);
@@ -764,7 +767,7 @@ export const app = new Elysia()
             unsubscribe();
             controller.close();
           }
-        }, 30000); // 30 seconds
+        }, 15000); // 15 seconds - shorter to prevent buffering
         
         // Cleanup after 1 hour
         setTimeout(() => {

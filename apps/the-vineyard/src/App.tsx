@@ -6,7 +6,8 @@ import { ArchitecturePage } from './pages/ArchitecturePage';
 import { VinesPage } from './pages/VinesPage';
 import { TaskBoardPage } from './pages/TaskBoardPage';
 import { ProjectBoardPage } from './pages/ProjectBoardPage';
-import { FastTrackDashboard } from './pages/FastTrackDashboard';
+import { VillageVinesPage } from './pages/VillageVinesPage';
+import { FastFeatDashboard } from './pages/FastFeatDashboard';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { AILensProvider, useAILens } from './hooks/useAILens';
 import { AILensMenu } from './components/AILensMenu';
@@ -46,11 +47,12 @@ export function App() {
         <AILensGlobalUI />
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/fast-track" element={<FastTrackDashboard />} />
+          <Route path="/fast-feat" element={<FastFeatDashboard />} />
           <Route path="/projects" element={<ProjectBoardPage />} />
           <Route path="/team" element={<TeamPage />} />
           <Route path="/architecture" element={<ArchitecturePage />} />
           <Route path="/vines" element={<VinesPage />} />
+          <Route path="/village-vine" element={<VillageVinesPage />} />
           <Route path="/task" element={<TaskBoardPage />} />
           <Route path="/task/:taskId" element={<TaskBoardPage />} />
           <Route path="/project/:projectId" element={<ProjectBoardPage />} />

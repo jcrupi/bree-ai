@@ -642,6 +642,109 @@ export const app = new Elysia()
       })
   )
   
+  // Village (Human-Agent NATS) Group
+  .group('/api/village', (app) =>
+    app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
+      // Start a village vine
+      .post('/start', async ({ body }) => {
+        const vineId = `village-${crypto.randomUUID()}`;
+        const nats = await getNatsService();
+        
+        // Notify the collective about a new village vine
+        await nats.publish('village.vines.created', {
+          vineId,
+          topic: body.topic,
+          invited: body.invited,
+          createdAt: new Date().toISOString()
+        });
+        
+        return {
+          success: true,
+          vineId,
+          topic: body.topic
+        };
+      }, {
+        body: t.Object({
+          topic: t.String(),
+          invited: t.Array(t.String())
+        })
+      })
+      // Send message to village vine
+      .post('/:id/message', async ({ params: { id }, body }) => {
+        try {
+          const nats = await getNatsService();
+          const message = {
+            vineId: id,
+            sender: body.sender,
+            content: body.content,
+            timestamp: new Date().toISOString()
+          };
+          
+          await nats.publish(`village.vine.${id}.messages`, message);
+          
+          return { success: true };
+        } catch (error: any) {
+          return { success: false, error: error.message };
+        }
+      }, {
+        body: t.Object({
+          sender: t.String(),
+          content: t.String()
+        })
+      })
+      // Real-time message stream via SSE
+      .get('/:id/events', async function* ({ params: { id }, request }) {
+        const nats = await getNatsService();
+        
+        // Send initial connection event
+        yield `data: ${JSON.stringify({ type: 'connected', vineId: id })}\n\n`;
+        
+        // Subscribe to messages for this vine
+        const unsubscribe = await nats.subscribe(
+          `village.vine.${id}.messages`,
+          (message) => {
+            // This will be called for each message, but we can't yield from here
+            // We'll use a different approach below
+          }
+        );
+        
+        try {
+          // Keep connection alive and listen for messages
+          // In a production setup, you'd use a proper SSE library or message queue
+          // For now, we'll send keepalive pings
+          let keepAliveCount = 0;
+          while (keepAliveCount < 3600) { // 1 hour max
+            await new Promise(resolve => setTimeout(resolve, 30000)); // 30 second keepalive
+            yield `: keepalive\n\n`;
+            keepAliveCount++;
+          }
+        } finally {
+          unsubscribe();
+        }
+      })
+      // Get messages for a vine (polling alternative to SSE)
+      .get('/:id/messages', async ({ params: { id }, query }) => {
+        try {
+          const nats = await getNatsService();
+          const since = query.since ? new Date(query.since as string) : new Date(Date.now() - 3600000);
+          
+          // In a real implementation, you'd store messages in a database or JetStream
+          // For now, we'll return an empty array and rely on real-time NATS pub/sub
+          return {
+            success: true,
+            messages: [],
+            vineId: id
+          };
+        } catch (error: any) {
+          return { success: false, error: error.message, messages: [] };
+        }
+      })
+  )
+  
   // Feedback Group - Save feedback to filesystem
   .group('/api/feedback', (app) =>
     app

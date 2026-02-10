@@ -191,6 +191,9 @@ export function Dashboard() {
             projects={projects}
             tasks={allTasks}
             onSelectProject={setSelectedProjectId}
+            onAddTask={addTask}
+            areas={areas}
+            agents={agents}
             vineConversations={vineConversations} /> :
 
 

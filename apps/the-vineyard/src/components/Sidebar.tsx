@@ -270,6 +270,18 @@ export function Sidebar({
 
           <span>Architecture</span>
         </Link>
+        <Link
+          to="/village-vine"
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${currentPath === '/village-vine' ? 'bg-emerald-50 text-emerald-900 border-l-2 border-emerald-600' : 'text-slate-600 hover:bg-emerald-50/50 hover:text-emerald-700'}`}>
+
+          <div className={`p-1 rounded-md ${currentPath === '/village-vine' ? 'bg-emerald-100 text-emerald-600' : 'bg-emerald-50 text-emerald-400'}`}>
+            <Users size={14} />
+          </div>
+          <span className="flex-1">Village Vine</span>
+          {currentPath !== '/village-vine' && 
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          }
+        </Link>
       </div>
 
       {/* Scrollable Boards Area */}

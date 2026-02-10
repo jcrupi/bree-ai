@@ -101,12 +101,26 @@ export interface VineConversation {
 
 // Grapes Types
 export type GrapeStatus = 'growing' | 'ripe' | 'harvested';
+export interface CLILog {
+  id: string;
+  command: string;
+  output: string;
+  timestamp: string;
+  status: 'success' | 'error';
+}
+
 export interface Grape {
   id: string;
   projectId: string;
   title: string;
   status: GrapeStatus;
   description?: string;
+  agentxNoteId?: string; // The executable note/persona
+  agentId?: string; // The AI agent runner (connected to AgentX)
+  branchId?: string; // Connected git branch
+  directory?: string; // Virtual or local directory path
+  cliHistory?: CLILog[];
+  chatHistory?: VineMessage[];
 }
 
 // ─── AI Lens Types (First-Class Bree Component) ─────────────

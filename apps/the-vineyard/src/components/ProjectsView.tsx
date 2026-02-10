@@ -22,12 +22,18 @@ interface ProjectsViewProps {
   projects: Project[];
   tasks: Task[];
   onSelectProject: (id: string) => void;
+  onAddTask: (task: Omit<Task, 'id' | 'createdAt'>) => void;
+  areas: Area[];
+  agents: Agent[];
   vineConversations: VineConversation[];
 }
 export function ProjectsView({
   projects,
   tasks,
   onSelectProject,
+  onAddTask,
+  areas,
+  agents,
   vineConversations
 }: ProjectsViewProps) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>('card');
@@ -46,6 +52,28 @@ export function ProjectsView({
       done: projectTasks.filter((t) => t.status === 'done').length
     };
   };
+
+  const [quickAddTaskTitle, setQuickAddTaskTitle] = useState('');
+  const [activeQuickAddProjectId, setActiveQuickAddProjectId] = useState<string | null>(null);
+
+  const handleQuickAddTask = (e: React.FormEvent, projectId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!quickAddTaskTitle.trim()) return;
+
+    onAddTask({
+      title: quickAddTaskTitle.trim(),
+      status: 'todo',
+      priority: 'medium',
+      projectId: projectId,
+      areaId: areas[0]?.id || 'backend',
+      assigneeId: agents[0]?.id || 'ha3'
+    });
+
+    setQuickAddTaskTitle('');
+    setActiveQuickAddProjectId(null);
+  };
+
   const getProjectVines = (projectId: string) => {
     return vineConversations.filter((v) => v.projectId === projectId);
   };
@@ -135,9 +163,21 @@ export function ProjectsView({
                     {project.icon}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-lg text-slate-900 truncate group-hover:text-violet-600 transition-colors">
-                      {project.name}
-                    </h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-lg text-slate-900 truncate group-hover:text-violet-600 transition-colors">
+                        {project.name}
+                      </h3>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveQuickAddProjectId(activeQuickAddProjectId === project.id ? null : project.id);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 transition-all ml-2"
+                        title="Quick add task"
+                      >
+                        <Plus size={18} />
+                      </button>
+                    </div>
                     {project.description &&
                   <p className="text-sm text-slate-500 truncate mt-1">
                         {project.description}
@@ -145,6 +185,37 @@ export function ProjectsView({
                   }
                   </div>
                 </div>
+
+                {/* Quick Add Form */}
+                <AnimatePresence>
+                  {activeQuickAddProjectId === project.id && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mb-4 overflow-hidden"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <form onSubmit={(e) => handleQuickAddTask(e, project.id)} className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Task title..."
+                          value={quickAddTaskTitle}
+                          onChange={(e) => setQuickAddTaskTitle(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Escape' && setActiveQuickAddProjectId(null)}
+                          className="flex-1 px-3 py-2 text-sm rounded-lg border border-violet-100 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/10 shadow-inner"
+                          autoFocus
+                        />
+                        <button
+                          type="submit"
+                          className="p-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors shadow-sm"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </form>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Repo URL */}
                 {project.repoUrl &&

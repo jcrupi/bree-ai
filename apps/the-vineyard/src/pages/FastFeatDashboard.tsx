@@ -15,7 +15,7 @@ import {
 import { useAgentTasks } from '../hooks/useAgentTasks';
 import { Project, Task, TaskStatus } from '../types';
 
-export function FastTrackDashboard() {
+export function FastFeatDashboard() {
   const { 
     projects, 
     allTasks, 
@@ -71,7 +71,7 @@ export function FastTrackDashboard() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-[#1E293B] tracking-tight flex items-center gap-2">
               <Zap className="text-amber-500 fill-amber-500" size={24} />
-              Fast Track
+              Fast Feat
             </h1>
             <div className="flex items-center gap-4 text-xs font-medium text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
               <span className="flex items-center gap-1"><Circle size={8} className="fill-slate-300 text-slate-300" /> {allTasks.filter(t => t.status === 'todo').length} Todo</span>
@@ -218,7 +218,7 @@ export function FastTrackDashboard() {
       <footer className="bg-white border-t border-slate-200 p-4 px-8 flex items-center justify-between shadow-[0_-4px_16px_rgba(0,0,0,0.02)]">
         <div className="flex items-center gap-6">
           <div className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
-            Fast Track View
+            Fast Feat View
           </div>
           <div className="h-4 w-[1px] bg-slate-200"></div>
           <p className="text-xs text-slate-400 font-medium italic">Drag tasks to reprioritize. Click to expand details.</p>

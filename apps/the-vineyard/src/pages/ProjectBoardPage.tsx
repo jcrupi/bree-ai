@@ -32,8 +32,11 @@ import {
   VineConversation,
   Project } from
 '../types';
-import { useLensDropZone } from '../hooks/useAILens';
-type ExpandedCardType = 'tasks' | 'vines' | 'grapes' | 'git' | null;
+import { FlyDeploymentPanel } from '../components/FlyDeploymentPanel';
+import { GrapeNanoContainer } from '../components/GrapeNanoContainer';
+import { Rocket, Activity, Terminal, Layout } from 'lucide-react';
+
+type ExpandedCardType = 'tasks' | 'vines' | 'grapes' | 'git' | 'deploy' | null;
 export function ProjectBoardPage() {
   const { projectId } = useParams<{
     projectId: string;
@@ -41,13 +44,15 @@ export function ProjectBoardPage() {
   const [searchParams] = useSearchParams();
   const [expandedCard, setExpandedCard] = useState<ExpandedCardType>(null);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [selectedGrapeId, setSelectedGrapeId] = useState<string | null>(null);
   const [showNewTaskForm, setShowNewTaskForm] = useState(false);
   const [showNewVineForm, setShowNewVineForm] = useState(false);
   const [showNewGrapeForm, setShowNewGrapeForm] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newVineTopic, setNewVineTopic] = useState('');
   const [newGrapeTitle, setNewGrapeTitle] = useState('');
-  const { getProject, allTasks, projects } = useAgentTasks();
+  const { getProject, allTasks, projects, addTask, agents, areas } = useAgentTasks();
   const resolvedProjectId =
   projectId || (projects.length > 0 ? projects[0].id : null);
   const project = resolvedProjectId ? getProject(resolvedProjectId) : null;
@@ -58,6 +63,14 @@ export function ProjectBoardPage() {
   const projectGrapes = MOCK_GRAPES.filter(
     (g) => g.projectId === resolvedProjectId
   );
+
+  // Set default branch when project changes
+  React.useEffect(() => {
+    if (project?.branches) {
+      const defaultBranch = project.branches.find(b => b.isDefault);
+      if (defaultBranch) setSelectedBranchId(defaultBranch.id);
+    }
+  }, [project?.id]);
   const taskStats = {
     total: projectTasks.length,
     todo: projectTasks.filter((t) => t.status === 'todo').length,
@@ -73,18 +86,17 @@ export function ProjectBoardPage() {
   const handleCreateTask = () => {
     if (!newTaskTitle.trim() || !resolvedProjectId) return;
 
-    // Mock task creation - in real app would call API
-    console.log('[Create Task]', {
-      title: newTaskTitle,
+    addTask({
+      title: newTaskTitle.trim(),
       projectId: resolvedProjectId,
       status: 'todo' as TaskStatus,
       priority: 'medium',
-      assigneeId: 'user-1'
+      assigneeId: agents[0]?.id || 'user-1',
+      areaId: areas[0]?.id || 'backend'
     });
 
     setNewTaskTitle('');
     setShowNewTaskForm(false);
-    // TODO: Integrate with useAgentTasks addTask method
   };
 
   const handleCreateVine = () => {
@@ -777,6 +789,22 @@ export function ProjectBoardPage() {
                                           </div>
                                         </div>
                                 }
+                                      <div className="border-t border-violet-100/30 pt-3">
+                                        <div className="flex items-center gap-1.5 mb-2">
+                                          <Rocket size={10} className="text-indigo-500" />
+                                          <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider uppercase tracking-wider">
+                                            Fly Deployment
+                                          </span>
+                                        </div>
+                                        <div className="bg-white/40 rounded-lg p-2.5 border border-indigo-100/50">
+                                          <FlyDeploymentPanel
+                                            variant="mini"
+                                            appName="the-vineyard"
+                                            region="ord"
+                                            currentBranch={selectedBranchId ? (project.branches?.find(b => b.id === selectedBranchId)?.name || 'main') : 'main'}
+                                          />
+                                        </div>
+                                      </div>
                                     </div>
                                   </motion.div>
                             }
@@ -892,39 +920,52 @@ export function ProjectBoardPage() {
                           {projectGrapes.length}
                         </span>
                   }>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {projectGrapes.map((grape) => {
-                      const label = grapeStatusLabel(grape.status);
-                      return (
-                        <div
-                          key={grape.id}
-                          className="flex items-start gap-4 p-4 bg-white/60 hover:bg-white rounded-xl border border-fuchsia-100 hover:border-fuchsia-200 transition-all cursor-pointer">
-
-                              <div
-                            className={`w-3 h-3 rounded-full mt-1.5 flex-shrink-0 ${grapeStatusColor(grape.status)}`} />
-
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-2 mb-1">
-                                  <h3 className="font-bold text-slate-800">
-                                    {grape.title}
-                                  </h3>
-                                  <span
-                                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${label.bg} ${label.text}`}>
-
+                      {selectedGrapeId ? (
+                        <GrapeNanoContainer
+                          grape={projectGrapes.find(g => g.id === selectedGrapeId) || projectGrapes[0]}
+                          onClose={() => setSelectedGrapeId(null)}
+                        />
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {projectGrapes.map((grape) => {
+                            const label = grapeStatusLabel(grape.status);
+                            return (
+                              <motion.div
+                                key={grape.id}
+                                layoutId={`grape-${grape.id}`}
+                                onClick={() => setSelectedGrapeId(grape.id)}
+                                className="flex flex-col p-6 bg-white hover:bg-fuchsia-50/30 rounded-2xl border border-slate-200 hover:border-fuchsia-200 transition-all cursor-pointer group shadow-sm hover:shadow-md"
+                              >
+                                <div className="flex items-start justify-between mb-4">
+                                  <div className={`p-3 rounded-xl ${grapeStatusColor(grape.status)} text-white shadow-sm`}>
+                                    <Cpu size={20} />
+                                  </div>
+                                  <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full ${label.bg} ${label.text}`}>
                                     {grape.status}
                                   </span>
                                 </div>
-                                {grape.description &&
-                            <p className="text-sm text-slate-500 leading-relaxed">
+                                <h3 className="font-bold text-slate-900 group-hover:text-fuchsia-700 transition-colors mb-2">
+                                  {grape.title}
+                                </h3>
+                                {grape.description && (
+                                  <p className="text-sm text-slate-500 leading-relaxed line-clamp-2 mb-6">
                                     {grape.description}
                                   </p>
-                            }
-                              </div>
-                            </div>);
-
-                    })}
-                      </div>
+                                )}
+                                <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                                    <Terminal size={12} />
+                                    CLI READY
+                                  </div>
+                                  <div className="flex items-center gap-1 text-[10px] font-bold text-fuchsia-600">
+                                    OPEN CONTAINER <ChevronRight size={12} />
+                                  </div>
+                                </div>
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </ExpandedCard>
                 }
                   {expandedCard === 'git' &&
@@ -995,6 +1036,20 @@ export function ProjectBoardPage() {
                       )}
                         </div>
                       </div>
+                    </ExpandedCard>
+                }
+                  {expandedCard === 'deploy' &&
+                <ExpandedCard
+                  title="Deployment"
+                  icon={<Rocket size={18} />}
+                  color="indigo"
+                  onClose={() => setExpandedCard(null)}>
+                      <FlyDeploymentPanel 
+                        appName="the-vineyard" 
+                        region="ord" 
+                        isExpanded={true}
+                        currentBranch={selectedBranchId ? (project.branches?.find(b => b.id === selectedBranchId)?.name || 'main') : 'main'}
+                      />
                     </ExpandedCard>
                 }
                 </div>
@@ -1479,16 +1534,18 @@ export function ProjectBoardPage() {
                       </div>
                       {project.branches && project.branches.length > 0 &&
                   <div className="space-y-1">
-                          {project.branches.map((branch) =>
-                    <div
-                      key={branch.id}
-                      className="flex items-center gap-2 py-1.5 px-2 -mx-2 rounded-lg hover:bg-white/60 transition-colors group">
+                          {project.branches?.map((branch) =>
+                        <div
+                          key={branch.id}
+                          onClick={() => setSelectedBranchId(branch.id)}
+                          className={`flex items-center gap-2 py-1.5 px-2 -mx-2 rounded-lg hover:bg-white/60 transition-colors group cursor-pointer ${selectedBranchId === branch.id ? 'bg-white shadow-sm ring-1 ring-slate-200' : ''}`}>
+
 
                               <div
                         className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${branch.isDefault ? 'bg-emerald-500' : 'bg-slate-300'}`} />
 
                               <span
-                        className={`font-mono text-[11px] flex-1 truncate ${branch.isDefault ? 'font-semibold text-slate-800' : 'text-slate-600'}`}>
+                                className={`font-mono text-[11px] flex-1 truncate ${branch.isDefault ? 'font-semibold text-slate-800' : 'text-slate-600'}`}>
 
                                 {branch.name}
                               </span>
@@ -1517,6 +1574,34 @@ export function ProjectBoardPage() {
                 }
                 </div>
               </motion.div>
+
+              {/* FLY DEPLOYMENT CARD */}
+              <motion.div
+                layoutId="card-deploy"
+                className="bg-indigo-50/60 rounded-xl border border-indigo-200/60 shadow-sm overflow-hidden flex flex-col h-[320px] transition-all duration-200"
+              >
+                <div className="px-4 py-3 border-b border-indigo-100/50 flex items-center justify-between bg-indigo-50/30">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-indigo-600 text-white rounded-md">
+                      <Rocket size={14} />
+                    </div>
+                    <h2 className="font-bold text-sm text-slate-900">Fly Deployment</h2>
+                  </div>
+                  <button
+                    onClick={() => toggleExpand('deploy')}
+                    className="p-1 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-colors"
+                  >
+                    <Maximize2 size={14} />
+                  </button>
+                </div>
+                <div className="p-4 flex-1 overflow-hidden bg-white/40">
+                  <FlyDeploymentPanel 
+                    appName="the-vineyard" 
+                    region="ord" 
+                    currentBranch={selectedBranchId ? (project.branches?.find(b => b.id === selectedBranchId)?.name || 'main') : 'main'}
+                  />
+                </div>
+              </motion.div>
             </div>
           }
         </AnimatePresence>
@@ -1538,7 +1623,7 @@ function ExpandedCard({
 
 
 
-}: {title: string;icon: React.ReactNode;color: 'violet' | 'emerald' | 'fuchsia' | 'slate';onClose: () => void;children: React.ReactNode;headerContent?: React.ReactNode;}) {
+}: {title: string;icon: React.ReactNode;color: 'violet' | 'emerald' | 'fuchsia' | 'slate' | 'indigo';onClose: () => void;children: React.ReactNode;headerContent?: React.ReactNode;}) {
   const colors = {
     violet: {
       bg: 'bg-violet-50',
@@ -1559,9 +1644,12 @@ function ExpandedCard({
       iconText: 'text-fuchsia-600'
     },
     slate: {
-      bg: 'bg-slate-50',
-      border: 'border-slate-200',
-      iconBg: 'bg-slate-800',
+      iconText: 'text-white'
+    },
+    indigo: {
+      bg: 'bg-indigo-50',
+      border: 'border-indigo-200',
+      iconBg: 'bg-indigo-600',
       iconText: 'text-white'
     }
   };

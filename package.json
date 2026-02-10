@@ -11,13 +11,15 @@
     "dev:kat": "bun --filter kat-ai dev",
     "dev:habitaware": "bun --filter habitaware-ai dev",
     "dev:genius": "bun --filter genius-talent dev",
+    "dev:vineyard": "bun --filter the-vineyard dev",
     "dev:api": "bun --filter bree-ai-api dev",
-    "dev:all": "bun run dev:api & bun run dev:kat & bun run dev:habitaware & bun run dev:genius",
+    "dev:all": "bun run dev:api & bun run dev:kat & bun run dev:habitaware & bun run dev:genius & bun run dev:vineyard",
     "build:kat": "bun --filter kat-ai build",
     "build:habitaware": "bun --filter habitaware-ai build",
     "build:genius": "bun --filter genius-talent build",
+    "build:vineyard": "bun --filter the-vineyard build",
     "build:api": "bun --filter bree-ai-api build",
-    "build:all": "bun run build:api && bun run build:kat && bun run build:habitaware && bun run build:genius",
+    "build:all": "bun run build:api && bun run build:kat && bun run build:habitaware && bun run build:genius && bun run build:vineyard",
     "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules"
   },
   "devDependencies": {

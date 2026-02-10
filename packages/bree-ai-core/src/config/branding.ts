@@ -113,6 +113,23 @@ export const BRAND_CONFIGS: Record<string, BrandConfig> = {
     },
     aiName: 'Genius AI',
     poweredBy: true
+  },
+
+  'the-vineyard': {
+    name: 'the-vineyard',
+    displayName: 'The Vineyard',
+    logo: '/logos/the-vineyard.png',
+    tagline: 'Agile Project Intelligence',
+    colors: {
+      primary: '#059669',  // Emerald Green
+      accent: '#10b981',   // Light Green
+    },
+    collection: {
+      orgId: 'the-vineyard',
+      collectionId: 'the-vineyard-v1'
+    },
+    aiName: 'Vineyard AI',
+    poweredBy: true
   }
 };
 

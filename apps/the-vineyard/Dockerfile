@@ -1,32 +1,31 @@
-# Build stage
-FROM node:20-alpine AS builder
-
-# Install bun
-RUN npm install -g bun
-
+# Dockerfile for The Vineyard
+FROM oven/bun:1.3.5-alpine AS build
 WORKDIR /app
 
-# Copy workspace files
-COPY package.json bun.lock ./
-COPY packages/ ./packages/
-COPY apps/the-vineyard/ ./apps/the-vineyard/
+# Copy everything for monorepo build
+COPY . .
 
 # Install dependencies
 RUN bun install
 
-# Build the app
-WORKDIR /app/apps/the-vineyard
-RUN bun run build
+# Build The Vineyard
+RUN cd apps/the-vineyard && bun run build
 
 # Production stage
-FROM nginx:alpine
+FROM oven/bun:1.3.5-alpine
+WORKDIR /app
 
-# Copy built assets from builder
-COPY --from=builder /app/apps/the-vineyard/dist /usr/share/nginx/html
+# Copy only what's needed for production
+COPY --from=build /app/package.json /app/bun.lockb* ./
+COPY --from=build /app/apps/the-vineyard/dist ./apps/the-vineyard/dist
+COPY --from=build /app/apps/the-vineyard/server.ts ./apps/the-vineyard/server.ts
+COPY --from=build /app/node_modules ./node_modules
 
-# Copy nginx configuration
-COPY apps/the-vineyard/nginx.conf /etc/nginx/conf.d/default.conf
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
 
-EXPOSE 8080
+EXPOSE 3000
 
-CMD ["nginx", "-g", "daemon off;"]
+# Run production server
+CMD ["bun", "run", "apps/the-vineyard/server.ts"]

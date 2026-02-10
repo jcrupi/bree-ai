@@ -7,6 +7,7 @@ import { VinesPage } from './pages/VinesPage';
 import { TaskBoardPage } from './pages/TaskBoardPage';
 import { ProjectBoardPage } from './pages/ProjectBoardPage';
 import { FastTrackDashboard } from './pages/FastTrackDashboard';
+import { KnowledgePage } from './pages/KnowledgePage';
 import { AILensProvider, useAILens } from './hooks/useAILens';
 import { AILensMenu } from './components/AILensMenu';
 import { AILensOverlay } from './components/AILensOverlay';
@@ -53,6 +54,8 @@ export function App() {
           <Route path="/task" element={<TaskBoardPage />} />
           <Route path="/task/:taskId" element={<TaskBoardPage />} />
           <Route path="/project/:projectId" element={<ProjectBoardPage />} />
+          <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/project/:projectId/knowledge" element={<KnowledgePage />} />
         </Routes>
       </AILensProvider>
     </Router>);

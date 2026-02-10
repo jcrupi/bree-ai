@@ -238,6 +238,36 @@ const areas = {
   },
 };
 
+// ─── Knowledge API ─────────────────────────────────────────
+const knowledge = {
+  search: async (query: string, options?: { topK?: number; min_score?: number }) => {
+    try {
+      const { data, error } = await api.api.vineyard.knowledge.search.post({
+        query,
+        topK: options?.topK,
+        min_score: options?.min_score
+      });
+      if (error) return { data: null, error };
+      return { data: (data as any).results || [], error: null };
+    } catch (e) {
+      return { data: null, error: (e as Error).message };
+    }
+  },
+
+  chat: async (messages: Array<{ role: string; content: string }>, options?: any) => {
+    try {
+      const { data, error } = await api.api.vineyard.knowledge.chat.post({
+        messages,
+        options
+      });
+      if (error) return { data: null, error };
+      return { data, error: null };
+    } catch (e) {
+      return { data: null, error: (e as Error).message };
+    }
+  },
+};
+
 // ─── Export Eden-Style Client ──────────────────────────────
 export const client = {
   api: {
@@ -246,5 +276,6 @@ export const client = {
     vineyardAgents,
     lenses,
     areas,
+    knowledge,
   },
 };

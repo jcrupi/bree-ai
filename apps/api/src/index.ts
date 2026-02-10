@@ -881,24 +881,69 @@ export const app = new Elysia()
           category: t.String()
         })
       })
-      .post('/:id/analyze', async ({ params: { id }, body }) => {
-        // This would integrate with AgentX for actual analysis
-        return {
-          success: true,
-          analysis: {
-            id: crypto.randomUUID(),
-            lensId: id,
-            targetType: body.targetType,
-            targetId: body.targetId,
-            status: 'complete',
-            result: 'Analysis complete',
-            summary: 'Mock analysis result',
-            severity: 'info',
-            actionItems: [],
-            createdAt: new Date().toISOString(),
-            durationMs: 100
+      .post('/:id/analyze', async ({ params: { id }, body, headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+
+        try {
+          const startTime = Date.now();
+
+          // Call AgentX Collective for AI analysis
+          const agentxResponse = await fetch(`${AGENTX_URL}/api/collective/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [
+                {
+                  role: 'system',
+                  content: body.systemPrompt || 'You are an AI lens analyzing project data. Provide actionable insights.'
+                },
+                {
+                  role: 'user',
+                  content: `Analyze the following ${body.targetType}: ${JSON.stringify(body.contextData)}`
+                }
+              ],
+              userEmail: payload.email || 'vineyard@bree.ai',
+              orgSlug: 'the-vineyard',
+              options: { stream: false }
+            })
+          });
+
+          if (!agentxResponse.ok) {
+            throw new Error(`AgentX request failed: ${agentxResponse.statusText}`);
           }
-        };
+
+          const agentxData = await agentxResponse.json();
+          const analysisText = agentxData.content || agentxData.message || 'Analysis completed';
+
+          // Parse action items from the response
+          const actionItems = analysisText.match(/[-•]\s+(.+)/g)?.map((item: string) =>
+            item.replace(/^[-•]\s+/, '').trim()
+          ) || [];
+
+          return {
+            success: true,
+            analysis: {
+              id: crypto.randomUUID(),
+              lensId: id,
+              targetType: body.targetType,
+              targetId: body.targetId,
+              status: 'complete',
+              result: analysisText,
+              summary: analysisText.substring(0, 200) + '...',
+              severity: 'info',
+              actionItems: actionItems.slice(0, 5),
+              createdAt: new Date().toISOString(),
+              durationMs: Date.now() - startTime
+            }
+          };
+        } catch (error: any) {
+          console.error('AI Lens analysis error:', error);
+          return {
+            success: false,
+            error: error.message || 'Analysis failed'
+          };
+        }
       }, {
         body: t.Object({
           targetType: t.String(),
@@ -918,6 +963,92 @@ export const app = new Elysia()
       })
       .get('/', async () => {
         return { success: true, areas: [] };
+      })
+  )
+
+  // Vineyard Knowledge Search (Ragster Integration)
+  .group('/api/vineyard/knowledge', (app) =>
+    app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
+      .post('/search', async ({ body }) => {
+        try {
+          // Search Ragster for project-related knowledge
+          const res = await fetch(`${RAGSTER_API_URL}/search`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-org-id': 'the-vineyard'
+            },
+            body: JSON.stringify({
+              query: body.query,
+              collection: body.collection || 'the-vineyard-v1',
+              topK: body.topK || 5,
+              min_score: body.min_score || 0.7,
+              org_id: 'the-vineyard'
+            })
+          });
+
+          if (!res.ok) {
+            throw new Error(`Ragster search failed: ${res.statusText}`);
+          }
+
+          const data = await res.json();
+          return { success: true, results: data.results || [] };
+        } catch (error: any) {
+          console.error('Knowledge search error:', error);
+          return {
+            success: false,
+            error: error.message || 'Search failed',
+            results: []
+          };
+        }
+      }, {
+        body: t.Object({
+          query: t.String(),
+          collection: t.Optional(t.String()),
+          topK: t.Optional(t.Number()),
+          min_score: t.Optional(t.Number())
+        })
+      })
+      .post('/chat', async ({ body }) => {
+        try {
+          // Use Ragster chat for context-aware Q&A
+          const res = await fetch(`${RAGSTER_API_URL}/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-org-id': 'the-vineyard'
+            },
+            body: JSON.stringify({
+              messages: body.messages,
+              org_id: 'the-vineyard',
+              options: body.options
+            })
+          });
+
+          if (!res.ok) {
+            throw new Error(`Ragster chat failed: ${res.statusText}`);
+          }
+
+          return res.json();
+        } catch (error: any) {
+          console.error('Knowledge chat error:', error);
+          return {
+            success: false,
+            error: error.message || 'Chat failed'
+          };
+        }
+      }, {
+        body: t.Object({
+          messages: t.Array(t.Object({
+            role: t.String(),
+            content: t.String()
+          })),
+          options: t.Optional(t.Any())
+        })
       })
   );
 

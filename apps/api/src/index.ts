@@ -3,8 +3,8 @@ import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 import { jwt } from '@elysiajs/jwt';
 import { getNatsService, type AgentMessage } from './nats';
-import { authService, seedDatabase, type JWTPayload } from './auth';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { authService, seedDatabase, type JWTPayload, bubbleDb } from './auth';
+import { mkdir, writeFile, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import crypto from 'node:crypto';
 
@@ -672,6 +672,252 @@ export const app = new Elysia()
           description: t.String(),
           metadata: t.Optional(t.Any())
         })
+      })
+      .get('/', async ({ headers, jwt, set }) => {
+        try {
+          const payload = await requireAuth(headers, jwt, set);
+          if (!payload) return { error: 'Unauthorized' };
+
+          await ensureFeedbackDir();
+          const files = await readdir(FEEDBACK_DIR);
+          const feedbackFiles = files.filter(f => f.endsWith('.json'));
+          
+          const feedbacks = await Promise.all(
+            feedbackFiles.map(async (file) => {
+              const content = await readFile(join(FEEDBACK_DIR, file), 'utf-8');
+              return {
+                filename: file,
+                ...JSON.parse(content)
+              };
+            })
+          );
+          
+          // Sort by receivedAt descending
+          return feedbacks.sort((a, b) => 
+            new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
+          );
+        } catch (error: any) {
+          console.error('Failed to list feedback:', error);
+          set.status = 500;
+          return { success: false, error: error.message || 'Failed to list feedback' };
+        }
+      })
+      .get('/:filename', async ({ params: { filename }, headers, jwt, set }) => {
+        try {
+          const payload = await requireAuth(headers, jwt, set);
+          if (!payload) return { error: 'Unauthorized' };
+
+          const filepath = join(FEEDBACK_DIR, filename);
+          const content = await readFile(filepath, 'utf-8');
+          return JSON.parse(content);
+        } catch (error: any) {
+          console.error(`Failed to read feedback file ${filename}:`, error);
+          set.status = 404;
+          return { success: false, error: 'Feedback file not found' };
+        }
+      })
+  )
+  
+  // Bubbles Management Group
+  .group('/api/bubbles', (app) =>
+    app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
+      .get('/:brandId', async ({ params: { brandId } }) => {
+        return bubbleDb.findAllByBrand(brandId);
+      })
+      .post('/', async ({ body }) => {
+        return bubbleDb.create(body.brandId, body.text, body.instructions);
+      }, {
+        body: t.Object({
+          brandId: t.String(),
+          text: t.String(),
+          instructions: t.Optional(t.String())
+        })
+      })
+      .patch('/:id', async ({ params: { id }, body }) => {
+        bubbleDb.update(Number(id), body);
+        return { success: true };
+      }, {
+        body: t.Object({
+          text: t.Optional(t.String()),
+          active: t.Optional(t.Boolean()),
+          instructions: t.Optional(t.String())
+        })
+      })
+      .delete('/:id', async ({ params: { id } }) => {
+        bubbleDb.delete(Number(id));
+        return { success: true };
+      })
+  )
+
+  // Vineyard Projects Group
+  .group('/api/projects', (app) =>
+    app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
+      .get('/', async () => {
+        // Proxy to AgentX or return mock data
+        // For now, returning empty array - implement storage later
+        return { success: true, projects: [] };
+      })
+      .get('/:id', async ({ params: { id } }) => {
+        return { success: true, project: null };
+      })
+      .post('/', async ({ body }) => {
+        return { success: true, project: body };
+      }, {
+        body: t.Object({
+          name: t.String(),
+          description: t.Optional(t.String()),
+          color: t.String(),
+          icon: t.String(),
+          repoUrl: t.Optional(t.String())
+        })
+      })
+      .patch('/:id', async ({ params: { id }, body }) => {
+        return { success: true };
+      }, {
+        body: t.Object({
+          name: t.Optional(t.String()),
+          description: t.Optional(t.String()),
+          color: t.Optional(t.String()),
+          icon: t.Optional(t.String())
+        })
+      })
+      .delete('/:id', async ({ params: { id } }) => {
+        return { success: true };
+      })
+  )
+
+  // Vineyard Tasks Group
+  .group('/api/tasks', (app) =>
+    app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
+      .get('/', async ({ query: { projectId } }) => {
+        return { success: true, tasks: [] };
+      }, {
+        query: t.Object({
+          projectId: t.Optional(t.String())
+        })
+      })
+      .get('/:id', async ({ params: { id } }) => {
+        return { success: true, task: null };
+      })
+      .post('/', async ({ body }) => {
+        return { success: true, task: body };
+      }, {
+        body: t.Object({
+          title: t.String(),
+          description: t.Optional(t.String()),
+          status: t.String(),
+          priority: t.String(),
+          projectId: t.String(),
+          areaId: t.String(),
+          assigneeId: t.String(),
+          specialties: t.Optional(t.Array(t.String()))
+        })
+      })
+      .patch('/:id', async ({ params: { id }, body }) => {
+        return { success: true };
+      }, {
+        body: t.Object({
+          title: t.Optional(t.String()),
+          description: t.Optional(t.String()),
+          status: t.Optional(t.String()),
+          priority: t.Optional(t.String()),
+          projectId: t.Optional(t.String())
+        })
+      })
+      .delete('/:id', async ({ params: { id } }) => {
+        return { success: true };
+      })
+  )
+
+  // Vineyard Agents Group
+  .group('/api/vineyard/agents', (app) =>
+    app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
+      .get('/', async () => {
+        return { success: true, agents: [] };
+      })
+      .get('/:id', async ({ params: { id } }) => {
+        return { success: true, agent: null };
+      })
+  )
+
+  // Vineyard AI Lenses Group
+  .group('/api/lenses', (app) =>
+    app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
+      .get('/', async () => {
+        return { success: true, lenses: [] };
+      })
+      .get('/:id', async ({ params: { id } }) => {
+        return { success: true, lens: null };
+      })
+      .post('/', async ({ body }) => {
+        return { success: true, lens: body };
+      }, {
+        body: t.Object({
+          name: t.String(),
+          icon: t.String(),
+          color: t.String(),
+          description: t.String(),
+          systemPrompt: t.String(),
+          category: t.String()
+        })
+      })
+      .post('/:id/analyze', async ({ params: { id }, body }) => {
+        // This would integrate with AgentX for actual analysis
+        return {
+          success: true,
+          analysis: {
+            id: crypto.randomUUID(),
+            lensId: id,
+            targetType: body.targetType,
+            targetId: body.targetId,
+            status: 'complete',
+            result: 'Analysis complete',
+            summary: 'Mock analysis result',
+            severity: 'info',
+            actionItems: [],
+            createdAt: new Date().toISOString(),
+            durationMs: 100
+          }
+        };
+      }, {
+        body: t.Object({
+          targetType: t.String(),
+          targetId: t.String(),
+          projectId: t.Optional(t.String()),
+          contextData: t.Optional(t.Any())
+        })
+      })
+  )
+
+  // Vineyard Areas Group
+  .group('/api/areas', (app) =>
+    app
+      .onBeforeHandle(async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+      })
+      .get('/', async () => {
+        return { success: true, areas: [] };
       })
   );
 

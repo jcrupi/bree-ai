@@ -15,13 +15,16 @@ interface UseVillageVineOptions {
   onError?: (error: Error) => void;
 }
 
+// Get API URL from environment variable
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 /**
  * Custom hook for real-time Village Vine messaging using NATS
  * Connects to the backend API and subscribes to message streams
  */
 export function useVillageVine({
   vineId,
-  apiUrl = '/api/village',
+  apiUrl = `${API_BASE_URL}/api/village`,
   onMessage,
   onError
 }: UseVillageVineOptions) {

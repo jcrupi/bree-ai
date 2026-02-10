@@ -10,7 +10,7 @@ COPY apps/api/package.json ./apps/api/
 COPY apps/genius-talent/package.json ./apps/genius-talent/
 COPY apps/kat-ai/package.json ./apps/kat-ai/
 COPY apps/habitaware-ai/package.json ./apps/habitaware-ai/
-COPY apps/keen-ai/package.json ./apps/keen-ai/
+COPY apps/the-vineyard/package.json ./apps/the-vineyard/
 
 # Install dependencies (utilizing cache)
 RUN bun install

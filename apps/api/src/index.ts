@@ -697,33 +697,60 @@ export const app = new Elysia()
         })
       })
       // Real-time message stream via SSE
-      .get('/:id/events', async function* ({ params: { id }, request }) {
-        const nats = await getNatsService();
-        
-        // Send initial connection event
-        yield `data: ${JSON.stringify({ type: 'connected', vineId: id })}\n\n`;
-        
-        // Subscribe to messages for this vine
-        const unsubscribe = await nats.subscribe(
-          `village.vine.${id}.messages`,
-          (message) => {
-            // This will be called for each message, but we can't yield from here
-            // We'll use a different approach below
-          }
-        );
-        
+      .get('/:id/events', async function* ({ params: { id }, request, set }) {
         try {
-          // Keep connection alive and listen for messages
-          // In a production setup, you'd use a proper SSE library or message queue
-          // For now, we'll send keepalive pings
-          let keepAliveCount = 0;
-          while (keepAliveCount < 3600) { // 1 hour max
-            await new Promise(resolve => setTimeout(resolve, 30000)); // 30 second keepalive
-            yield `: keepalive\n\n`;
-            keepAliveCount++;
+          const nats = await getNatsService();
+          
+          // Set SSE headers
+          set.headers['Content-Type'] = 'text/event-stream';
+          set.headers['Cache-Control'] = 'no-cache';
+          set.headers['Connection'] = 'keep-alive';
+          
+          // Send initial connection event
+          yield `data: ${JSON.stringify({ type: 'connected', vineId: id })}\n\n`;
+          
+          // Create a message queue for this connection
+          const messageQueue: any[] = [];
+          let isSubscribed = true;
+          
+          // Subscribe to messages for this vine
+          const unsubscribe = await nats.subscribe(
+            `village.vine.${id}.messages`,
+            (message) => {
+              // Add message to queue
+              messageQueue.push({
+                type: 'message',
+                ...message
+              });
+            }
+          );
+          
+          try {
+            // Stream messages from queue
+            let keepAliveCount = 0;
+            const maxKeepAlives = 120; // 1 hour with 30s intervals
+            
+            while (keepAliveCount < maxKeepAlives && isSubscribed) {
+              // Send any queued messages
+              while (messageQueue.length > 0) {
+                const msg = messageQueue.shift();
+                yield `data: ${JSON.stringify(msg)}\n\n`;
+              }
+              
+              // Send keepalive ping
+              yield `: keepalive\n\n`;
+              
+              // Wait before next iteration
+              await new Promise(resolve => setTimeout(resolve, 30000)); // 30 seconds
+              keepAliveCount++;
+            }
+          } finally {
+            isSubscribed = false;
+            unsubscribe();
           }
-        } finally {
-          unsubscribe();
+        } catch (error: any) {
+          console.error('SSE error:', error);
+          yield `data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`;
         }
       })
       // Get messages for a vine (polling alternative to SSE)

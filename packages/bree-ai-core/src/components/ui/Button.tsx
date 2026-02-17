@@ -25,25 +25,25 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      'inline-flex items-center justify-center font-medium transition-all duration-200 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2 focus-visible:ring-offset-dark-950 disabled:opacity-50 disabled:cursor-not-allowed'
+      'inline-flex items-center justify-center font-bold transition-all duration-300 rounded-[2rem] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2 focus-visible:ring-offset-dark-950 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest'
 
     const variants = {
       primary:
-        'bg-brand-orange text-black hover:bg-brand-orange-dark active:bg-brand-orange-dark shadow-lg hover:shadow-brand-orange/25',
+        'bg-brand-orange text-white hover:bg-brand-orange-dark active:scale-95 shadow-xl shadow-brand-orange/20 hover:shadow-brand-orange/40',
       secondary:
-        'bg-dark-700 text-dark-100 hover:bg-dark-600 active:bg-dark-500 border border-dark-600',
+        'bg-dark-700 text-dark-100 hover:bg-dark-600 active:scale-95 border border-white/10',
       outline:
-        'bg-transparent text-brand-orange border-2 border-brand-orange hover:bg-brand-orange hover:text-black',
+        'bg-transparent text-brand-orange border-2 border-brand-orange hover:bg-brand-orange hover:text-white active:scale-95',
       ghost:
-        'bg-transparent text-dark-300 hover:text-dark-100 hover:bg-dark-800',
+        'bg-transparent text-dark-300 hover:text-brand-orange hover:bg-white/5 active:scale-95',
       danger:
-        'bg-error text-black hover:bg-red-600 active:bg-red-700',
+        'bg-error text-white hover:bg-red-600 active:scale-95',
     }
 
     const sizes = {
-      sm: 'px-3 py-1.5 text-sm gap-1.5',
-      md: 'px-4 py-2 text-sm gap-2',
-      lg: 'px-6 py-3 text-base gap-2',
+      sm: 'px-4 py-2 text-[10px] gap-2',
+      md: 'px-6 py-3 text-xs gap-2',
+      lg: 'px-10 py-5 text-sm gap-3',
     }
 
     return (

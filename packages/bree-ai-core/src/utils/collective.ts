@@ -1,9 +1,6 @@
-/**
- * The Collective Utility
- * All KAT.ai calls should ideally route through this orchestrator.
- */
+import { safeEnv } from './env';
 
-const COLLECTIVE_URL = import.meta.env.VITE_AGENTX_URL || import.meta.env.VITE_COLLECTIVE_URL || 'http://localhost:9000';
+const COLLECTIVE_URL = safeEnv('VITE_AGENTX_URL', safeEnv('VITE_COLLECTIVE_URL', 'http://localhost:9000'));
 
 // Direct import to bypass collective hub issues for testing
 import { generateChatResponse } from './ragster';

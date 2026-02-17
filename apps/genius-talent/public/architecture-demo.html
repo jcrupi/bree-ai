@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genius Architecture</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #030712; /* dark-950 */
+            font-family: 'Inter', system-ui, sans-serif;
+            color: white;
+            overflow: hidden;
+            perspective: 1000px;
+        }
+
+        .stage {
+            position: relative;
+            width: 1000px;
+            height: 600px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            align-items: center;
+            justify-items: center;
+        }
+
+        /* NODES */
+        .node {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            width: 200px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            position: relative;
+            transition: all 0.5s ease;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .node h3 {
+            margin: 0 0 8px 0;
+            font-size: 1rem;
+            color: #d1d5db;
+        }
+
+        .node p {
+            margin: 0;
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+
+        .icon {
+            font-size: 2rem;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        /* CORE */
+        .core-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .core {
+            width: 120px;
+            height: 120px;
+            background: radial-gradient(circle, #f97316 0%, #ec4899 100%);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 60px rgba(249, 115, 22, 0.4);
+            z-index: 10;
+            animation: pulse 3s infinite;
+        }
+
+        .core-icon {
+            font-size: 3rem;
+            color: white;
+        }
+
+        .orbit {
+            position: absolute;
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            animation: rotate 20s linear infinite;
+        }
+
+        .orbit-1 { width: 200px; height: 200px; border-color: rgba(249, 115, 22, 0.3); animation-duration: 15s; }
+        .orbit-2 { width: 280px; height: 280px; border-color: rgba(236, 72, 153, 0.3); animation-duration: 25s; animation-direction: reverse; }
+
+        /* CONNECTIONS */
+        .connection {
+            position: absolute;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #f97316, transparent);
+            width: 0;
+            transition: width 1s ease;
+            opacity: 0.5;
+            top: 50%;
+        }
+
+        .connection-left {
+            right: 50%;
+            transform-origin: right;
+        }
+        
+        .connection-right {
+            left: 50%;
+            transform-origin: left;
+        }
+
+        /* ANIMATION STATES */
+        .show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .active {
+            border-color: #f97316;
+            box-shadow: 0 0 20px rgba(249, 115, 22, 0.2);
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #fff;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 40px rgba(249, 115, 22, 0.4); }
+            50% { transform: scale(1.1); box-shadow: 0 0 80px rgba(249, 115, 22, 0.6); }
+            100% { transform: scale(1); box-shadow: 0 0 40px rgba(249, 115, 22, 0.4); }
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes flowLeft {
+            0% { left: 10%; opacity: 0; }
+            50% { opacity: 1; }
+            100% { left: 40%; opacity: 0; }
+        }
+
+        @keyframes flowRight {
+            0% { left: 60%; opacity: 0; }
+            50% { opacity: 1; }
+            100% { left: 90%; opacity: 0; }
+        }
+        
+        /* LAYOUT */
+        .input-column { display: flex; flex-direction: column; gap: 40px; }
+        .output-column { display: flex; flex-direction: column; gap: 40px; }
+
+        /* TITLE */
+        .title-overlay {
+            position: absolute;
+            top: 40px;
+            text-align: center;
+            width: 100%;
+        }
+        .title-overlay h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            background: linear-gradient(to right, #fff, #9ca3af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .title-overlay p {
+            color: #6b7280;
+            margin-top: 10px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="title-overlay">
+        <h1>Genius Architecture</h1>
+        <p>How AgentX Powers Intelligent Hiring</p>
+    </div>
+
+    <div class="stage">
+        <!-- LEFT: INPUTS -->
+        <div class="input-column">
+            <div class="node" id="node-config">
+                <span class="icon">⚙️</span>
+                <h3>Admin Config</h3>
+                <p>Recruiter defines specialities (e.g. Java, DevOps)</p>
+            </div>
+            <div class="node" id="node-knowledge">
+                <span class="icon">📚</span>
+                <h3>AgentX Knowledge</h3>
+                <p>Ingests "Agent Notes" & Best Practices</p>
+            </div>
+        </div>
+
+        <!-- CENTER: CORE -->
+        <div class="core-container">
+            <div class="orbit orbit-1"></div>
+            <div class="orbit orbit-2"></div>
+            <div class="core">
+                <span class="core-icon">🧠</span>
+            </div>
+            
+            <!-- Dynamic Particles Container -->
+            <div id="particles"></div>
+        </div>
+
+        <!-- RIGHT: OUTPUTS -->
+        <div class="output-column">
+            <div class="node" id="node-assessment">
+                <span class="icon">💬</span>
+                <h3>Dynamic Interview</h3>
+                <p>Context-aware AI questions in real-time</p>
+            </div>
+            <div class="node" id="node-scoring">
+                <span class="icon">📊</span>
+                <h3>Live Scoring</h3>
+                <p>Instant analysis of candidate skills</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Animation Sequence
+        const sequence = async () => {
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+            // 1. Show Config Input
+            await sleep(500);
+            document.getElementById('node-config').classList.add('show');
+            await sleep(500);
+            document.getElementById('node-config').classList.add('active');
+            
+            // 2. Show Knowledge Input
+            await sleep(800);
+            document.getElementById('node-knowledge').classList.add('show');
+            await sleep(500);
+            document.getElementById('node-knowledge').classList.add('active');
+
+            // 3. Process to Core (visualize data flow)
+            await sleep(1000);
+            createParticles('left');
+            
+            // 4. Core Processing Intensifies
+            await sleep(1500);
+            
+            // 5. Output Construction
+            document.getElementById('node-assessment').classList.add('show');
+            createParticles('right');
+            await sleep(500);
+            document.getElementById('node-assessment').classList.add('active');
+
+            // 6. Scoring
+            await sleep(1000);
+            document.getElementById('node-scoring').classList.add('show');
+            await sleep(500);
+            document.getElementById('node-scoring').classList.add('active');
+        };
+
+        function createParticles(direction) {
+            const container = document.getElementById('particles');
+            const count = 20;
+            
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => {
+                    const p = document.createElement('div');
+                    p.className = 'particle';
+                    
+                    if (direction === 'left') {
+                        // Move config -> core
+                        p.style.left = '-300px'; 
+                        p.style.top = (Math.random() * 100 - 50) + 'px';
+                        p.animate([
+                            { transform: 'translate(0, 0)', opacity: 1 },
+                            { transform: 'translate(300px, 0)', opacity: 0 }
+                        ], {
+                            duration: 1000 + Math.random() * 500,
+                            easing: 'ease-in'
+                        });
+                    } else {
+                        // Move core -> output
+                        p.style.left = '0';
+                        p.style.top = '0';
+                        p.animate([
+                            { transform: 'translate(0, 0)', opacity: 1 },
+                            { transform: 'translate(300px, ' + (Math.random() * 200 - 100) + 'px)', opacity: 0 }
+                        ], {
+                            duration: 1000 + Math.random() * 500,
+                            easing: 'ease-out'
+                        });
+                    }
+                    
+                    container.appendChild(p);
+                    setTimeout(() => p.remove(), 1500);
+                }, i * 100);
+            }
+        }
+
+        // Start
+        window.onload = sequence;
+    </script>
+</body>
+</html>

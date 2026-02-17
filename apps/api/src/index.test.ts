@@ -23,11 +23,9 @@ describe('BREE AI Gateway', () => {
     // Note: These endpoints call external services, so in a real CI environment
     // we would mock the fetch calls. For now, we are testing the routing/validation.
     
-    it('should return 200 for collections (even if external service fails, route is valid)', async () => {
-      // This might fail if the external service is down and not handled, 
-      // but we are testing that Elysia routes it correctly.
+    it('should return 401 for collections when unauthenticated (route exists, auth required)', async () => {
       const response = await app.handle(new Request('http://localhost/api/knowledge/collections?org_id=test'));
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(401);
     });
   });
 });

@@ -20,6 +20,8 @@ import {
 import { TEAM_MEMBERS } from '../data/teamMembers';
 import { useVillageVine } from '../hooks/useVillageVine';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 interface VillageMessage {
   id: string;
   sender: string;
@@ -29,8 +31,10 @@ interface VillageMessage {
 }
 
 export function VillageVinesPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const inviteeName = searchParams.get('invitee');
+  const sharedVineId = searchParams.get('vineId') || searchParams.get('id');
+  
   
   const [inputText, setInputText] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -38,17 +42,31 @@ export function VillageVinesPage() {
   const [inviteName, setInviteName] = useState('');
   const [generatedLink, setGeneratedLink] = useState('');
   const [activeVineId, setActiveVineId] = useState<string | null>(null);
-  const [currentUser] = useState('You'); // In a real app, get from auth context
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [currentUser] = useState(inviteeName || 'You');
+
+  // SMS Integration
+  const [invitePhoneNumber, setInvitePhoneNumber] = useState('');
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [smsStatus, setSmsStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   
   // Real NATS integration
+  const handleNatsMessage = React.useCallback((msg: any) => {
+    console.log('📨 Received NATS message:', msg);
+  }, []);
+
+  const handleNatsError = React.useCallback((err: Error) => {
+    console.error('🔥 NATS error:', err);
+    if (err.message.includes('not invited') || err.message.includes('already active')) {
+      alert(err.message);
+    }
+  }, []);
+
   const { isConnected, messages: natsMessages, sendMessage, createVine } = useVillageVine({
     vineId: activeVineId,
-    onMessage: (msg) => {
-      console.log('📨 Received NATS message:', msg);
-    },
-    onError: (err) => {
-      console.error('🔥 NATS error:', err);
-    }
+    userName: currentUser,
+    onMessage: handleNatsMessage,
+    onError: handleNatsError
   });
 
   // Transform NATS messages to include isMe flag
@@ -61,12 +79,21 @@ export function VillageVinesPage() {
 
   useEffect(() => {
     if (inviteeName && !activeVineId) {
-      // Auto-create vine when invitee joins via link
-      setTopic(`Chat with ${inviteeName}`);
-      const vineId = `village-demo-${Date.now()}`;
-      setActiveVineId(vineId);
+      if (sharedVineId) {
+        // Use the shared vine ID from the URL
+        setActiveVineId(sharedVineId);
+        setTopic(`Chat with ${inviteeName}`);
+      } else {
+        // Fallback: Create demo vine when joining via legacy/simple link
+        setTopic(`Chat with ${inviteeName}`);
+        const vineId = `village-demo-${Date.now()}`;
+        setActiveVineId(vineId);
+      }
+    } else if (sharedVineId && !activeVineId) {
+      // Direct link via ID
+      setActiveVineId(sharedVineId);
     }
-  }, [inviteeName, activeVineId]);
+  }, [inviteeName, sharedVineId, activeVineId]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -78,11 +105,11 @@ export function VillageVinesPage() {
     if (!topic || !inviteName) return;
     
     try {
-      // Real NATS vine creation
-      const result = await createVine(topic, [inviteName]);
+      // Real NATS vine creation - include creator in the invited list
+      const result = await createVine(topic, [currentUser, inviteName]);
       
-      // Generate Invite Link
-      const link = `${window.location.origin}/village-vine?invitee=${encodeURIComponent(inviteName)}`;
+      // Generate Invite Link with the actual vineId
+      const link = `${window.location.origin}/village-vine?invitee=${encodeURIComponent(inviteName)}&vineId=${result.vineId}`;
       setGeneratedLink(link);
       setIsCreating(false);
       setActiveVineId(result.vineId);
@@ -110,6 +137,64 @@ export function VillageVinesPage() {
     }
   };
 
+  const handleSendSms = async () => {
+    if (!invitePhoneNumber || !generatedLink) return;
+    
+    setIsSendingSms(true);
+    setSmsStatus('sending');
+    
+    try {
+      // Fix: Correct API URL for SMS endpoint
+      const response = await fetch(`${API_BASE_URL}/api/village/send-invite-sms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          phoneNumber: invitePhoneNumber,
+          link: generatedLink,
+          topic: topic,
+          name: inviteName
+        })
+      });
+
+      
+      const result = await response.json();
+      if (result.success) {
+        setSmsStatus('sent');
+        setTimeout(() => setSmsStatus('idle'), 3000);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Failed to send SMS:', error);
+      setSmsStatus('error');
+      alert('Failed to send SMS invite.');
+    } finally {
+      setIsSendingSms(false);
+    }
+  };
+
+  const handleLookupContact = async (phone: string) => {
+    if (!phone || phone.length < 10) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL.replace('/village', '')}/village/contacts/lookup?phone=${encodeURIComponent(phone)}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const result = await response.json();
+      if (result.success && result.contact) {
+        setInviteName(result.contact.name);
+      }
+    } catch (error) {
+      console.error('Contact lookup failed:', error);
+    }
+  };
+
+
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedLink);
     alert('Invite link copied to clipboard!');
@@ -132,24 +217,40 @@ export function VillageVinesPage() {
             <Activity size={12} className={isConnected ? 'animate-pulse' : ''} />
             NATS: {isConnected ? 'Connected' : 'Disconnected'}
           </div>
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+            <Users size={12} />
+            As: {currentUser}
+          </div>
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-bold text-indigo-400 uppercase tracking-widest">
             <Shield size={12} />
             Secure Tunnel
           </div>
         </div>
       </nav>
+      
 
-      <main className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: Active Village Vines */}
-        <div className="w-80 border-r border-emerald-900/20 bg-[#0f0e0f] p-6 flex flex-col gap-6">
+      <main className="flex-1 flex overflow-hidden relative">
+        {/* Left Sidebar: Active Village Vines - Responsive Toggle */}
+        <div className={`
+          absolute inset-y-0 left-0 z-40 w-80 border-r border-emerald-900/20 bg-[#0f0e0f] p-6 flex flex-col gap-6 transform transition-transform duration-300 md:relative md:translate-x-0
+          ${showSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}>
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-emerald-500 uppercase tracking-[0.2em]">Village Vines</h2>
-            <button 
-              onClick={() => setIsCreating(true)}
-              className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
-            >
-              <Plus size={16} />
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setIsCreating(true)}
+                className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20"
+              >
+                <Plus size={16} />
+              </button>
+              <button 
+                onClick={() => setShowSidebar(false)}
+                className="md:hidden p-1.5 bg-slate-800 text-slate-400 rounded-lg"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -194,14 +295,51 @@ export function VillageVinesPage() {
                 />
                 <button 
                   onClick={copyToClipboard}
-                  className="p-1.5 hover:bg-indigo-500/20 rounded-lg transition-colors text-indigo-400"
+                  className="p-1.5 hover:bg-emerald-500/20 rounded-lg transition-colors text-emerald-400"
+                  title="Copy Link"
                 >
                   <LinkIcon size={14} />
                 </button>
               </div>
+
+              <div className="space-y-2 pt-2 border-t border-emerald-900/20">
+                <div className="flex items-center gap-2 text-emerald-500/60 pb-1">
+                  <Send size={12} />
+                  <span className="text-[10px] font-bold uppercase tracking-wider">SMS Invitation</span>
+                </div>
+                <div className="flex items-center gap-2 bg-black/40 p-2 rounded-xl border border-emerald-900/10 focus-within:border-emerald-500/50 transition-all">
+                  <input 
+                    placeholder="+12223334444" 
+                    value={invitePhoneNumber}
+                    onChange={(e) => {
+                      setInvitePhoneNumber(e.target.value);
+                      if (e.target.value.length >= 10) handleLookupContact(e.target.value);
+                    }}
+                    className="flex-1 bg-transparent border-none text-[10px] font-mono text-emerald-300 focus:ring-0 placeholder:text-emerald-900/30" 
+                  />
+                  <button 
+                    onClick={handleSendSms}
+                    disabled={isSendingSms || !invitePhoneNumber || !inviteName}
+                    title={!inviteName ? "Enter invitee name first" : "Send SMS"}
+                    className={`p-1.5 rounded-lg transition-all ${
+                      smsStatus === 'sent' ? 'bg-emerald-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                    } disabled:opacity-30`}
+                  >
+                    {smsStatus === 'sending' ? (
+                      <Activity size={12} className="animate-spin" />
+                    ) : smsStatus === 'sent' ? (
+                      <Check size={12} />
+                    ) : (
+                      <Rocket size={12} />
+                    )}
+                  </button>
+                </div>
+              </div>
+
               <p className="text-[10px] text-indigo-300/60 italic text-center">NATS session expires in 24h</p>
             </div>
           )}
+
         </div>
 
         {/* Chat Area */}
@@ -209,12 +347,18 @@ export function VillageVinesPage() {
           {activeVineId ? (
             <>
               {/* Chat Header */}
-              <div className="h-14 px-8 border-b border-emerald-900/10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
-                  <span className="text-sm font-bold text-slate-100">{topic}</span>
+              <div className="h-14 px-4 md:px-8 border-b border-emerald-900/10 flex items-center justify-between bg-[#0a090a]/50 backdrop-blur-sm sticky top-0 z-30">
+                <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
+                  <button 
+                    onClick={() => setShowSidebar(true)}
+                    className="md:hidden p-2 -ml-2 text-emerald-500 hover:text-emerald-400"
+                  >
+                    <Plus size={20} />
+                  </button>
+                  <div className={`flex-shrink-0 w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'}`} />
+                  <span className="text-sm font-bold text-slate-100 truncate">{topic}</span>
                   {isConnected && (
-                    <span className="text-[9px] text-emerald-500/60 font-bold uppercase tracking-widest">● LIVE</span>
+                    <span className="hidden sm:inline text-[9px] text-emerald-500/60 font-bold uppercase tracking-widest flex-shrink-0">● LIVE</span>
                   )}
                 </div>
                 <div className="flex items-center gap-4">
@@ -227,21 +371,21 @@ export function VillageVinesPage() {
               </div>
 
               {/* Messages Container */}
-              <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 custom-scrollbar">
                 {messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[70%] group ${msg.isMe ? 'items-end' : 'items-start'} flex flex-col gap-1.5`}>
+                    <div className={`max-w-[85%] md:max-w-[70%] group ${msg.isMe ? 'items-end' : 'items-start'} flex flex-col gap-1.5`}>
                       <div className="flex items-center gap-3 mx-1">
                         {!msg.isMe && <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">{msg.sender}</span>}
                         <span className="text-[9px] text-slate-500">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        {msg.isMe && <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">You</span>}
+                        {msg.isMe && <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">{msg.sender}</span>}
                       </div>
                       <div className={`px-4 py-3 rounded-2xl shadow-xl transition-all ${
                         msg.isMe 
                           ? 'bg-indigo-600 text-white rounded-tr-none hover:bg-indigo-700' 
                           : 'bg-[#151415] border border-emerald-900/30 text-slate-200 rounded-tl-none hover:border-emerald-500/30'
                       }`}>
-                        <p className="text-sm leading-relaxed">{msg.content}</p>
+                        <p className="text-[13px] md:text-sm leading-relaxed">{msg.content}</p>
                       </div>
                     </div>
                   </div>
@@ -250,21 +394,21 @@ export function VillageVinesPage() {
               </div>
 
               {/* Chat Input */}
-              <div className="p-6 bg-gradient-to-t from-[#0a090a] to-transparent">
+              <div className="p-4 md:p-6 bg-gradient-to-t from-[#0a090a] to-transparent">
                 <form onSubmit={handleSendMessage} className="max-w-4xl mx-auto relative group">
                   <div className="absolute inset-0 bg-emerald-500/20 blur-2xl opacity-0 group-focus-within:opacity-100 transition-opacity" />
-                  <div className="relative flex items-center gap-3 bg-[#111] border border-emerald-900/30 rounded-2xl p-2 pl-6 focus-within:border-emerald-500/50 transition-all">
-                    <MessageCircle size={18} className="text-emerald-900 group-focus-within:text-emerald-500 transition-colors" />
+                  <div className="relative flex items-center gap-2 md:gap-3 bg-[#111] border border-emerald-900/30 rounded-2xl p-2 md:pl-6 focus-within:border-emerald-500/50 transition-all">
+                    <MessageCircle size={18} className="hidden md:block text-emerald-900 group-focus-within:text-emerald-500 transition-colors" />
                     <input 
                       type="text"
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
                       placeholder="Message the village..."
-                      className="flex-1 bg-transparent border-none text-slate-100 placeholder-emerald-900/60 focus:ring-0 text-sm py-3"
+                      className="flex-1 bg-transparent border-none text-slate-100 placeholder-emerald-900/60 focus:ring-0 text-[13px] md:text-sm py-3"
                     />
                     <button 
                       type="submit"
-                      className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-500 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+                      className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-500 transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
                     >
                       <Send size={18} />
                     </button>

@@ -1,9 +1,6 @@
-/**
- * Utility for interacting with AntiMatterDB server for user and org management.
- */
+import { safeEnv } from './env';
 
-const ANTIMATTER_URL =
-  import.meta.env.VITE_ANTIMATTER_URL || "http://localhost:7198";
+const ANTIMATTER_URL = safeEnv('VITE_ANTIMATTER_URL', 'http://localhost:7198');
 
 export interface AntiMatterEntry {
   path: string;

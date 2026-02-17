@@ -9,10 +9,17 @@ import { ProjectBoardPage } from './pages/ProjectBoardPage';
 import { VillageVinesPage } from './pages/VillageVinesPage';
 import { FastFeatDashboard } from './pages/FastFeatDashboard';
 import { KnowledgePage } from './pages/KnowledgePage';
+import { TalentVillageBoard } from './pages/TalentVillageBoard';
+import { VinesEyeView } from './pages/VinesEyeView';
 import { AILensProvider, useAILens } from './hooks/useAILens';
 import { AILensMenu } from './components/AILensMenu';
 import { AILensOverlay } from './components/AILensOverlay';
+import { useLocation } from 'react-router-dom';
+
 function AILensGlobalUI() {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const isCandidate = location.pathname === '/talent-village' && searchParams.get('role') === 'candidate';
   const {
     handleDragStart,
     isOverlayOpen,
@@ -21,6 +28,8 @@ function AILensGlobalUI() {
     activeZone,
     analysisResult
   } = useAILens();
+  if (isCandidate) return null;
+
   return (
     <>
       <AILensMenu onDragStart={handleDragStart} />
@@ -58,6 +67,8 @@ export function App() {
           <Route path="/project/:projectId" element={<ProjectBoardPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/project/:projectId/knowledge" element={<KnowledgePage />} />
+          <Route path="/talent-village" element={<TalentVillageBoard />} />
+          <Route path="/talent-village/vines-eye" element={<VinesEyeView />} />
         </Routes>
       </AILensProvider>
     </Router>);

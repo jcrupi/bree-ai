@@ -253,26 +253,29 @@ class NatsService {
   }
 }
 
-// Singleton instance
-let natsService: NatsService | null = null;
+let natsServicePromise: Promise<NatsService> | null = null;
 
 /**
  * Get the NATS service instance (singleton)
  */
 export async function getNatsService(): Promise<NatsService> {
-  if (!natsService) {
-    natsService = new NatsService();
-    await natsService.connect();
+  if (!natsServicePromise) {
+    natsServicePromise = (async () => {
+      const service = new NatsService();
+      await service.connect();
+      return service;
+    })();
   }
-  return natsService;
+  return natsServicePromise;
 }
 
 /**
  * Disconnect and cleanup NATS service
  */
 export async function closeNatsService(): Promise<void> {
-  if (natsService) {
-    await natsService.disconnect();
-    natsService = null;
+  if (natsServicePromise) {
+    const service = await natsServicePromise;
+    await service.disconnect();
+    natsServicePromise = null;
   }
 }

@@ -10,10 +10,12 @@ interface VillageMessage {
 
 interface UseVillageVineOptions {
   vineId: string | null;
+  userName?: string;
   apiUrl?: string;
   onMessage?: (message: VillageMessage) => void;
   onError?: (error: Error) => void;
 }
+
 
 // Get API URL from environment variable
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -24,83 +26,143 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
  */
 export function useVillageVine({
   vineId,
+  userName = 'You',
   apiUrl = `${API_BASE_URL}/api/village`,
   onMessage,
   onError
 }: UseVillageVineOptions) {
+
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState<VillageMessage[]>([]);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  
+  // Refs for callbacks to avoid re-running effects when they change
+  const onMessageRef = useRef(onMessage);
+  const onErrorRef = useRef(onError);
 
-  // Subscribe to NATS message stream via SSE
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+    onErrorRef.current = onError;
+  }, [onMessage, onError]);
+
+  // Subscribe to NATS message stream via WebSocket
   const connect = useCallback(() => {
     if (!vineId) return;
 
     try {
-      // Close existing connection
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+      // Close existing connection if it's not the same URL or if it's already closed
+      if (wsRef.current) {
+        if (wsRef.current.url.includes(`/api/village/${vineId}/ws`) && 
+            (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+          return; // Already connecting or connected to this vine
+        }
+        wsRef.current.close();
       }
 
-      // Create new EventSource connection
-      const eventSource = new EventSource(`${apiUrl}/${vineId}/events`);
-      eventSourceRef.current = eventSource;
+      // Determine WS protocol based on API URL
+      const wsUrl = API_BASE_URL.replace(/^http/, 'ws') + `/api/village/${vineId}/ws?name=${encodeURIComponent(userName)}`;
 
-      eventSource.onopen = () => {
-        console.log('✅ Village Vine NATS connection established');
+      console.log('🔌 Connecting to WebSocket:', wsUrl);
+      
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('✅ Village Vine WebSocket connection established');
         setIsConnected(true);
       };
 
-      eventSource.onmessage = (event) => {
+      ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           
           if (data.type === 'connected') {
             console.log('🌿 Connected to Village Vine:', data.vineId);
+          } else if (data.type === 'error') {
+            console.error('❌ Server error:', data.message);
+            setIsConnected(false);
+            onErrorRef.current?.(new Error(data.message));
           } else if (data.type === 'message') {
             const message: VillageMessage = {
-              id: data.id || Date.now().toString(),
+              id: data.id || `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
               sender: data.sender,
               content: data.content,
               timestamp: data.timestamp,
               vineId: data.vineId
             };
             
-            setMessages(prev => [...prev, message]);
-            onMessage?.(message);
+            setMessages(prev => {
+              // Check for duplicates (especially from optimistic UI)
+              const isDuplicate = prev.some(m => 
+                m.sender === message.sender && 
+                m.content === message.content && 
+                Math.abs(new Date(m.timestamp).getTime() - new Date(message.timestamp).getTime()) < 2000
+              );
+              
+              if (isDuplicate) return prev;
+              return [...prev, message];
+            });
+            onMessageRef.current?.(message);
           }
         } catch (err) {
-          console.error('Failed to parse SSE message:', err);
+          console.error('Failed to parse WebSocket message:', err);
         }
       };
 
-      eventSource.onerror = (err) => {
-        console.error('❌ Village Vine connection error:', err);
+      ws.onclose = () => {
+        console.log('🔌 Village Vine WebSocket connection closed');
         setIsConnected(false);
-        eventSource.close();
         
-        // Attempt reconnection after 5 seconds
+        // Attempt reconnection after 5 seconds if still on this vine
         reconnectTimeoutRef.current = setTimeout(() => {
-          console.log('🔄 Attempting to reconnect...');
-          connect();
+          if (wsRef.current === ws) {
+            console.log('🔄 Attempting to reconnect WebSocket...');
+            connect();
+          }
         }, 5000);
-        
-        onError?.(new Error('Connection lost'));
+      };
+
+      ws.onerror = (err) => {
+        console.error('❌ Village Vine WebSocket error:', err);
+        setIsConnected(false);
+        onErrorRef.current?.(new Error('WebSocket connection error'));
       };
 
     } catch (err) {
-      console.error('Failed to establish connection:', err);
-      onError?.(err as Error);
+      console.error('Failed to establish WebSocket connection:', err);
+      onErrorRef.current?.(err as Error);
     }
-  }, [vineId, apiUrl, onMessage, onError]);
+  }, [vineId]);
 
-  // Send message via NATS
+  // Send message via WebSocket or HTTP fallback
   const sendMessage = useCallback(async (sender: string, content: string) => {
     if (!vineId) {
       throw new Error('No active vine');
     }
 
+    // Try WebSocket first
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'message',
+        sender,
+        content
+      }));
+
+      // Add message to local state immediately for optimistic UI
+      const message: VillageMessage = {
+        id: `opt-${Date.now()}`,
+        sender,
+        content,
+        timestamp: new Date().toISOString(),
+        vineId
+      };
+      
+      setMessages(prev => [...prev, message]);
+      return { success: true };
+    }
+
+    // Fallback to HTTP POST if WS is not available
     try {
       const response = await fetch(`${apiUrl}/${vineId}/message`, {
         method: 'POST',
@@ -118,7 +180,7 @@ export function useVillageVine({
 
       // Add message to local state immediately for optimistic UI
       const message: VillageMessage = {
-        id: Date.now().toString(),
+        id: `opt-${Date.now()}`,
         sender,
         content,
         timestamp: new Date().toISOString(),
@@ -129,7 +191,7 @@ export function useVillageVine({
       
       return result;
     } catch (err) {
-      console.error('Failed to send message:', err);
+      console.error('Failed to send message via HTTP:', err);
       throw err;
     }
   }, [vineId, apiUrl]);
@@ -165,8 +227,8 @@ export function useVillageVine({
     }
 
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+      if (wsRef.current) {
+        wsRef.current.close();
       }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);

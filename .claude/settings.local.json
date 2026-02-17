@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(bun install:*)",
+      "Bash(bun run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: add The Vineyard app to monorepo with full bree-ai integration\n\nIntegrate The Vineyard as a new tenant application in the bree-ai monorepo:\n- Create complete Vite + React + TypeScript setup following monorepo patterns\n- Configure brand identity with emerald green color scheme\n- Add workspace scripts for dev and build workflows\n- Use @bree-ai/core shared components and utilities\n- Configure API proxy to Elysia backend on port 9000\n- Set up Tailwind CSS with monorepo content paths\n\nThe app is now fully integrated with bun, React 19, Elysia, and Eden stack.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(flyctl apps list:*)",
+      "Bash(flyctl status:*)",
+      "Bash(git commit:*)",
+      "Bash(flyctl deploy:*)",
+      "Bash(flyctl machines list:*)",
+      "Bash(flyctl volumes list:*)",
+      "Bash(flyctl machine destroy:*)",
+      "Bash(flyctl volumes delete:*)",
+      "Bash(curl:*)",
+      "Bash(bun --filter the-vineyard build:*)",
+      "Bash(fly deploy:*)"
+    ]
+  }
+}

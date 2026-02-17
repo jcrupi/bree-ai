@@ -70,28 +70,31 @@ deploy_app() {
         return 1
     fi
 
-    print_info "Deploying ${app_name}..."
-    cd "$app_dir"
-
-    # Check if app exists, if not, create it
-    if ! fly apps list | grep -q "^${app_name} "; then
-        print_warning "App '${app_name}' doesn't exist. Creating it..."
-        fly apps create "${app_name}" --org personal
+    # Get the actual fly app name from fly.toml
+    local fly_app_name=$(grep "^app =" "$app_dir/fly.toml" | sed 's/app = "\(.*\)"/\1/' | sed "s/app = '\(.*\)'/\1/")
+    
+    if [ -z "$fly_app_name" ]; then
+        fly_app_name=$app_name
     fi
 
-    # Deploy the app
-    if fly deploy; then
+    print_info "Deploying ${app_name} as fly app '${fly_app_name}'..."
+
+    # Check if app exists, if not, create it
+    if ! fly apps list | grep -q "^${fly_app_name} "; then
+        print_warning "App '${fly_app_name}' doesn't exist. Creating it..."
+        fly apps create "${fly_app_name}" --org personal
+    fi
+
+    # Deploy the app using root as context
+    if fly deploy . --dockerfile "${app_dir}/Dockerfile" --config "${app_dir}/fly.toml"; then
         print_success "Successfully deployed ${app_name}"
         echo ""
-        print_info "App URL: https://${app_name}.fly.dev"
+        print_info "App URL: https://${fly_app_name}.fly.dev"
         echo ""
     else
         print_error "Failed to deploy ${app_name}"
-        cd - > /dev/null
         return 1
     fi
-
-    cd - > /dev/null
 }
 
 # Function to set environment secrets for an app
@@ -122,8 +125,20 @@ set_secrets() {
                 VITE_BRAND_ID="habitaware-ai" \
                 -a habitaware-ai
             ;;
+        "the-vineyard")
+            fly secrets set \
+                VITE_RAGSTER_DEFAULT_ORG_ID="the-vineyard" \
+                VITE_APP_NAME="The Vineyard" \
+                VITE_BRAND_ID="the-vineyard" \
+                -a the-vineyard
+            ;;
         "bree-api")
-            print_warning "Please set OPENAI_API_KEY manually:"
+            print_warning "Please ensure the following secrets are set for bree-api:"
+            echo "  fly secrets set ANTHROPIC_API_KEY=sk-... -a bree-api"
+            echo "  fly secrets set MIGHTY_API_KEY=... -a bree-api"
+            echo "  fly secrets set MIGHTY_NETWORK_ID=... -a bree-api"
+            echo "  fly secrets set DB_PATH=/app/data/bree.db -a bree-api"
+            echo "  fly secrets set AGENTX_DIR=/app/data/agentx -a bree-api"
             echo "  fly secrets set OPENAI_API_KEY=sk-... -a bree-api"
             ;;
     esac
@@ -164,6 +179,7 @@ main() {
             deploy_app "kat-ai"
             deploy_app "genius-talent"
             deploy_app "habitaware-ai"
+            deploy_app "the-vineyard"
 
             echo ""
             print_success "All apps deployed successfully!"
@@ -173,6 +189,7 @@ main() {
             echo "  - KAT.ai:       https://kat-ai.fly.dev"
             echo "  - Genius:       https://genius-talent.fly.dev"
             echo "  - HabitAware:   https://habitaware-ai.fly.dev"
+            echo "  - The Vineyard: https://the-vineyard.fly.dev"
             ;;
 
         "api")
@@ -189,6 +206,10 @@ main() {
 
         "habitaware-ai"|"habitaware")
             deploy_app "habitaware-ai"
+            ;;
+
+        "the-vineyard"|"vineyard")
+            deploy_app "the-vineyard"
             ;;
 
         "status")

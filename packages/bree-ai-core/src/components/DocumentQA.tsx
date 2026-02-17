@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { currentBrand } from '../config/branding';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SendIcon, Loader2Icon, Volume2Icon, VolumeXIcon, MicIcon, SettingsIcon, MaximizeIcon, PlayIcon, RadioIcon, FileText, Gauge } from 'lucide-react';
+import { SendIcon, Loader2Icon, Volume2Icon, VolumeXIcon, MicIcon, SettingsIcon, MaximizeIcon, PlayIcon, RadioIcon, FileText, Gauge, SparklesIcon } from 'lucide-react';
 import { DocumentSelector } from './DocumentSelector';
 import { ChatMessage } from './ChatMessage';
 import { SpeakingAvatar } from './SpeakingAvatar';
@@ -116,7 +116,24 @@ export function DocumentQA({
 }: DocumentQAProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<'play' | 'live'>('live');
-  const [selectedDoc, setSelectedDoc] = useState('all-docs');
+  const [selectedDoc, setSelectedDoc] = useState<string>('all-docs');
+  const [bubbles, setBubbles] = useState<any[]>([]);
+
+  // Load Bubbles
+  const loadBubbles = async () => {
+    try {
+      const { data } = await api.api.bubbles({ brandId: currentBrand.name }).get();
+      if (Array.isArray(data)) {
+        setBubbles(data);
+      }
+    } catch (err) {
+      console.error('Failed to load bubbles:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadBubbles();
+  }, []);
   const [documents, setDocuments] = useState<Document[]>(initialDocuments);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState('');
@@ -401,39 +418,19 @@ export function DocumentQA({
     }
   };
 
-  const SUGGESTED_QUESTIONS = useMemo(() => {
-    if (isLightTheme) {
-      return [
-        "How can I build awareness for my child?",
-        "What does the book say about 'connecting over correcting'?",
-        "How do I explain Keen2 to my child?",
-        "What are the first steps for habit change?"
-      ];
+  const suggestedBubbles = useMemo(() => {
+    const activeBubbles = bubbles.filter(b => b.active);
+    if (activeBubbles.length > 0) {
+      return activeBubbles;
     }
     
-    if (currentBrand.name === 'genius-talent') {
-      return [
-        "How can I improve candidate engagement?",
-        "What are the best practices for recruiter branding?",
-        "How do I streamline the interview process?",
-        "What metrics should I track for better hiring?"
-      ];
-    }
-
-    if (language === 'spanish') {
-      return [
-        "¿Cuáles son los requisitos de vestimenta y conducta del personal?",
-        "¿Qué artículos está prohibido empacar?",
-        "¿Cuáles son las responsabilidades para la eliminación de escombros?"
-      ];
-    }
-
-    return [
-      "What are the appearance and conduct requirements?",
-      "What items are prohibited from being used?",
-      "What are the responsibilities for maintenance?"
-    ];
-  }, [language]);
+    // Fallback to defaults if no bubbles configured
+    const defaultTexts = isLightTheme 
+      ? ["How can I build awareness for my child?", "What does the book say about 'connecting over correcting'?", "How do I explain Keen2 to my child?", "What are the first steps for habit change?"]
+      : ["What are the appearance and conduct requirements?", "What items are prohibited from being used?", "What are the responsibilities for maintenance?"];
+    
+    return defaultTexts.map((t, idx) => ({ id: `default-${idx}`, text: t, active: true }));
+  }, [bubbles, isLightTheme]);
 
   const handleSend = async (textOverride?: string) => {
     const query = textOverride || input.trim();
@@ -515,12 +512,19 @@ export function DocumentQA({
       let responseText = '';
       
       try {
+        // Build system instruction
+        let systemInstruction = `${currentInstructions || `You are ${currentBrand.aiName}, a helpful AI assistant.`}\n\nIMPORTANT: Use the provided document context to answer questions. Do not state how many snippets you found or mention internal document IDs. Simply provide a helpful answer based on the knowledge provided.\nLanguage: ${language === 'spanish' ? 'Spanish' : 'English'}\nStyle: ${responseStyle}\n\n`;
+        
+        // Add specific bubble instructions if matching
+        const matchingBubble = bubbles.find(b => b.text === query && b.active && b.instructions);
+        if (matchingBubble) {
+          systemInstruction += `\nAdditional context for this specific question:\n${matchingBubble.instructions}\n`;
+        }
+
         const chatMessages = [
           { 
             role: 'system', 
-            content: (currentInstructions || `You are ${currentBrand.aiName}, a helpful AI assistant.`) + 
-                     "\n\nIMPORTANT: Use the provided document context to answer questions. Do not state how many snippets you found or mention internal document IDs. Simply provide a helpful answer based on the knowledge provided." + 
-                     (language === 'spanish' ? ' Respond in Spanish.' : '') 
+            content: systemInstruction
           },
           ...messages.map(m => ({ role: m.role, content: m.content })),
           { 
@@ -845,6 +849,11 @@ export function DocumentQA({
                         setSelectedDoc('all-docs');
                       }
                     }}
+                    onBubblesChange={loadBubbles}
+                    onTestBubble={(text) => {
+                      setShowAdminSettings(false);
+                      handleSend(text);
+                    }}
                   />
                 ) : (
                   <>
@@ -867,21 +876,23 @@ export function DocumentQA({
                     <div className={`p-6 border-t ${isLightTheme ? 'border-slate-50 bg-slate-50/30' : 'border-slate-800'}`}>
                       {/* Suggested Questions */}
                       {!isLoading && (
-                        <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
-                          {SUGGESTED_QUESTIONS.map((q, i) => (
+                        <div className="flex flex-wrap gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+                          {suggestedBubbles.map((bubble: any) => (
                             <motion.button
-                              key={i}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: i * 0.1 }}
-                              onClick={() => handleSend(q)}
-                              className={`whitespace-nowrap px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border transition-all text-xs font-medium shadow-sm flex-shrink-0 ${
+                              key={bubble.id}
+                              onClick={() => handleSend(bubble.text)}
+                              className={`px-4 py-2 rounded-full text-sm border flex items-center gap-2 transition-all cursor-pointer ${
                                 isLightTheme 
-                                  ? 'bg-white text-slate-700 border-slate-200 hover:bg-[#D448AA]/10 hover:border-[#D448AA]/30 hover:text-[#D448AA]' 
-                                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-blue-500/20 hover:border-blue-500/50 hover:text-blue-200'
+                                  ? 'bg-white text-slate-600 border-slate-200 hover:border-purple-300 hover:bg-purple-50' 
+                                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-blue-500/50 hover:bg-blue-500/10'
                               }`}
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
                             >
-                              {q}
+                              <SparklesIcon className="w-3.5 h-3.5" />
+                              {bubble.text}
                             </motion.button>
                           ))}
                         </div>

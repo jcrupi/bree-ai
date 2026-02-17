@@ -6,6 +6,8 @@ import * as Collective from '../utils/collective';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { currentBrand } from '../config/branding';
+import { breezeAPI } from '../utils/breeAPI';
+import { safeEnv } from '../utils/env';
 
 interface Document {
   id: string;
@@ -16,7 +18,15 @@ interface Document {
   pageCount?: number;
 }
 
-interface AdminSettingsProps {
+type BuiltInTabId = 'general' | 'instructions' | 'bubbles' | 'identity';
+
+export interface CustomTab {
+  id: string;
+  label: string;
+  content: React.ReactNode;
+}
+
+export interface AdminSettingsProps {
   onSave: (settings: {
     instructions: string;
     responseStyle: 'thorough' | 'succinct';
@@ -34,6 +44,14 @@ interface AdminSettingsProps {
   onGlobalCollectionChange?: (id: string) => void;
   defaultDocumentIds?: string[];
   onDefaultDocumentChange?: (ids: string[]) => void;
+  onBubblesChange?: () => void;
+  onTestBubble?: (text: string) => void;
+  /** Hide specific built-in tabs */
+  hideTabs?: BuiltInTabId[];
+  /** Inject custom tab panels */
+  customTabs?: CustomTab[];
+  /** Override brand name in header */
+  brandName?: string;
 }
 
 export function AdminSettings({
@@ -49,7 +67,12 @@ export function AdminSettings({
   globalCollectionId = '',
   onGlobalCollectionChange,
   defaultDocumentIds = ['all-docs'],
-  onDefaultDocumentChange
+  onDefaultDocumentChange,
+  onBubblesChange,
+  onTestBubble,
+  hideTabs = [],
+  customTabs = [],
+  brandName
 }: AdminSettingsProps) {
   const [instructions, setInstructions] = useState(initialInstructions);
   const [responseStyle, setResponseStyle] = useState<'thorough' | 'succinct'>(initialResponseStyle);
@@ -59,14 +82,100 @@ export function AdminSettings({
   const [collections, setCollections] = useState<RagsterCollection[]>([]);
   const [creatingCollection, setCreatingCollection] = useState(false);
   const [uploadingToRagster, setUploadingToRagster] = useState(false);
-  const isLightTheme = currentBrand.name === 'habitaware-ai' || currentBrand.name === 'genius-talent';
+  const isLightTheme = currentBrand.name === 'habitaware-ai';
   const [newCollectionName, setNewCollectionName] = useState('');
   const [instructionTab, setInstructionTab] = useState<'write' | 'preview'>('write');
-  const [activeMainTab, setActiveMainTab] = useState<'general' | 'instructions' | 'identity'>('general');
+  const [activeMainTab, setActiveMainTab] = useState<string>('general');
+
+  // Build visible tabs from built-in + custom, filtering out hidden ones
+  const builtInTabs: { id: BuiltInTabId; label: string }[] = [
+    { id: 'general', label: 'Admin Stuff' },
+    { id: 'instructions', label: 'Instructions' },
+    { id: 'bubbles', label: 'Bubbles' },
+    { id: 'identity', label: 'Identity (AM)' },
+  ];
+  const visibleBuiltIn = builtInTabs.filter(t => !hideTabs.includes(t.id));
+  const allTabs = [...visibleBuiltIn, ...customTabs.map(ct => ({ id: ct.id, label: ct.label }))];
   const [uploadCollectionId, setUploadCollectionId] = useState(globalCollectionId || '');
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [newTagInput, setNewTagInput] = useState('');
   const [filterTags, setFilterTags] = useState<string[]>([]);
+
+  // Bubbles State
+  const [bubbles, setBubbles] = useState<any[]>([]);
+  const [loadingBubbles, setLoadingBubbles] = useState(false);
+  const [newBubbleText, setNewBubbleText] = useState('');
+  const [newBubbleInstructions, setNewBubbleInstructions] = useState('');
+  const [showBubbleInstructions, setShowBubbleInstructions] = useState(false);
+  const [editingBubbleId, setEditingBubbleId] = useState<number | null>(null);
+
+  const loadBubbles = async () => {
+    setLoadingBubbles(true);
+    try {
+      const resp = await breeAPI.bubbles.list(currentBrand.name);
+      if (Array.isArray(resp)) {
+        setBubbles(resp);
+      }
+    } catch (err) {
+      console.error('Failed to load bubbles:', err);
+    } finally {
+      setLoadingBubbles(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBubbles();
+  }, []);
+
+  const handleCreateBubble = async () => {
+    if (!newBubbleText.trim()) return;
+    try {
+      await breeAPI.bubbles.create({
+        brandId: currentBrand.name,
+        text: newBubbleText.trim(),
+        instructions: newBubbleInstructions.trim() || undefined
+      });
+      setNewBubbleText('');
+      setNewBubbleInstructions('');
+      setShowBubbleInstructions(false);
+      loadBubbles();
+      onBubblesChange?.();
+    } catch (err) {
+      console.error('Failed to create bubble:', err);
+    }
+  };
+
+  const handleToggleBubble = async (id: number, currentActive: boolean) => {
+    try {
+      await breeAPI.bubbles.update(id, { active: !currentActive });
+      loadBubbles();
+      onBubblesChange?.();
+    } catch (err) {
+      console.error('Failed to toggle bubble:', err);
+    }
+  };
+
+  const handleDeleteBubble = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this bubble?')) return;
+    try {
+      await breeAPI.bubbles.delete(id);
+      loadBubbles();
+      onBubblesChange?.();
+    } catch (err) {
+      console.error('Failed to delete bubble:', err);
+    }
+  };
+
+  const handleUpdateBubbleInstructions = async (id: number, instructions: string) => {
+    try {
+      await breeAPI.bubbles.update(id, { instructions });
+      loadBubbles();
+      onBubblesChange?.();
+      setEditingBubbleId(null);
+    } catch (err) {
+      console.error('Failed to update bubble instructions:', err);
+    }
+  };
 
   // Update upload collection when global collection changes
   useEffect(() => {
@@ -123,7 +232,7 @@ export function AdminSettings({
     }
   }, [selectedOrg]);
 
-  const AGENTX_URL = import.meta.env.VITE_AGENTX_URL || import.meta.env.VITE_COLLECTIVE_URL || 'http://localhost:9000';
+  const AGENTX_URL = safeEnv('VITE_AGENTX_URL', safeEnv('VITE_COLLECTIVE_URL', 'http://localhost:9000'));
 
   const checkAntiMatter = async () => {
     // Current health check for the Collective
@@ -242,8 +351,8 @@ export function AdminSettings({
     try {
       setCreatingCollection(true);
       // Use environment variables or brand defaults for org/user
-      const orgId = import.meta.env.VITE_RAGSTER_DEFAULT_ORG_ID || currentBrand.collection.orgId;
-      const userId = import.meta.env.VITE_RAGSTER_DEFAULT_USER_ID || `user@${currentBrand.collection.orgId}`;
+      const orgId = safeEnv('VITE_RAGSTER_DEFAULT_ORG_ID', currentBrand.collection.orgId);
+      const userId = safeEnv('VITE_RAGSTER_DEFAULT_USER_ID', `user@${currentBrand.collection.orgId}`);
       
       const collection = await createCollection({
         name: newCollectionName.trim(),
@@ -299,8 +408,8 @@ export function AdminSettings({
     try {
       setUploadingToRagster(true);
       // Use environment variables or brand defaults for org/user
-      const orgId = import.meta.env.VITE_RAGSTER_DEFAULT_ORG_ID || currentBrand.collection.orgId;
-      const userId = import.meta.env.VITE_RAGSTER_DEFAULT_USER_ID || `user@${currentBrand.collection.orgId}`;
+      const orgId = safeEnv('VITE_RAGSTER_DEFAULT_ORG_ID', currentBrand.collection.orgId);
+      const userId = safeEnv('VITE_RAGSTER_DEFAULT_USER_ID', `user@${currentBrand.collection.orgId}`);
       
       for (const file of files) {
         try {
@@ -362,59 +471,35 @@ export function AdminSettings({
               whileTap={{ scale: 0.95 }}
             >
               <ArrowLeftIcon className="w-4 h-4" />
-              Back to {currentBrand.displayName}
+              Back to {brandName || currentBrand.displayName}
             </motion.button>
           )}
         </div>
         
         {/* Tab Switcher */}
-        <div className={`flex p-1 rounded-xl border mt-4 ${
-          isLightTheme ? 'bg-slate-100 border-slate-200' : 'bg-slate-900/50 border-slate-800'
+        <div className={`flex p-1 rounded-2xl border mt-6 backdrop-blur-md ${
+          isLightTheme ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/80 border-slate-800'
         }`}>
-          <button
-            onClick={() => setActiveMainTab('general')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeMainTab === 'general' 
-                ? isLightTheme
-                  ? 'bg-white text-slate-800 shadow-sm border border-slate-200'
-                  : 'bg-slate-800 text-white shadow-lg border border-slate-700' 
-                : isLightTheme
-                  ? 'text-slate-500 hover:text-slate-700'
-                  : 'text-slate-500 hover:text-slate-300'
-            }`}
-          >
-            Admin Stuff
-          </button>
-          <button
-            onClick={() => setActiveMainTab('instructions')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeMainTab === 'instructions' 
-                ? isLightTheme
-                  ? 'bg-white text-slate-800 shadow-sm border border-slate-200'
-                  : 'bg-slate-800 text-white shadow-lg border border-slate-700' 
-                : isLightTheme
-                  ? 'text-slate-500 hover:text-slate-700'
-                  : 'text-slate-500 hover:text-slate-300'
-            }`}
-          >
-            Instructions
-          </button>
-          <button
-            onClick={() => setActiveMainTab('identity')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeMainTab === 'identity' 
-                ? isLightTheme
-                  ? 'bg-white text-slate-800 shadow-sm border border-slate-200'
-                  : 'bg-slate-800 text-white shadow-lg border border-slate-700' 
-                : isLightTheme
-                  ? 'text-slate-500 hover:text-slate-700'
-                  : 'text-slate-500 hover:text-slate-300'
-            }`}
-          >
-            Identity (AM)
-          </button>
+          {allTabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveMainTab(tab.id)}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-[0.15em] transition-all duration-300 ${
+                activeMainTab === tab.id 
+                  ? isLightTheme
+                    ? 'bg-white text-brand-orange shadow-md border border-slate-200 ring-4 ring-brand-orange/5'
+                    : 'bg-brand-orange text-white shadow-xl shadow-brand-orange/20 border border-brand-orange/50' 
+                  : isLightTheme
+                    ? 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
+
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto p-6">
@@ -450,31 +535,32 @@ export function AdminSettings({
                       ? 'bg-white border-slate-100 shadow-sm hover:shadow-md transition-shadow' 
                       : 'bg-slate-800/30 border-slate-700/50'
                 }`}>
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <input
                       type="text"
                       value={newCollectionName}
                       onChange={e => setNewCollectionName(e.target.value)}
-                      placeholder="New collection name..."
+                      placeholder="Enter new collection name..."
                       disabled={mode === 'play'}
-                      className={`flex-1 text-sm rounded-xl px-4 py-2 border transition-all outline-none ${
+                      className={`flex-1 text-xs font-bold rounded-2xl px-5 py-3 border transition-all outline-none ${
                         isLightTheme 
-                          ? 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white focus:border-purple-500 focus:ring-4 focus:ring-purple-500/5' 
-                          : 'bg-slate-900 text-slate-200 border-slate-700'
+                          ? 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white focus:border-brand-orange/50 focus:ring-4 focus:ring-brand-orange/5' 
+                          : 'bg-black/50 text-slate-200 border-white/5 focus:border-brand-orange/50'
                       }`}
                     />
                     <button
                       onClick={handleCreateCollection}
                       disabled={!newCollectionName.trim() || creatingCollection || mode === 'play'}
-                      className={`px-4 py-2 rounded-lg border transition-all ${
+                      className={`px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
                         isLightTheme
-                          ? 'bg-purple-50 text-purple-600 border-purple-100 hover:bg-purple-100'
-                          : 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/40'
-                      }`}
+                          ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/20 hover:scale-[1.02] active:scale-[0.98]'
+                          : 'bg-brand-orange text-white shadow-xl shadow-brand-orange/20 hover:scale-[1.02]'
+                      } disabled:opacity-20`}
                     >
                       {creatingCollection ? <Loader2Icon className="animate-spin w-4 h-4" /> : 'Create'}
                     </button>
                   </div>
+
                   {collections.length > 0 && mode === 'live' && (
                     <div className="mt-4">
                       <label className="text-xs text-slate-500 mb-2 block">Set Default Collection</label>
@@ -661,46 +747,60 @@ export function AdminSettings({
                   </div>
                 </div>
 
-                <div onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave} className={`border-2 border-dashed rounded-3xl p-10 transition-all text-center ${
+                <div onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave} className={`border-2 border-dashed rounded-[2rem] p-12 transition-all duration-500 text-center ${
                   isDragging 
-                    ? isLightTheme ? 'border-teal-400 bg-teal-50' : 'border-blue-500 bg-blue-500/10' 
-                    : isLightTheme ? 'border-slate-100 bg-white hover:border-teal-200 hover:bg-teal-50/30' : 'border-slate-700 bg-slate-800/30'
-                } ${uploadingToRagster ? 'opacity-50' : ''}`}>
+                    ? isLightTheme ? 'border-brand-orange bg-brand-orange/5' : 'border-brand-orange bg-brand-orange/10 scale-[1.02]' 
+                    : isLightTheme ? 'border-slate-100 bg-white hover:border-brand-orange/20 hover:bg-brand-orange/[0.02]' : 'border-white/5 bg-black/20 hover:border-brand-orange/20'
+                } ${uploadingToRagster ? 'opacity-40 animate-pulse' : ''}`}>
                   <input type="file" id="doc-upload" multiple onChange={handleFileSelect} className="hidden" />
-                  <label htmlFor="doc-upload" className="cursor-pointer">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 ${
-                      isLightTheme ? 'bg-slate-50 shadow-inner' : 'bg-slate-700/50'
+                  <label htmlFor="doc-upload" className="cursor-pointer group">
+                    <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-5 transition-all duration-500 ${
+                      isLightTheme ? 'bg-slate-50 shadow-inner group-hover:bg-brand-orange group-hover:text-white' : 'bg-white/5 group-hover:bg-brand-orange group-hover:text-white'
                     }`}>
-                      {uploadingToRagster ? <Loader2Icon className="animate-spin text-teal-500" /> : <UploadIcon className={`${isLightTheme ? 'text-teal-400' : 'text-slate-400'}`} />}
+                      {uploadingToRagster ? <Loader2Icon className="animate-spin text-brand-orange" /> : <UploadIcon className="transition-colors" />}
                     </div>
-                    <p className={`text-sm font-semibold ${isLightTheme ? 'text-slate-600' : 'text-slate-300'}`}>Click or Drag to Upload to Ragster</p>
-                    <p className="text-xs text-slate-400 mt-1">PDF, DOCX, TXT supported</p>
+                    <p className={`text-base font-black uppercase tracking-tight ${isLightTheme ? 'text-slate-800' : 'text-slate-100'}`}>Click or Drag to Upload to Ragster</p>
+                    <p className="text-xs text-dark-500 mt-2 font-bold uppercase tracking-widest">PDF, DOCX, TXT supported</p>
                   </label>
                 </div>
+
                 {documents.length > 0 && (
                   <div className="mt-6 space-y-2 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
                     {documents.map(doc => (
-                      <div key={doc.id} className={`group flex items-center gap-4 p-3 rounded-2xl text-xs transition-all border ${
-                        isLightTheme ? 'bg-white border-slate-100 hover:border-teal-100 hover:shadow-sm' : 'bg-slate-800/50 border-slate-700/50'
+                      <div key={doc.id} className={`group flex items-center gap-5 p-4 rounded-[1.5rem] text-xs transition-all border ${
+                        isLightTheme 
+                          ? 'bg-slate-50/50 border-slate-100 hover:border-brand-orange/30 hover:bg-white hover:shadow-xl hover:shadow-brand-orange/5' 
+                          : 'bg-black/20 border-white/5 hover:border-brand-orange/30'
                       }`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isLightTheme ? 'bg-slate-50 text-slate-400' : 'bg-slate-700'}`}>
-                          <FileTextIcon className="w-4 h-4" />
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                          isLightTheme ? 'bg-white text-dark-400 shadow-sm' : 'bg-dark-800 text-dark-400'
+                        } group-hover:text-brand-orange`}>
+                          <FileTextIcon className="w-5 h-5" />
                         </div>
-                        <div className="flex-1 truncate">
-                          <p className={`truncate font-semibold ${isLightTheme ? 'text-slate-700' : 'text-slate-200'}`}>{doc.title}</p>
-                          {doc.tags && doc.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {doc.tags.map(t => (
-                                <span key={t} className={`text-[9px] uppercase tracking-wider font-bold ${isLightTheme ? 'text-teal-500' : 'text-blue-400'}`}>#{t}</span>
-                              ))}
-                            </div>
-                          )}
+                        <div className="flex-1 min-w-0">
+                          <p className={`truncate font-black uppercase tracking-tight ${isLightTheme ? 'text-slate-800' : 'text-slate-200'}`}>{doc.title}</p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-[10px] text-dark-500 font-bold">{doc.description}</span>
+                            {doc.tags && doc.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 pl-2 border-l border-white/5">
+                                {doc.tags.map(t => (
+                                  <span key={t} className={`text-[9px] uppercase tracking-widest font-black ${isLightTheme ? 'text-brand-orange/80' : 'text-brand-orange/60'}`}>#{t}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <button onClick={() => onDeleteDocument(doc.id)} className="p-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all rounded-lg hover:bg-red-50">
-                          <XIcon size={14} />
+                        <button 
+                          onClick={() => onDeleteDocument(doc.id)} 
+                          className={`p-2.5 opacity-0 group-hover:opacity-100 transition-all rounded-xl ${
+                            isLightTheme ? 'bg-red-50 text-red-500 hover:bg-red-500 hover:text-white shadow-lg shadow-red-500/10' : 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white'
+                          }`}
+                        >
+                          <XIcon size={16} strokeWidth={3} />
                         </button>
                       </div>
                     ))}
+
                   </div>
                 )}
               </section>
@@ -775,6 +875,202 @@ export function AdminSettings({
                 </div>
               </div>
             </motion.div>
+          ) : activeMainTab === 'bubbles' ? (
+            <motion.div
+              key="bubbles"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className={`text-sm font-semibold flex items-center gap-2 ${
+                    isLightTheme ? 'text-slate-800' : 'text-white'
+                  }`}>
+                    <SparklesIcon className={`w-4 h-4 ${
+                      isLightTheme ? 'text-[#D448AA]' : 'text-purple-400'
+                    }`} /> Suggested Bubbles
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">Manage suggesting questions and their specific instructions</p>
+                </div>
+              </div>
+
+              {/* Add New Bubble */}
+              <div className={`p-4 rounded-2xl border ${
+                isLightTheme ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-slate-800'
+              }`}>
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={newBubbleText}
+                    onChange={e => setNewBubbleText(e.target.value)}
+                    placeholder="Bubble question (e.g. How does this work?)"
+                    className={`w-full text-sm rounded-xl px-4 py-2.5 border transition-all outline-none ${
+                      isLightTheme 
+                        ? 'bg-white text-slate-800 border-slate-200 focus:border-purple-500' 
+                        : 'bg-slate-800 text-slate-200 border-slate-700 focus:border-blue-500'
+                    }`}
+                  />
+                  
+                  {showBubbleInstructions ? (
+                    <textarea
+                      value={newBubbleInstructions}
+                      onChange={e => setNewBubbleInstructions(e.target.value)}
+                      placeholder="Optional specific instructions/context for this question..."
+                      className={`w-full h-24 text-sm rounded-xl px-4 py-2.5 border transition-all outline-none font-mono ${
+                        isLightTheme 
+                          ? 'bg-white text-slate-800 border-slate-200 focus:border-purple-500' 
+                          : 'bg-slate-800 text-slate-200 border-slate-700 focus:border-blue-500'
+                      }`}
+                    />
+                  ) : (
+                    <button 
+                      onClick={() => setShowBubbleInstructions(true)}
+                      className="text-xs text-purple-500 hover:text-purple-600 font-medium"
+                    >
+                      + Add specific instructions for this question
+                    </button>
+                  )}
+                  
+                  <div className="flex justify-end gap-2">
+                    {showBubbleInstructions && (
+                      <button 
+                        onClick={() => { setShowBubbleInstructions(false); setNewBubbleInstructions(''); }}
+                        className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-700"
+                      >
+                        Cancel Instructions
+                      </button>
+                    )}
+                    <button
+                      onClick={handleCreateBubble}
+                      disabled={!newBubbleText.trim()}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        isLightTheme
+                          ? 'bg-purple-600 text-white hover:bg-purple-700 disabled:bg-slate-200'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-800'
+                      }`}
+                    >
+                      Add Bubble
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bubbles List */}
+              <div className="space-y-3">
+                {bubbles.map((bubble) => (
+                  <div 
+                    key={bubble.id} 
+                    className={`p-4 rounded-2xl border transition-all ${
+                      isLightTheme 
+                        ? 'bg-white border-slate-100 hover:shadow-sm' 
+                        : 'bg-slate-800/50 border-slate-700'
+                    } ${!bubble.active ? 'opacity-60' : ''}`}
+                  >
+                    <div className="flex items-center justify-between gap-4 mb-2">
+                      <div className="flex-1 flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${bubble.active ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                        <span className={`text-sm font-medium ${isLightTheme ? 'text-slate-800' : 'text-slate-200'}`}>
+                          {bubble.text}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => onTestBubble?.(bubble.text)}
+                          className={`p-2 rounded-lg transition-all ${
+                            isLightTheme ? 'hover:bg-purple-50 text-purple-600' : 'hover:bg-blue-500/20 text-blue-400'
+                          }`}
+                          title="Test Bubble"
+                        >
+                          <PlayIcon size={16} />
+                        </button>
+                        <button
+                          onClick={() => setEditingBubbleId(editingBubbleId === bubble.id ? null : bubble.id)}
+                          className={`p-2 rounded-lg transition-all ${
+                            isLightTheme ? 'hover:bg-slate-100 text-slate-400' : 'hover:bg-slate-700 text-slate-500'
+                          }`}
+                          title="Edit Instructions"
+                        >
+                          <Edit3Icon size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleToggleBubble(bubble.id, bubble.active)}
+                          className={`p-2 rounded-lg transition-all ${
+                            bubble.active 
+                              ? isLightTheme ? 'text-emerald-500 hover:bg-emerald-50' : 'text-emerald-400 hover:bg-emerald-500/10'
+                              : isLightTheme ? 'text-slate-400 hover:bg-slate-100' : 'text-slate-500 hover:bg-slate-700'
+                          }`}
+                          title={bubble.active ? 'Deactivate' : 'Activate'}
+                        >
+                          <CheckCircle2Icon size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBubble(bubble.id)}
+                          className={`p-2 rounded-lg transition-all text-slate-400 hover:text-red-500 ${
+                            isLightTheme ? 'hover:bg-red-50' : 'hover:bg-red-500/10'
+                          }`}
+                          title="Delete"
+                        >
+                          <XIcon size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {bubble.instructions && editingBubbleId !== bubble.id && (
+                      <div className={`mt-2 p-2 rounded-lg text-[10px] font-mono whitespace-pre-wrap ${
+                        isLightTheme ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/50 text-slate-400'
+                      }`}>
+                        {bubble.instructions}
+                      </div>
+                    )}
+
+                    {editingBubbleId === bubble.id && (
+                      <div className="mt-2 space-y-2">
+                        <textarea
+                          defaultValue={bubble.instructions || ''}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && e.ctrlKey) {
+                              handleUpdateBubbleInstructions(bubble.id, e.currentTarget.value);
+                            }
+                          }}
+                          placeholder="Type instructions here... (Ctrl+Enter to save)"
+                          className={`w-full h-24 text-[11px] rounded-lg px-3 py-2 border transition-all outline-none font-mono ${
+                            isLightTheme 
+                              ? 'bg-slate-50 text-slate-800 border-slate-200' 
+                              : 'bg-slate-900 text-slate-200 border-slate-700'
+                          }`}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={() => setEditingBubbleId(null)}
+                            className="px-2 py-1 text-[10px] text-slate-500"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              const textarea = (e.currentTarget.previousElementSibling?.previousElementSibling as HTMLTextAreaElement);
+                              handleUpdateBubbleInstructions(bubble.id, textarea.value);
+                            }}
+                            className={`px-3 py-1 rounded-lg text-[10px] font-bold ${
+                              isLightTheme ? 'bg-purple-100 text-purple-700' : 'bg-blue-500/20 text-blue-300'
+                            }`}
+                          >
+                            Save Instructions
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {bubbles.length === 0 && !loadingBubbles && (
+                  <div className="text-center py-8 text-slate-400 text-xs">
+                    No custom bubbles configured. Using defaults.
+                  </div>
+                )}
+              </div>
+            </motion.div>
           ) : activeMainTab === 'instructions' ? (
             <motion.div
               key="instructions"
@@ -846,7 +1142,7 @@ export function AdminSettings({
                 )}
               </div>
             </motion.div>
-          ) : (
+          ) : activeMainTab === 'identity' ? (
             <motion.div
               key="identity"
               initial={{ opacity: 0, y: 10 }}
@@ -1017,7 +1313,22 @@ export function AdminSettings({
                 </div>
               </div>
             </motion.div>
-          )}
+          ) : (() => {
+            const customTab = customTabs.find(ct => ct.id === activeMainTab);
+            if (customTab) {
+              return (
+                <motion.div
+                  key={activeMainTab}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  {customTab.content}
+                </motion.div>
+              );
+            }
+            return null;
+          })()}
         </AnimatePresence>
       </div>
 

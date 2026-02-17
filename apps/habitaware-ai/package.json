@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@bree-ai/core": "workspace:*",
+    "@elysiajs/eden": "^1.2.0",
+    "marked": "^11.1.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

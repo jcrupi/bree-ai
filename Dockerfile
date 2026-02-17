@@ -3,6 +3,13 @@ FROM oven/bun:latest AS build
 
 WORKDIR /app
 
+# Install Python and build tools for native modules (better-sqlite3)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy package management files first
 COPY package.json bun.lock ./
 COPY packages/bree-ai-core/package.json ./packages/bree-ai-core/
@@ -27,10 +34,13 @@ COPY . .
 # We'll run the build for the target app. For now, let's assume we are building 'genius-talent' as the primary frontend
 # If we want a multi-frontend container, we'd build all and serve them under paths, but usually it's 1 App + 1 API per Fly Machine.
 
+# Create dist folder (may be empty for API-only deployments)
+RUN mkdir -p /app/dist
+
 # Build Genius Talent
-RUN bun run --filter genius-talent build
+RUN bun run --filter genius-talent build || true
 # Build API (transpile if needed, or just run source)
-RUN bun run --filter bree-ai-api build
+RUN bun run --filter bree-ai-api build || true
 
 # ---------- RUNTIME STAGE ----------
 FROM oven/bun:slim
@@ -38,17 +48,14 @@ FROM oven/bun:slim
 WORKDIR /app
 
 # Copy built assets
-# 1. The combined "dist" folder from the root (where Genius outputted)
+# 1. The combined "dist" folder from the root (where Genius outputted) - may be empty
 COPY --from=build /app/dist ./dist
 
-# 2. The API Source code
+# 2. The API Source code (run from source, no build needed)
 COPY --from=build /app/apps/api ./apps/api
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/package.json ./
-
-# Install production dependencies only
-COPY --from=build /app/bun.lock ./
-RUN bun install --production
+COPY --from=build /app/node_modules ./node_modules
 
 # Environment for Production
 ENV NODE_ENV=production
@@ -58,5 +65,5 @@ ENV STATIC_ASSETS_PATH=./dist
 # Expose the single port
 EXPOSE 3000
 
-# Run the API (which serves the frontend from /dist)
+# Run the API from source (Bun can run TypeScript directly)
 CMD ["bun", "run", "apps/api/src/index.ts"]

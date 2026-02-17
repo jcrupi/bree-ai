@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun create:*)",
+      "Bash(bun init:*)",
+      "Bash(bun add:*)",
+      "Bash(bun run dev)",
+      "Bash(bun remove:*)",
+      "Bash(bun run build:*)",
+      "Bash(test:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(curl:*)",
+      "Bash(git init:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: Genius TalentAI hiring platform\n\nAdd complete React + TypeScript application for AI-powered recruitment platform.\nFeatures include dashboard, job management, candidate assessment, and analytics.\n\nTech stack:\n- React 19.2.4 with TypeScript\n- Vite 5 for build tooling\n- TailwindCSS for styling\n- React Router 7 for navigation\n- Bun as runtime\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}

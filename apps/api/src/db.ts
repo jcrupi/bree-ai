@@ -48,8 +48,116 @@ export function initializeDatabase() {
     );
   `);
 
+  // Contacts table for Village Vine invites
+  db.run(`
+    CREATE TABLE IF NOT EXISTS contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      phone_number TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   console.log('✅ Database schema initialized');
 }
+
+
+// Bubble type
+export interface Bubble {
+  id: number;
+  brand_id: string;
+  text: string;
+  active: boolean;
+  instructions: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Bubble database operations
+ */
+export const bubbleDb = {
+  create: (brandId: string, text: string, instructions?: string): Bubble => {
+    db.query(`
+      INSERT INTO bubbles (brand_id, text, instructions)
+      VALUES ($brandId, $text, $instructions)
+    `).run({ $brandId: brandId, $text: text, $instructions: instructions || null });
+    
+    return bubbleDb.findById(getLastInsertId())!;
+  },
+
+  update: (id: number, data: Partial<Pick<Bubble, 'text' | 'active' | 'instructions'>>): void => {
+    const sets: string[] = [];
+    const params: any = { $id: id };
+    
+    if (data.text !== undefined) {
+      sets.push('text = $text');
+      params.$text = data.text;
+    }
+    if (data.active !== undefined) {
+      sets.push('active = $active');
+      params.$active = data.active ? 1 : 0;
+    }
+    if (data.instructions !== undefined) {
+      sets.push('instructions = $instructions');
+      params.$instructions = data.instructions;
+    }
+    
+    if (sets.length === 0) return;
+    
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    
+    db.query(`
+      UPDATE bubbles SET ${sets.join(', ')} WHERE id = $id
+    `).run(params);
+  },
+
+  findAllByBrand: (brandId: string): Bubble[] => {
+    const results = db.query('SELECT * FROM bubbles WHERE brand_id = $brandId ORDER BY created_at DESC').all({ $brandId: brandId }) as any[];
+    return results.map(r => ({
+      ...r,
+      active: !!r.active
+    }));
+  },
+
+  findById: (id: number): Bubble | undefined => {
+    const r = db.query('SELECT * FROM bubbles WHERE id = $id').get({ $id: id }) as any;
+    if (!r) return undefined;
+    return {
+      ...r,
+      active: !!r.active
+    };
+  },
+
+  delete: (id: number): void => {
+    db.query('DELETE FROM bubbles WHERE id = $id').run({ $id: id });
+  }
+};
+
+/**
+ * Contact database operations
+ */
+export const contactDb = {
+  upsert: (phoneNumber: string, name: string) => {
+    db.query(`
+      INSERT INTO contacts (phone_number, name, updated_at)
+      VALUES ($phoneNumber, $name, CURRENT_TIMESTAMP)
+      ON CONFLICT(phone_number) DO UPDATE SET
+        name = EXCLUDED.name,
+        updated_at = CURRENT_TIMESTAMP
+    `).run({ $phoneNumber: phoneNumber, $name: name });
+  },
+
+  findByPhone: (phoneNumber: string) => {
+    return db.query('SELECT * FROM contacts WHERE phone_number = $phoneNumber').get({ $phoneNumber: phoneNumber }) as { phone_number: string, name: string } | undefined;
+  },
+
+  findAll: () => {
+    return db.query('SELECT * FROM contacts ORDER BY updated_at DESC').all() as { phone_number: string, name: string }[];
+  }
+};
+
 
 // User type
 export interface User {

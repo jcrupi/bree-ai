@@ -23,7 +23,9 @@ import {
   List,
   CheckSquare,
   Leaf,
-  MessageCircle } from
+  MessageCircle,
+  Zap,
+  Sparkles } from
 'lucide-react';
 import {
   Agent,
@@ -275,11 +277,23 @@ export function Sidebar({
           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${currentPath === '/village-vine' ? 'bg-emerald-50 text-emerald-900 border-l-2 border-emerald-600' : 'text-slate-600 hover:bg-emerald-50/50 hover:text-emerald-700'}`}>
 
           <div className={`p-1 rounded-md ${currentPath === '/village-vine' ? 'bg-emerald-100 text-emerald-600' : 'bg-emerald-50 text-emerald-400'}`}>
-            <Users size={14} />
+            <MessageCircle size={14} />
           </div>
-          <span className="flex-1">Village Vine</span>
+          <span className="flex-1">Village Hub</span>
           {currentPath !== '/village-vine' && 
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          }
+        </Link>
+        <Link
+          to="/talent-village"
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${currentPath === '/talent-village' ? 'bg-indigo-50 text-indigo-900 border-l-2 border-indigo-600' : 'text-slate-600 hover:bg-indigo-50/50 hover:text-indigo-700'}`}>
+
+          <div className={`p-1 rounded-md ${currentPath === '/talent-village' ? 'bg-indigo-100 text-indigo-600' : 'bg-indigo-50 text-indigo-400'}`}>
+            <Sparkles size={14} />
+          </div>
+          <span className="flex-1">Talent Village</span>
+          {currentPath !== '/talent-village' && 
+            <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
           }
         </Link>
       </div>

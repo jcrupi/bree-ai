@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
-import { userDb, roleDb, organizationDb, type User } from './db';
+import { userDb, roleDb, organizationDb, bubbleDb, type User } from './db';
+export { bubbleDb };
 
 /**
  * JWT payload structure
@@ -189,6 +190,32 @@ export async function seedDatabase() {
         'kick-analytics'
       );
       console.log('✅ Created member: user@kickanalytics.com / user123');
+    }
+
+    // Create HabitAware Admin: Ellen
+    let ellen = userDb.findByEmail('ellen@habitaware.com');
+    if (!ellen) {
+      await authService.register(
+        'ellen@habitaware.com',
+        'keen2@2026',
+        'Ellen',
+        'admin',
+        'kick-analytics'
+      );
+      console.log('✅ Created admin: ellen@habitaware.com / keen2@2026');
+    }
+
+    // Create HabitAware Admin: Aneela
+    let aneela = userDb.findByEmail('aneela@habitaware.com');
+    if (!aneela) {
+      await authService.register(
+        'aneela@habitaware.com',
+        'keen2@2026',
+        'Aneela',
+        'admin',
+        'kick-analytics'
+      );
+      console.log('✅ Created admin: aneela@habitaware.com / keen2@2026');
     }
 
     console.log('✅ Database seeded successfully');

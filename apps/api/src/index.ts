@@ -1,12 +1,28 @@
 import { Elysia, t } from 'elysia';
 import { cors } from '@elysiajs/cors';
+import twilio from 'twilio';
+
 import { swagger } from '@elysiajs/swagger';
 import { jwt } from '@elysiajs/jwt';
 import { getNatsService, type AgentMessage } from './nats';
-import { authService, seedDatabase, type JWTPayload, bubbleDb } from './auth';
+import { authService, seedDatabase, type JWTPayload } from './auth';
+import { contactDb } from './db';
 import { mkdir, writeFile, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import crypto from 'node:crypto';
+import { mightyRoutes as habitawareMighty } from './routes/habitaware/mighty';
+import { chatRoutes as habitawareChat } from './routes/habitaware/chat';
+import { agentxRoutes as habitawareAgentx } from './routes/habitaware/agentx';
+
+// For WebSocket connection state (NATS subscriptions)
+const wsConnections = new Map<any, () => void>();
+
+// For Village Vine state tracking (ephemeral)
+const villageVines = new Map<string, { 
+  topic: string, 
+  invited: string[], 
+  claimed: Set<string> 
+}>();
 
 async function requireAuth(headers: Record<string, string | undefined>, jwt: any, set: any): Promise<JWTPayload | null> {
   const authHeader = headers['authorization'];
@@ -60,6 +76,7 @@ async function ensureFeedbackDir() {
 
 export const app = new Elysia()
   .use(cors())
+  
   .use(swagger({
     documentation: {
       info: {
@@ -394,6 +411,14 @@ export const app = new Elysia()
       })
   )
 
+  // HabitAware Group
+  .group('/api/habitaware', (app) =>
+    app
+      .use(habitawareMighty) // mighty.ts still has internal prefix: "/mighty"
+      .group('/chat', (app) => app.use(habitawareChat))
+      .group('/agentx', (app) => app.use(habitawareAgentx))
+  )
+
   // OpenAI Proxy Group
   .group('/api/openai', (app) =>
     app
@@ -645,7 +670,10 @@ export const app = new Elysia()
   // Village (Human-Agent NATS) Group
   .group('/api/village', (app) =>
     app
-      .onBeforeHandle(async ({ headers, jwt, set }) => {
+      .onBeforeHandle(async ({ headers, jwt, set, request }) => {
+        // Exempt WebSocket upgrade requests from this check
+        if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') return;
+        
         const payload = await requireAuth(headers, jwt, set);
         if (!payload) return { error: 'Unauthorized' };
       })
@@ -653,7 +681,14 @@ export const app = new Elysia()
       .post('/start', async ({ body }) => {
         const vineId = `village-${crypto.randomUUID()}`;
         const nats = await getNatsService();
-        
+
+        // Store vine metadata for participant tracking
+        villageVines.set(vineId, {
+          topic: body.topic,
+          invited: body.invited,
+          claimed: new Set<string>()
+        });
+
         // Notify the collective about a new village vine
         await nats.publish('village.vines.created', {
           vineId,
@@ -696,6 +731,65 @@ export const app = new Elysia()
           content: t.String()
         })
       })
+      // Send SMS invitation via Twilio
+      .post('/send-invite-sms', async ({ body, set }) => {
+        const twilioSid = process.env.TWILIO_SID;
+        const twilioToken = process.env.TWILIO_TOKEN;
+        const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
+
+        if (!twilioSid || !twilioToken || !twilioPhone) {
+          console.error('❌ Twilio credentials missing');
+          set.status = 500;
+          return { success: false, error: 'SMS service not configured' };
+        }
+
+        try {
+          const client = twilio(twilioSid, twilioToken);
+          await client.messages.create({
+            body: `🌿 Village Vine Invite: You've been invited by ${body.name} to join "${body.topic}". Join here: ${body.link}`,
+            from: twilioPhone,
+            to: body.phoneNumber
+          });
+          
+          // Save or update contact
+          contactDb.upsert(body.phoneNumber, body.name);
+          
+          console.log(`📱 SMS invite sent to ${body.phoneNumber} (${body.name})`);
+          return { success: true };
+        } catch (error: any) {
+          console.error('❌ Failed to send SMS:', error);
+          set.status = 500;
+          return { success: false, error: error.message };
+        }
+      }, {
+        body: t.Object({
+          phoneNumber: t.String(),
+          link: t.String(),
+          topic: t.String(),
+          name: t.String()
+        })
+      })
+      // List all saved contacts
+      .get('/contacts', async () => {
+        try {
+          const contacts = contactDb.findAll();
+          return { success: true, contacts };
+        } catch (error: any) {
+          return { success: false, error: error.message };
+        }
+      })
+      // Search contact by phone
+      .get('/contacts/lookup', async ({ query }) => {
+        const phone = query.phone as string;
+        if (!phone) return { success: false, error: 'Phone number required' };
+        
+        try {
+          const contact = contactDb.findByPhone(phone);
+          return { success: true, contact };
+        } catch (error: any) {
+          return { success: false, error: error.message };
+        }
+      })
       // Get messages for a vine (polling alternative to SSE)
       .get('/:id/messages', async ({ params: { id }, query }) => {
         try {
@@ -713,83 +807,106 @@ export const app = new Elysia()
           return { success: false, error: error.message, messages: [] };
         }
       })
-  )
-  
-  // Public SSE endpoint for Village Vine (no auth required for EventSource compatibility)
-  .get('/api/village/:id/events', async ({ params: { id } }) => {
-    const nats = await getNatsService();
-    
-    // Create a readable stream for SSE
-    const stream = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder();
-        
-        // Send retry directive first
-        controller.enqueue(encoder.encode(`retry: 2000\n\n`));
-        
-        // Send initial connection event
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type: 'connected', vineId: id })}\n\n`)
-        );
-        
-        // Create message queue
-        const messageQueue: any[] = [];
-        let isSubscribed = true;
-        
-        // Subscribe to NATS messages
-        const unsubscribe = await nats.subscribe(
-          `village.vine.${id}.messages`,
-          (message) => {
-            messageQueue.push({
-              type: 'message',
-              ...message
-            });
-          }
-        );
-        
-        // Stream messages with shorter keepalive to prevent buffering
-        const intervalId = setInterval(() => {
+      
+      // Real-time messaging via WebSocket
+      .ws('/:id/ws', {
+        idleTimeout: 240, // 4 minutes
+        async open(ws) {
+          const { id } = ws.data.params;
+          const { name } = ws.data.query as any;
+          console.log(`🔌 WebSocket connection attempt for vine: ${id} as ${name}`);
+          
           try {
-            // Send queued messages
-            while (messageQueue.length > 0) {
-              const msg = messageQueue.shift();
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify(msg)}\n\n`)
-              );
-            }
+            const vine = villageVines.get(id);
             
-            // Send keepalive comment (prevents proxy buffering)
-            controller.enqueue(encoder.encode(`: keepalive\n\n`));
+            // Enrollment/Claim check
+            if (vine) {
+              const isInvited = vine.invited.includes(name);
+              const alreadyClaimed = vine.claimed.has(name);
+              
+              if (!isInvited) {
+                console.log(`🚫 Name ${name} not invited to vine ${id}`);
+                ws.send({ type: 'error', message: 'You are not invited to this village vine.' });
+                ws.close();
+                return;
+              }
+
+              if (alreadyClaimed) {
+                console.log(`🚫 Name ${name} already active in vine ${id}`);
+                ws.send({ type: 'error', message: 'This name is already active in the vine. Please use a different name or close other sessions.' });
+                ws.close();
+                return;
+              }
+
+              // Mark as active
+              vine.claimed.add(name);
+              console.log(`✅ Name ${name} joined vine ${id}`);
+            }
+
+            const nats = await getNatsService();
+            
+            ws.send({ type: 'connected', vineId: id, name });
+            
+            const unsubscribe = await nats.subscribe(
+              `village.vine.${id}.messages`,
+              (message) => {
+                ws.send({
+                  type: 'message',
+                  ...message
+                });
+              }
+            );
+            
+            // Store metadata in a map to clean up on close
+            wsConnections.set(ws, unsubscribe);
           } catch (error) {
-            console.error('SSE stream error:', error);
-            clearInterval(intervalId);
-            isSubscribed = false;
-            unsubscribe();
-            controller.close();
+            console.error(`❌ Error opening WS for vine ${id}:`, error);
+            ws.close();
           }
-        }, 15000); // 15 seconds - shorter to prevent buffering
-        
-        // Cleanup after 1 hour
-        setTimeout(() => {
-          clearInterval(intervalId);
-          isSubscribed = false;
-          unsubscribe();
-          controller.close();
-        }, 3600000);
-      }
-    });
-    
-    // Return Response with proper SSE headers
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-        'X-Accel-Buffering': 'no'
-      }
-    });
-  })
+        },
+        async message(ws, message: any) {
+          const { id } = ws.data.params;
+          
+          if (message && message.type === 'ping') {
+            ws.send({ type: 'pong', timestamp: new Date().toISOString() });
+            return;
+          }
+
+          if (message && message.type === 'message') {
+            try {
+              const nats = await getNatsService();
+              const msg = {
+                vineId: id,
+                sender: message.sender,
+                content: message.content,
+                timestamp: new Date().toISOString()
+              };
+              
+              await nats.publish(`village.vine.${id}.messages`, msg);
+            } catch (error) {
+              console.error(`❌ Error publishing message to vine ${id}:`, error);
+            }
+          }
+        },
+        close(ws) {
+          const { id } = ws.data.params;
+          const { name } = ws.data.query as any;
+          console.log(`🔌 WebSocket disconnected from vine: ${id} (${name})`);
+          
+          // Cleanup active participant status
+          const vine = villageVines.get(id);
+          if (vine && name) {
+            vine.claimed.delete(name);
+          }
+
+          const unsubscribe = wsConnections.get(ws);
+          if (unsubscribe) {
+            unsubscribe();
+            wsConnections.delete(ws);
+          }
+        }
+      })
+  )
   
   // Feedback Group - Save feedback to filesystem
   .group('/api/feedback', (app) =>
@@ -1203,6 +1320,12 @@ export const app = new Elysia()
 
 // Only listen if this file is run directly (not imported)
 if (import.meta.main) {
+  // Ensure feedback directory exists
+  await ensureFeedbackDir();
+  
+  // Seed initial data (idempotent)
+  await seedDatabase();
+
   // Serve static assets if configured (for single-container deployment)
   if (process.env.STATIC_ASSETS_PATH) {
     const { staticPlugin } = await import('@elysiajs/static');

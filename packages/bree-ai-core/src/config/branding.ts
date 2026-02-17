@@ -1,9 +1,13 @@
 /**
  * Knowledge.ai Multi-Tenant Branding Configuration
  * 
+ * VERSION 2 - TESTING LINE SHIFT
+ * 
  * This file defines branding for different instances of Knowledge.ai platform.
  * Each instance (KAT.ai, Keen.ai, etc.) has its own branding configuration.
  */
+
+import { safeEnv } from '../utils/env';
 
 export interface BrandConfig {
   /** Unique identifier for the brand */
@@ -73,7 +77,7 @@ export const BRAND_CONFIGS: Record<string, BrandConfig> = {
     },
     collection: {
       orgId: 'kat.ai',
-      collectionId: import.meta.env.VITE_RAGSTER_DEFAULT_COLLECTION_ID || 'KatAI Collection V1'
+      collectionId: safeEnv('VITE_RAGSTER_DEFAULT_COLLECTION_ID', 'KatAI Collection V1')
     },
     instructionsPath: '/instructions.md',
     aiName: 'KAT.ai',
@@ -104,8 +108,8 @@ export const BRAND_CONFIGS: Record<string, BrandConfig> = {
     logo: '/logos/genius-talent.png',
     tagline: 'Better Hiring for Recruiters',
     colors: {
-      primary: '#f97316',  // Orange
-      accent: '#fb923c',   // Light Orange
+      primary: '#FF6B00',
+      accent: '#FF8533',
     },
     collection: {
       orgId: 'genius-talent',
@@ -130,6 +134,23 @@ export const BRAND_CONFIGS: Record<string, BrandConfig> = {
     },
     aiName: 'Vineyard AI',
     poweredBy: true
+  },
+
+  'ai-tracker': {
+    name: 'ai-tracker',
+    displayName: 'BREE Agile Tracker',
+    logo: '/logos/bree-ai.png',
+    tagline: 'Agile Project Intelligence',
+    colors: {
+      primary: '#059669',  // Emerald (BREE/Vineyard)
+      accent: '#10b981',
+    },
+    collection: {
+      orgId: 'bree-ai',
+      collectionId: 'agile-tracker-v1'
+    },
+    aiName: 'BREE AI',
+    poweredBy: true
   }
 };
 
@@ -137,7 +158,7 @@ export const BRAND_CONFIGS: Record<string, BrandConfig> = {
  * Get the current brand configuration based on environment variable
  * Defaults to 'kat-ai' for backward compatibility
  */
-const BRAND_ID = import.meta.env.VITE_BRAND_ID || 'kat-ai';
+const BRAND_ID = safeEnv('VITE_BRAND_ID', 'kat-ai');
 
 /**
  * Current active brand configuration
@@ -155,12 +176,12 @@ export function getBrandValue<T>(brandValue: T, fallback: T): T {
  * Get the default collection ID for the current brand
  */
 export function getDefaultCollectionId(): string {
-  return import.meta.env.VITE_RAGSTER_DEFAULT_COLLECTION_ID || currentBrand.collection.collectionId;
+  return safeEnv('VITE_RAGSTER_DEFAULT_COLLECTION_ID', currentBrand.collection.collectionId);
 }
 
 /**
  * Get the default org ID for the current brand
  */
 export function getDefaultOrgId(): string {
-  return import.meta.env.VITE_RAGSTER_DEFAULT_ORG_ID || currentBrand.collection.orgId;
+  return safeEnv('VITE_RAGSTER_DEFAULT_ORG_ID', currentBrand.collection.orgId);
 }

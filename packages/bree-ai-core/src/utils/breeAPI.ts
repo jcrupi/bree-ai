@@ -297,6 +297,48 @@ export const breeAPI = {
   },
 
   /**
+   * Bubbles Service
+   * Manage suggested questions (bubbles) for each brand
+   */
+  bubbles: {
+    /**
+     * Get all bubbles for a brand
+     */
+    list: async (brandId: string) => {
+      const { data, error } = await edenClient.api.bubbles({ brandId }).get();
+      if (error) throw new Error(error.value as string);
+      return data;
+    },
+
+    /**
+     * Create a new bubble
+     */
+    create: async (params: { brandId: string; text: string; instructions?: string }) => {
+      const { data, error } = await edenClient.api.bubbles.post(params);
+      if (error) throw new Error(error.value as string);
+      return data;
+    },
+
+    /**
+     * Update a bubble
+     */
+    update: async (id: number, params: { text?: string; active?: boolean; instructions?: string }) => {
+      const { data, error } = await edenClient.api.bubbles({ id: id.toString() }).patch(params);
+      if (error) throw new Error(error.value as string);
+      return data;
+    },
+
+    /**
+     * Delete a bubble
+     */
+    delete: async (id: number) => {
+      const { data, error } = await edenClient.api.bubbles({ id: id.toString() }).delete();
+      if (error) throw new Error(error.value as string);
+      return data;
+    }
+  },
+
+  /**
    * OpenAI Proxy Service
    * Routes through the API gateway with auth
    */

@@ -25,10 +25,10 @@ export default function Card({
   return (
     <div
       className={`
-        bg-dark-800 rounded-xl border border-dark-700
+        bg-dark-900/60 backdrop-blur-md rounded-2xl border border-white/5
         ${paddingStyles[padding]}
-        ${hover ? 'hover:border-dark-600 hover:bg-dark-700/50 transition-all duration-200 cursor-pointer' : ''}
-        ${glow ? 'hover:shadow-lg hover:shadow-brand-orange/10' : ''}
+        ${hover ? 'hover:border-brand-orange/30 hover:bg-dark-900/80 transition-all duration-500 ease-out cursor-pointer hover:-translate-y-1 hover:shadow-2xl hover:shadow-brand-orange/5' : ''}
+        ${glow ? 'glow-orange' : ''}
         ${className}
       `}
     >

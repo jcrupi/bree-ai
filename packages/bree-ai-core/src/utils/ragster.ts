@@ -1,12 +1,12 @@
 /**
- * Ragster API Utilities
  * Provides functions to interact with Ragster service for document search, collections, and embeddings
  */
+import { safeEnv } from './env';
 
-const RAGSTER_API_URL = import.meta.env.VITE_RAGSTER_API_URL || 'http://localhost:8898/api';
-const DEFAULT_ORG_ID = import.meta.env.VITE_RAGSTER_DEFAULT_ORG_ID || 'default-org';
-const DEFAULT_USER_ID = import.meta.env.VITE_RAGSTER_DEFAULT_USER_ID || 'default-user';
-const DEFAULT_COLLECTION_ID = import.meta.env.VITE_RAGSTER_DEFAULT_COLLECTION_ID || '';
+const RAGSTER_API_URL = safeEnv('VITE_RAGSTER_API_URL', 'http://localhost:8898/api');
+const DEFAULT_ORG_ID = safeEnv('VITE_RAGSTER_DEFAULT_ORG_ID', 'default-org');
+const DEFAULT_USER_ID = safeEnv('VITE_RAGSTER_DEFAULT_USER_ID', 'default-user');
+const DEFAULT_COLLECTION_ID = safeEnv('VITE_RAGSTER_DEFAULT_COLLECTION_ID', '');
 
 export interface RagsterSearchResult {
   id: string;

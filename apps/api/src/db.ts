@@ -59,6 +59,19 @@ export function initializeDatabase() {
     );
   `);
 
+  // Bubbles table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS bubbles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      brand_id TEXT NOT NULL,
+      text TEXT NOT NULL,
+      active INTEGER DEFAULT 1,
+      instructions TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   console.log('✅ Database schema initialized');
 }
 

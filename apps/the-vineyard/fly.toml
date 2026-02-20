@@ -17,6 +17,7 @@ primary_region = 'ord'
     VITE_RAGSTER_DEFAULT_USER_ID = "user@the-vineyard.com"
     VITE_APP_NAME = "The Vineyard"
     VITE_BRAND_ID = "the-vineyard"
+    VITE_EMAILJS_PUBLIC_KEY = "AV4YHk7N0-WlI8U4h"
 
 [http_service]
   internal_port = 8080

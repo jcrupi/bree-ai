@@ -29,7 +29,7 @@ async function mightyFetch<T>(
     );
   }
 
-  return response.json();
+  return response.json() as Promise<T>;
 }
 
 // Helper for pagination query params

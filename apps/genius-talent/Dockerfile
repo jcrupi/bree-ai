@@ -51,7 +51,7 @@ COPY --from=builder /app/apps/genius-talent/dist ./apps/genius-talent/dist
 COPY --from=builder /app/apps/genius-talent/index.ts ./apps/genius-talent/index.ts
 COPY --from=builder /app/apps/genius-talent/package.json ./apps/genius-talent/package.json
 COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/package.json ./bun.lock ./
+COPY --from=builder /app/package.json /app/bun.lock ./
 
 # Install production dependencies
 RUN bun install --production

@@ -19,6 +19,7 @@ primary_region = 'iad'
 [env]
   PORT = "3000"
   NODE_ENV = "production"
+  IDENTITY_ZERO_DB_PATH = "/app/data/identity-zero.db"
 
 [[vm]]
   memory = '512mb'

@@ -174,11 +174,11 @@ ${dataContext}
     }),
   })
   .post("/book-chat", async ({ body }) => {
-    const { question, history } = body;
+    const { question, history, collection, orgId, ragsterUrl } = body;
 
-    const RAGSTER_API_URL = process.env.RAGSTER_API_URL || "https://agent-collective-ragster.fly.dev/api";
-    const RAGSTER_ORG_ID = process.env.RAGSTER_DEFAULT_ORG_ID || "habitaware.ai";
-    const RAGSTER_COLLECTION = process.env.RAGSTER_BOOK_COLLECTION || "ae495393-50b8-4211-8edd-f2953afbdfa2";
+    const RAGSTER_API_URL = ragsterUrl || process.env.RAGSTER_API_URL || "https://agent-collective-ragster.fly.dev/api";
+    const RAGSTER_ORG_ID = orgId || process.env.RAGSTER_DEFAULT_ORG_ID || "habitaware.ai";
+    const RAGSTER_COLLECTION = collection || process.env.RAGSTER_BOOK_COLLECTION || "ae495393-50b8-4211-8edd-f2953afbdfa2";
 
     // Step 1: Search ragster for relevant chunks
     let bookContext = "";
@@ -262,6 +262,9 @@ ${bookContext}
         role: t.String(),
         content: t.String(),
       }))),
+      collection: t.Optional(t.String()),
+      orgId: t.Optional(t.String()),
+      ragsterUrl: t.Optional(t.String()),
     }),
   });
 

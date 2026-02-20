@@ -6,13 +6,16 @@ import { swagger } from '@elysiajs/swagger';
 import { jwt } from '@elysiajs/jwt';
 import { getNatsService, type AgentMessage } from './nats';
 import { authService, seedDatabase, type JWTPayload } from './auth';
-import { contactDb } from './db';
+import { contactDb, bubbleDb } from './db';
 import { mkdir, writeFile, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import crypto from 'node:crypto';
 import { mightyRoutes as habitawareMighty } from './routes/habitaware/mighty';
 import { chatRoutes as habitawareChat } from './routes/habitaware/chat';
 import { agentxRoutes as habitawareAgentx } from './routes/habitaware/agentx';
+import { identityZeroRoutes } from './routes/identity-zero';
+import * as jose from 'jose';
+import { identityDb, decryptKey } from './routes/identity-zero/db';
 
 // For WebSocket connection state (NATS subscriptions)
 const wsConnections = new Map<any, () => void>();
@@ -24,7 +27,7 @@ const villageVines = new Map<string, {
   claimed: Set<string> 
 }>();
 
-async function requireAuth(headers: Record<string, string | undefined>, jwt: any, set: any): Promise<JWTPayload | null> {
+export async function requireAuth(headers: Record<string, string | undefined>, jwtPluginContext: any, set: any): Promise<JWTPayload | null> {
   const authHeader = headers['authorization'];
   
   // Allow guest access if no auth header is provided and we are in demo mode
@@ -42,8 +45,36 @@ async function requireAuth(headers: Record<string, string | undefined>, jwt: any
   }
 
   const token = authHeader.slice(7);
-  const payload = await jwt.verify(token);
-  if (!payload) {
+
+  try {
+    // 1. Decode token to find the Issuer (Client ID)
+    const unverifiedPayload = jose.decodeJwt(token);
+    const clientId = unverifiedPayload.iss;
+
+    if (!clientId) {
+       console.error("JWT is missing issuer (client_id)");
+       throw new Error("Invalid token format");
+    }
+
+    // 2. Lookup the dynamic Client Secret from Identity Zero
+    const client = identityDb.query(`
+      SELECT jwt_secret FROM client WHERE client_id = ?
+    `).get(clientId) as any;
+
+    if (!client || !client.jwt_secret) {
+        console.error(`Missing encryption key configuration for client: ${clientId}`);
+        throw new Error("Client configuration error");
+    }
+
+    // 3. Decrypt the envelope-encrypted secret from DB
+    const decryptedSecret = await decryptKey(client.jwt_secret);
+
+    // 4. Verify the token cryptographically using the specific client plaintext secret
+    const secretKey = new TextEncoder().encode(decryptedSecret);
+    const { payload } = await jose.jwtVerify(token, secretKey);
+    
+    return payload as unknown as JWTPayload;
+  } catch (err) {
     if (process.env.DEMO_MODE === 'true') {
       return {
         userId: 0,
@@ -55,8 +86,6 @@ async function requireAuth(headers: Record<string, string | undefined>, jwt: any
     set.status = 401;
     return null;
   }
-
-  return payload as JWTPayload;
 }
 
 // Configuration (use environment variables or defaults)
@@ -86,13 +115,6 @@ export const app = new Elysia()
       }
     }
   }))
-  .use(
-    jwt({
-      name: 'jwt',
-      secret: process.env.JWT_SECRET || 'bree-secret-change-in-production',
-      exp: '7d' // Token expires in 7 days
-    })
-  )
   // Base endpoints
   .get('/', () => ({
     message: 'Welcome to BREE AI Gateway',
@@ -103,6 +125,12 @@ export const app = new Elysia()
     status: 'healthy',
     timestamp: new Date().toISOString()
   }))
+
+  // Habitaware Routes
+  .use(habitawareMighty)
+  .use(habitawareChat)
+  .use(habitawareAgentx)
+  .use(identityZeroRoutes)
 
   // Knowledge (Ragster) Proxy Group
   .group('/api/knowledge', (app) =>
@@ -664,6 +692,68 @@ export const app = new Elysia()
           content: t.String(),
           metadata: t.Optional(t.Any())
         })
+      })
+      
+      // Real-time terminal/log connection via WebSocket
+      .ws('/:id/ws', {
+        idleTimeout: 3600, // 1 hour
+        async open(ws) {
+          const { id } = ws.data.params;
+          console.log(`🔌 Agent WebSocket connection attempt for agent: ${id}`);
+          
+          try {
+            const nats = await getNatsService();
+            
+            ws.send({ type: 'connected', agentId: id, message: `Connected to grape/agent ${id} stream` });
+            
+            // Subscribe to both logs and lifecycle events
+            const unsubLogs = await nats.subscribe(`logs.${id}.>`, (message) => {
+              ws.send({ type: 'log', ...message });
+            });
+            const unsubLifecycle = await nats.subscribe(`lifecycle.${id}.>`, (message) => {
+              ws.send({ type: 'lifecycle', ...message });
+            });
+            
+            // Store metadata in a map to clean up on close
+            wsConnections.set(ws, () => {
+              unsubLogs();
+              unsubLifecycle();
+            });
+          } catch (error) {
+            console.error(`❌ Error opening WS for agent ${id}:`, error);
+            ws.send({ type: 'error', message: 'Failed to connect to agent stream on NATS' });
+            ws.close();
+          }
+        },
+        async message(ws, message: any) {
+          const { id } = ws.data.params;
+          
+          if (message && message.type === 'ping') {
+            ws.send({ type: 'pong', timestamp: new Date().toISOString() });
+            return;
+          }
+
+          if (message && message.type === 'command') {
+            try {
+              const nats = await getNatsService();
+              // Publish the command to the agent's action subject if specified, else generic messages
+              const subject = message.action ? `agent.${id}.${message.action}` : `agents.${id}.messages`;
+              await nats.publish(subject, message.payload || message.content);
+            } catch (error) {
+              console.error(`❌ Error publishing command to agent ${id}:`, error);
+            }
+          }
+        },
+        close(ws) {
+          const { id } = ws.data.params;
+          console.log(`🔌 Agent WebSocket disconnected from agent: ${id}`);
+          
+          const unsubscribe = wsConnections.get(ws);
+          if (unsubscribe) {
+            unsubscribe();
+            wsConnections.delete(ws);
+          }
+        }
       })
   )
   

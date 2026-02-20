@@ -26,7 +26,7 @@ async function mightyFetch<T>(endpoint: string): Promise<T> {
   if (!response.ok) {
     throw new Error(`Mighty API Error: ${response.status}`);
   }
-  return response.json();
+  return response.json() as Promise<T>;
 }
 
 // ============ MEMBER TYPES ============
@@ -538,7 +538,16 @@ function getTopThemes(themes: Record<string, number>): string {
 }
 
 // ============ ROUTES ============
+import { requireAuth } from "../../index"; // Import the dynamic JWT validator
+
 export const agentxRoutes = new Elysia()
+  .onBeforeHandle(async ({ headers, set }) => {
+    // We pass null for the jwt plugin context since requireAuth now uses jose internally
+    const payload = await requireAuth(headers, null, set);
+    if (!payload && set.status === 401) {
+      return { error: 'Unauthorized: Invalid or missing Multi-Tenant JWT' };
+    }
+  })
 
   // Generate members notes
   .post("/generate/members", async () => {

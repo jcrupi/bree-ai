@@ -67,7 +67,10 @@ export const breeAPI = {
       org_id?: string;
       filter?: Record<string, any>;
     }) => {
-      const { data, error } = await edenClient.api.knowledge.search.post(params);
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.knowledge.search.post(params, {
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     },
@@ -76,8 +79,10 @@ export const breeAPI = {
      * List all collections
      */
     listCollections: async (org_id?: string) => {
+      const token = localStorage.getItem('bree_jwt');
       const { data, error } = await edenClient.api.knowledge.collections.get({
-        query: { org_id }
+        query: { org_id },
+        headers: token ? { authorization: `Bearer ${token}` } : {}
       });
       if (error) throw new Error(error.value as string);
       return data;
@@ -87,7 +92,10 @@ export const breeAPI = {
      * Get collection by ID
      */
     getCollection: async (id: string) => {
-      const { data, error } = await edenClient.api.knowledge.collections({ id }).get();
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.knowledge.collections({ id }).get({
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     },
@@ -100,8 +108,10 @@ export const breeAPI = {
       user_id?: string;
       collection_id?: string;
     }) => {
+      const token = localStorage.getItem('bree_jwt');
       const { data, error } = await edenClient.api.knowledge.resources.get({
-        query: params
+        query: params,
+        headers: token ? { authorization: `Bearer ${token}` } : {}
       });
       if (error) throw new Error(error.value as string);
       return data;
@@ -119,7 +129,10 @@ export const breeAPI = {
         temperature?: number;
       };
     }) => {
-      const { data, error } = await edenClient.api.knowledge.chat.post(params);
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.knowledge.chat.post(params, {
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     }
@@ -142,7 +155,10 @@ export const breeAPI = {
         model?: string;
       };
     }) => {
-      const { data, error } = await edenClient.api.collective.chat.post(params);
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.collective.chat.post(params, {
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     }
@@ -157,7 +173,10 @@ export const breeAPI = {
      * Get system instructions
      */
     getInstructions: async () => {
-      const { data, error } = await edenClient.api.identity.instructions.get();
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.identity.instructions.get({
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     },
@@ -166,8 +185,11 @@ export const breeAPI = {
      * Save system instructions
      */
     saveInstructions: async (content: string) => {
+      const token = localStorage.getItem('bree_jwt');
       const { data, error } = await edenClient.api.identity.instructions.post({
         content
+      }, {
+        headers: token ? { authorization: `Bearer ${token}` } : {}
       });
       if (error) throw new Error(error.value as string);
       return data;
@@ -245,7 +267,10 @@ export const breeAPI = {
      * Discover all connected agents
      */
     discover: async (): Promise<{ success: boolean; count: number; agents: AgentInfo[] }> => {
-      const { data, error } = await edenClient.api.agents.get();
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.agents.get({
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data as any;
     },
@@ -254,7 +279,10 @@ export const breeAPI = {
      * Get specific agent status
      */
     getStatus: async (agentId: string) => {
-      const { data, error } = await edenClient.api.agents({ id: agentId }).get();
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.agents({ id: agentId }).get({
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     },
@@ -263,9 +291,12 @@ export const breeAPI = {
      * Send message to an agent
      */
     sendMessage: async (agentId: string, content: string, metadata?: Record<string, any>) => {
+      const token = localStorage.getItem('bree_jwt');
       const { data, error } = await edenClient.api.agents({ id: agentId }).message.post({
         content,
         metadata
+      }, {
+        headers: token ? { authorization: `Bearer ${token}` } : {}
       });
       if (error) throw new Error(error.value as string);
       return data;
@@ -281,7 +312,10 @@ export const breeAPI = {
      * Get configuration for a brand
      */
     get: async (brandId: string) => {
-      const { data, error } = await edenClient.api.config({ brandId }).get();
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.config({ brandId }).get({
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     },
@@ -290,7 +324,10 @@ export const breeAPI = {
      * Save configuration for a brand
      */
     save: async (brandId: string, config: any) => {
-      const { data, error } = await edenClient.api.config({ brandId }).post(config);
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.config({ brandId }).post(config, {
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     }
@@ -305,7 +342,10 @@ export const breeAPI = {
      * Get all bubbles for a brand
      */
     list: async (brandId: string) => {
-      const { data, error } = await edenClient.api.bubbles({ brandId }).get();
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.bubbles({ brandId }).get({
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     },
@@ -314,7 +354,10 @@ export const breeAPI = {
      * Create a new bubble
      */
     create: async (params: { brandId: string; text: string; instructions?: string }) => {
-      const { data, error } = await edenClient.api.bubbles.post(params);
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.bubbles.post(params, {
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     },
@@ -323,7 +366,10 @@ export const breeAPI = {
      * Update a bubble
      */
     update: async (id: number, params: { text?: string; active?: boolean; instructions?: string }) => {
-      const { data, error } = await edenClient.api.bubbles({ id: id.toString() }).patch(params);
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.bubbles({ id: id.toString() }).patch(params, {
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     },
@@ -332,7 +378,10 @@ export const breeAPI = {
      * Delete a bubble
      */
     delete: async (id: number) => {
-      const { data, error } = await edenClient.api.bubbles({ id: id.toString() }).delete();
+      const token = localStorage.getItem('bree_jwt');
+      const { data, error } = await edenClient.api.bubbles({ id: id.toString() }).delete({
+        headers: token ? { authorization: `Bearer ${token}` } : {}
+      });
       if (error) throw new Error(error.value as string);
       return data;
     }

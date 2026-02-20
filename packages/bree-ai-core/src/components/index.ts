@@ -5,5 +5,7 @@ export * from './AdminSettings';
 export * from './ChatMessage';
 export * from './SpeakingAvatar';
 export * from './FeedbackButton';
+export * from './EmailJS';
 export * from './ui';
 export * from './layout';
+export * from './identity-zero/identity-zero-console';

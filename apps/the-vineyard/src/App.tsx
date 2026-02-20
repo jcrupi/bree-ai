@@ -11,6 +11,7 @@ import { FastFeatDashboard } from './pages/FastFeatDashboard';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { TalentVillageBoard } from './pages/TalentVillageBoard';
 import { VinesEyeView } from './pages/VinesEyeView';
+import { EmailJSTestPage } from './pages/EmailJSTestPage';
 import { AILensProvider, useAILens } from './hooks/useAILens';
 import { AILensMenu } from './components/AILensMenu';
 import { AILensOverlay } from './components/AILensOverlay';
@@ -69,6 +70,7 @@ export function App() {
           <Route path="/project/:projectId/knowledge" element={<KnowledgePage />} />
           <Route path="/talent-village" element={<TalentVillageBoard />} />
           <Route path="/talent-village/vines-eye" element={<VinesEyeView />} />
+          <Route path="/emailjs-test" element={<EmailJSTestPage />} />
         </Routes>
       </AILensProvider>
     </Router>);

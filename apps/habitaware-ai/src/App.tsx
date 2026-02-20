@@ -350,6 +350,14 @@ export default function App() {
   const [bookInput, setBookInput] = useState("");
   const [bookLoading, setBookLoading] = useState(false);
 
+  // Book Admin Config state
+  const [showBookConfig, setShowBookConfig] = useState(false);
+  const [bookRagsterUrl, setBookRagsterUrl] = useState("https://agent-collective-ragster.fly.dev/api");
+  const [bookOrgId, setBookOrgId] = useState("habitaware.ai");
+  const [bookCollection, setBookCollection] = useState("ae495393-50b8-4211-8edd-f2953afbdfa2");
+  const [bookCollections, setBookCollections] = useState<Array<{ id: string; short_id: string; name: string; chunk_count: number }>>([]);
+  const [bookCollectionsLoading, setBookCollectionsLoading] = useState(false);
+
   // Feedback state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
@@ -1546,6 +1554,9 @@ export default function App() {
       const res = (await api.api.habitaware.chat["book-chat"].post({
         question: question,
         history: bookMessages,
+        collection: bookCollection,
+        orgId: bookOrgId,
+        ragsterUrl: bookRagsterUrl,
       })) as ApiResponse;
 
       if (res.error) {
@@ -1638,6 +1649,109 @@ export default function App() {
           {bookLoading ? "..." : "Send"}
         </button>
       </div>
+
+      {/* Admin Config Panel */}
+      <div className="book-admin-toggle">
+        <button
+          onClick={() => {
+            setShowBookConfig(!showBookConfig);
+            if (!showBookConfig && bookCollections.length === 0) {
+              // Load collections when opening
+              setBookCollectionsLoading(true);
+              api.api.knowledge.collections.get({ $query: { org_id: bookOrgId } })
+                .then((res: any) => {
+                  const data = res?.data as any;
+                  const cols = data?.collections || data || [];
+                  setBookCollections(Array.isArray(cols) ? cols : []);
+                })
+                .catch((err: any) => console.error('Failed to load collections:', err))
+                .finally(() => setBookCollectionsLoading(false));
+            }
+          }}
+          className="btn-secondary"
+          style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+        >
+          ⚙️ {showBookConfig ? 'Hide Config' : 'Ragster Config'}
+        </button>
+      </div>
+
+      {showBookConfig && (
+        <div className="book-admin-panel">
+          <div className="book-admin-grid">
+            <div className="book-admin-field">
+              <label>Ragster API URL</label>
+              <input
+                type="text"
+                value={bookRagsterUrl}
+                onChange={(e) => setBookRagsterUrl(e.target.value)}
+                className="chat-input"
+                style={{ fontSize: '0.85rem' }}
+              />
+            </div>
+            <div className="book-admin-field">
+              <label>Organization ID</label>
+              <input
+                type="text"
+                value={bookOrgId}
+                onChange={(e) => setBookOrgId(e.target.value)}
+                onBlur={() => {
+                  // Reload collections when org changes
+                  setBookCollectionsLoading(true);
+                  api.api.knowledge.collections.get({ $query: { org_id: bookOrgId } })
+                    .then((res: any) => {
+                      const data = res?.data as any;
+                      const cols = data?.collections || data || [];
+                      setBookCollections(Array.isArray(cols) ? cols : []);
+                    })
+                    .catch(() => setBookCollections([]))
+                    .finally(() => setBookCollectionsLoading(false));
+                }}
+                className="chat-input"
+                style={{ fontSize: '0.85rem' }}
+              />
+            </div>
+            <div className="book-admin-field">
+              <label>Collection</label>
+              {bookCollectionsLoading ? (
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Loading collections...</span>
+              ) : bookCollections.length > 0 ? (
+                <select
+                  value={bookCollection}
+                  onChange={(e) => setBookCollection(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem 0.75rem',
+                    fontSize: '0.85rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1.5px solid var(--border-soft)',
+                    background: 'var(--surface)',
+                    color: 'var(--text-primary)',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {bookCollections.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.chunk_count || 0} chunks)
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={bookCollection}
+                  onChange={(e) => setBookCollection(e.target.value)}
+                  placeholder="Collection UUID"
+                  className="chat-input"
+                  style={{ fontSize: '0.85rem' }}
+                />
+              )}
+            </div>
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+            Active: <strong>{bookCollections.find(c => c.id === bookCollection)?.name || bookCollection}</strong>
+          </div>
+        </div>
+      )}
     </div>
   );
 

@@ -76,6 +76,8 @@ export function TalentVillageBoard() {
   // Collapsible State
   const [isExpertChatCollapsed, setIsExpertChatCollapsed] = useState(false);
   const [isBottomToolsCollapsed, setIsBottomToolsCollapsed] = useState(false);
+  // Which AI tool side panel is open (slides in from right)
+  const [openToolPanel, setOpenToolPanel] = useState<'roster' | 'config' | 'queue' | 'designer' | null>(null);
 
   // Expert chat permission state (Lead controls which experts can chat with candidate)
   const [enabledExperts, setEnabledExperts] = useState<Set<string>>(new Set());
@@ -726,7 +728,7 @@ export function TalentVillageBoard() {
                         </div>
                         <div>
                           <h4 className="font-bold text-indigo-950 text-sm">{userName}</h4>
-                          <p className="text-[9px] text-indigo-500 font-bold uppercase tracking-widest">Private Vine · {isExpertConnected ? 'Live' : 'Connecting...'}</p>
+                          <p className="text-[9px] text-indigo-500 font-bold uppercase tracking-widest">Channel · all experts see this chat · {isExpertConnected ? 'Live' : 'Connecting...'}</p>
                         </div>
                       </div>
                       {isLead && (
@@ -743,7 +745,7 @@ export function TalentVillageBoard() {
                         <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40">
                           <Users size={40} className="text-indigo-300 mb-3" />
                           <p className="text-sm font-bold text-indigo-400">No expert messages yet</p>
-                          <p className="text-xs text-indigo-300 mt-1">Use "Add Expert" to invite collaborators</p>
+                          <p className="text-xs text-indigo-300 mt-1">Everyone in this village sees messages here. Invite experts to join the channel.</p>
                         </div>
                       )}
                       {privateExpertMessages.map((msg) => {
@@ -770,7 +772,7 @@ export function TalentVillageBoard() {
                           type="text"
                           value={expertInput}
                           onChange={(e) => setExpertInput(e.target.value)}
-                          placeholder="Message other experts..."
+                          placeholder="Message the channel..."
                           className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-4 text-xs focus:ring-1 focus:ring-indigo-200"
                         />
                         <button type="submit" className="p-4 bg-indigo-100 text-indigo-600 rounded-xl hover:bg-indigo-200 transition-colors">
@@ -946,7 +948,7 @@ export function TalentVillageBoard() {
                             <div>
                               <h4 className="font-bold text-indigo-950 text-sm">{isLead ? 'Expert Vine Chat' : userName}</h4>
                               <p className="text-[9px] text-indigo-500 font-bold uppercase tracking-widest">
-                                {isLead ? 'LEAD & TEAM' : 'PRIVATE VINE'} · {isExpertConnected ? 'LIVE' : 'CONNECTING...'}
+                                CHANNEL · ALL EXPERTS SEE THIS CHAT · {isExpertConnected ? 'LIVE' : 'CONNECTING...'}
                               </p>
                             </div>
                           </div>
@@ -989,6 +991,7 @@ export function TalentVillageBoard() {
                         <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
                           <Users size={32} className="text-indigo-300 mb-2" />
                           <p className="text-xs font-bold text-indigo-400">No expert messages yet</p>
+                          <p className="text-[10px] text-indigo-300 mt-1">Everyone in this village sees messages here.</p>
                         </div>
                       )}
                       {privateExpertMessages.map((msg) => {
@@ -1016,7 +1019,7 @@ export function TalentVillageBoard() {
                           type="text"
                           value={expertInput}
                           onChange={(e) => setExpertInput(e.target.value)}
-                          placeholder="Message the expert team..."
+                          placeholder="Message the channel..."
                           className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-indigo-200"
                         />
                         <button type="submit" className="p-3 bg-indigo-100 text-indigo-600 rounded-xl hover:bg-indigo-200 transition-colors">
@@ -1029,7 +1032,7 @@ export function TalentVillageBoard() {
                 </motion.div>
               </div>
 
-              {/* BOTTOM ROW (Lead Expert Only) */}
+              {/* BOTTOM ROW (Lead Expert Only) — tool strip + slide-in side panels */}
               {isLead && (
                 <div className="flex flex-col gap-4 mt-6">
                   <div className="flex items-center justify-between px-2">
@@ -1043,7 +1046,7 @@ export function TalentVillageBoard() {
                       </div>
                     </div>
                     <button 
-                      onClick={() => setIsBottomToolsCollapsed(!isBottomToolsCollapsed)}
+                      onClick={() => { if (!isBottomToolsCollapsed) setOpenToolPanel(null); setIsBottomToolsCollapsed(!isBottomToolsCollapsed); }}
                       className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-all shadow-sm"
                     >
                       {isBottomToolsCollapsed ? (
@@ -1060,27 +1063,83 @@ export function TalentVillageBoard() {
                     </button>
                   </div>
 
+                  {/* Tool strip: open panels from the right */}
                   <AnimatePresence>
                     {!isBottomToolsCollapsed && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 20 }}
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pb-8"
+                        exit={{ opacity: 0, y: 10 }}
+                        className="flex flex-wrap gap-2 pb-4"
                       >
+                        <button
+                          onClick={() => setOpenToolPanel(openToolPanel === 'roster' ? null : 'roster')}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm border ${openToolPanel === 'roster' ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50'}`}
+                        >
+                          <Users size={14} />
+                          Expert Roster
+                        </button>
+                        <button
+                          onClick={() => setOpenToolPanel(openToolPanel === 'config' ? null : 'config')}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm border ${openToolPanel === 'config' ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50'}`}
+                        >
+                          <Zap size={14} />
+                          AI Configuration
+                        </button>
+                        <button
+                          onClick={() => setOpenToolPanel(openToolPanel === 'queue' ? null : 'queue')}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm border ${openToolPanel === 'queue' ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:bg-amber-50'}`}
+                        >
+                          <MessageSquare size={14} />
+                          Intervention Queue
+                          {assessmentQueue.length > 0 && (
+                            <span className="ml-1 px-1.5 py-0.5 rounded-md bg-white/20 text-[10px]">{assessmentQueue.length}</span>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => setOpenToolPanel(openToolPanel === 'designer' ? null : 'designer')}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm border ${openToolPanel === 'designer' ? 'bg-purple-500 text-white border-purple-600' : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300 hover:bg-purple-50'}`}
+                        >
+                          <Sparkles size={14} />
+                          AI Question Designer
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-                  {/* Expert Roster — Toggle Candidate Chat Permissions */}
-                  <div className="bg-white rounded-[32px] border border-slate-200 p-6 shadow-xl shadow-indigo-500/5">
-                    <div className="flex items-center gap-3 mb-5">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-100">
-                        <Users size={16} />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-800 text-sm">Expert Roster</h4>
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">CANDIDATE CHAT ACCESS</p>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
+                  {/* Slide-in side panel (right) */}
+                  <AnimatePresence>
+                    {openToolPanel && (
+                      <>
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          onClick={() => setOpenToolPanel(null)}
+                          className="fixed inset-0 bg-black/30 z-40"
+                        />
+                        <motion.div
+                          initial={{ x: '100%' }}
+                          animate={{ x: 0 }}
+                          exit={{ x: '100%' }}
+                          transition={{ type: 'tween', duration: 0.25 }}
+                          className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white shadow-2xl border-l border-slate-200 z-50 flex flex-col overflow-hidden"
+                        >
+                          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 flex-shrink-0">
+                            <span className="font-bold text-slate-800 text-sm">
+                              {openToolPanel === 'roster' && 'Expert Roster'}
+                              {openToolPanel === 'config' && 'AI Configuration'}
+                              {openToolPanel === 'queue' && 'Intervention Queue'}
+                              {openToolPanel === 'designer' && 'AI Question Designer'}
+                            </span>
+                            <button onClick={() => setOpenToolPanel(null)} className="p-2 rounded-lg hover:bg-slate-200 text-slate-500 transition-colors">
+                              <X size={18} />
+                            </button>
+                          </div>
+                          <div className="flex-1 overflow-y-auto p-6">
+                  {openToolPanel === 'roster' && (
+                  <div className="space-y-3">
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-4">CANDIDATE CHAT ACCESS</p>
                       {expertRoster.length === 0 ? (
                         <div className="py-6 text-center border-2 border-dashed border-slate-100 rounded-2xl">
                           <Users size={24} className="text-slate-200 mx-auto mb-2" />
@@ -1110,18 +1169,11 @@ export function TalentVillageBoard() {
                           </div>
                         ))
                       )}
-                    </div>
                   </div>
+                  )}
 
-
-                  {/* AI Configuration */}
-                  <div className="bg-white rounded-[32px] border border-slate-200 p-6 shadow-xl shadow-indigo-500/5">
-                    <div className="flex items-center gap-3 mb-5">
-                      <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-100">
-                        <Zap size={16} />
-                      </div>
-                      <h4 className="font-bold text-slate-800 text-sm">AI Configuration</h4>
-                    </div>
+                  {openToolPanel === 'config' && (
+                  <div className="space-y-3">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl">
                         <div className="flex flex-col">
@@ -1162,16 +1214,11 @@ export function TalentVillageBoard() {
                       </div>
                     </div>
                   </div>
+                  )}
 
-                  {/* Intervention Queue */}
-                  <div className="bg-white rounded-[32px] border border-slate-200 p-6 shadow-xl shadow-indigo-500/5 flex flex-col">
-                    <div className="flex items-center justify-between mb-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-white shadow-lg shadow-amber-100">
-                          <MessageSquare size={16} />
-                        </div>
-                        <h4 className="font-bold text-slate-800 text-sm">Intervention Queue</h4>
-                      </div>
+                  {openToolPanel === 'queue' && (
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
                       <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-lg border border-amber-100 uppercase tracking-wider">
                         {assessmentQueue.length} Pending
                       </span>
@@ -1218,16 +1265,10 @@ export function TalentVillageBoard() {
                       )}
                     </div>
                   </div>
+                  )}
 
-                  {/* AI Question Designer */}
-                  <div className="bg-white rounded-[32px] border border-slate-200 p-6 shadow-xl shadow-indigo-500/5 flex flex-col">
-                    <div className="flex items-center gap-3 mb-5">
-                      <div className="w-8 h-8 rounded-xl bg-purple-500 flex items-center justify-center text-white shadow-lg shadow-purple-100">
-                        <Sparkles size={16} />
-                      </div>
-                      <h4 className="font-bold text-slate-800 text-sm">AI Question Designer</h4>
-                    </div>
-                    <div className="space-y-4">
+                  {openToolPanel === 'designer' && (
+                  <div className="space-y-4">
                       <div>
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1 px-1">SPECIALTY</label>
                         <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-xs text-slate-700 focus:ring-1 focus:ring-purple-200">
@@ -1269,13 +1310,15 @@ export function TalentVillageBoard() {
                           </div>
                         </motion.div>
                       )}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
+                  </div>
+                  )}
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
         </div>
       )}
             </motion.div>

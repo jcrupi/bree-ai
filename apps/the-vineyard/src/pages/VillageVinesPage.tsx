@@ -15,7 +15,8 @@ import {
   Rocket,
   Shield,
   Activity,
-  Plus
+  Plus,
+  Sparkles
 } from 'lucide-react';
 import { TEAM_MEMBERS } from '../data/teamMembers';
 import { useVillageVine } from '../hooks/useVillageVine';
@@ -265,6 +266,21 @@ export function VillageVinesPage() {
                 </div>
               </div>
             </div>
+
+            <Link
+              to="/talent-village/setup"
+              className="block p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 hover:border-indigo-500/30 transition-all cursor-pointer group"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-xs font-bold text-white shadow-lg">
+                  <Sparkles size={14} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-slate-100 truncate group-hover:text-indigo-400 transition-colors">Talent Village</h3>
+                  <p className="text-[10px] text-indigo-500/60 font-medium">RUN BOARD / SETUP</p>
+                </div>
+              </div>
+            </Link>
 
             {activeVineId && (
               <div className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/20 border-l-4 border-l-indigo-500">

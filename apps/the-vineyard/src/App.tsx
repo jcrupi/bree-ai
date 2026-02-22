@@ -11,11 +11,14 @@ import { FastFeatDashboard } from './pages/FastFeatDashboard';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { TalentVillageBoard } from './pages/TalentVillageBoard';
 import { VinesEyeView } from './pages/VinesEyeView';
+import { TalentVillageSetup } from './pages/TalentVillageSetup';
 import { EmailJSTestPage } from './pages/EmailJSTestPage';
+import { IdentityZeroPage } from './pages/IdentityZeroPage';
 import { AILensProvider, useAILens } from './hooks/useAILens';
 import { AILensMenu } from './components/AILensMenu';
 import { AILensOverlay } from './components/AILensOverlay';
 import { useLocation } from 'react-router-dom';
+import { ObserverAI } from '@bree-ai/core';
 
 function AILensGlobalUI() {
   const location = useLocation();
@@ -55,6 +58,7 @@ export function App() {
     <Router>
       <AILensProvider>
         <AILensGlobalUI />
+        <ObserverAI />
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/fast-feat" element={<FastFeatDashboard />} />
@@ -69,8 +73,10 @@ export function App() {
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/project/:projectId/knowledge" element={<KnowledgePage />} />
           <Route path="/talent-village" element={<TalentVillageBoard />} />
+          <Route path="/talent-village/setup" element={<TalentVillageSetup />} />
           <Route path="/talent-village/vines-eye" element={<VinesEyeView />} />
           <Route path="/emailjs-test" element={<EmailJSTestPage />} />
+          <Route path="/identity-zero" element={<IdentityZeroPage />} />
         </Routes>
       </AILensProvider>
     </Router>);

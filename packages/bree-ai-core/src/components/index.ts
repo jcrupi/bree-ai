@@ -9,3 +9,4 @@ export * from './EmailJS';
 export * from './ui';
 export * from './layout';
 export * from './identity-zero/identity-zero-console';
+export * from './observer-ai/observer-ai';

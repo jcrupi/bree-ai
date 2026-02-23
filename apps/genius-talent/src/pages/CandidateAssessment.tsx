@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Send,
   Bot,
@@ -21,6 +22,10 @@ import {
   Eye,
   X,
   Save,
+  Circle,
+  Pause,
+  Play,
+  Square,
 } from 'lucide-react'
 import { Logo } from '../components/layout'
 import { Button, Card, Badge, Progress, Avatar } from '@bree-ai/core/components'
@@ -28,7 +33,9 @@ import { api } from '@bree-ai/core/utils'
 import { currentBrand } from '@bree-ai/core/config'
 import { agentXSpecialities } from '../data/specialities'
 
-type AssessmentPhase = 'intro' | 'assessment' | 'complete' | 'results'
+type AssessmentPhase = 'intro' | 'config' | 'assessment' | 'complete' | 'results'
+type RecordingStatus = 'idle' | 'recording' | 'paused'
+type StartMode = 'enter' | 'autopilot'
 
 interface Message {
   id: number
@@ -37,10 +44,25 @@ interface Message {
   timestamp: string
 }
 
+const MAX_AI_CLARIFICATIONS = 2
+const DEFAULT_QUESTION_COUNT = 6
+
 export default function CandidateAssessment() {
+  const [searchParams] = useSearchParams()
+  const isLeadView = searchParams.get('view') === 'lead'
+
   const [phase, setPhase] = useState<AssessmentPhase>('intro')
+  const [startMode, setStartMode] = useState<StartMode>('autopilot')
+  const [customQuestionsText, setCustomQuestionsText] = useState('')
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>(['devops'])
+  const [questionCount, setQuestionCount] = useState(DEFAULT_QUESTION_COUNT)
+  const [strictMode, setStrictMode] = useState(true)
+  const [isPaused, setIsPaused] = useState(false)
+  const [aiClarificationCount, setAiClarificationCount] = useState(0)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [currentQuestion, setCurrentQuestion] = useState(1)
   const [inputValue, setInputValue] = useState('')
+  const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>('idle')
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
@@ -160,42 +182,134 @@ Required Qualifications
     ],
   }
 
-  const handleSendMessage = () => {
-    if (!inputValue.trim()) return
+  const buildQuestionsFromConfig = (): string[] => {
+    if (startMode === 'enter') {
+      const lines = customQuestionsText.trim().split(/\n/).map((s) => s.trim()).filter(Boolean)
+      return lines.length > 0 ? lines : assessmentQuestions
+    }
+    const agents = agentXSpecialities.filter((s) => selectedAgentIds.includes(s.id))
+    const all = agents.flatMap((s) => s.questions.map((q) => q.text))
+    const shuffled = [...all].sort(() => 0.5 - Math.random())
+    const count = Math.min(Math.max(1, questionCount), 10)
+    return shuffled.slice(0, count)
+  }
 
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || isPaused || isSubmitting) return
+
+    const answer = inputValue.trim()
     const newMessage: Message = {
       id: messages.length + 1,
       type: 'user',
-      content: inputValue,
+      content: answer,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
-
-    setMessages([...messages, newMessage])
+    setMessages((prev) => [...prev, newMessage])
     setInputValue('')
 
-    // Simulate bot response
-    setTimeout(() => {
+    if (strictMode) {
       if (currentQuestion < assessmentQuestions.length) {
-        const botResponse: Message = {
-          id: messages.length + 2,
-          type: 'bot',
-          content: assessmentQuestions[currentQuestion],
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }
-        setMessages((prev) => [...prev, botResponse])
+        const nextQ = assessmentQuestions[currentQuestion]
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: prev.length + 2,
+            type: 'bot',
+            content: nextQ,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ])
         setCurrentQuestion((prev) => prev + 1)
       } else {
         setPhase('complete')
       }
-    }, 1000)
+      return
+    }
+
+    setIsSubmitting(true)
+    const currentQ = assessmentQuestions[currentQuestion - 1]
+    const recent = messages.slice(-6).map((m) => `${m.type}: ${m.content}`).join('\n')
+    const clarificationBudget = MAX_AI_CLARIFICATIONS - aiClarificationCount
+    try {
+      const systemPrompt = `You are an assessment interviewer. Given the current question and the candidate's answer, respond with exactly one of:
+1. NEXT_QUESTION: if the answer is sufficient or you have no follow-up. On the next line, write the next interview question (one line).
+2. CLARIFY: if the candidate asked a question or you need to clarify (max ${clarificationBudget} clarifications left). On the next line, write your brief clarification/response.
+If clarification budget is 0, you must respond with NEXT_QUESTION only. Output format: first line is NEXT_QUESTION or CLARIFY, second line is the message.`
+      const userPrompt = `Current question: ${currentQ}\nCandidate answer: ${answer}\n\nRecent messages:\n${recent}\n\nRespond with NEXT_QUESTION or CLARIFY and then your message.`
+      const result = await (api.api.openai as any).chat({
+        query: userPrompt,
+        context: '',
+        options: { systemPrompt, temperature: 0.3, max_tokens: 500 },
+      })
+      const response = (result?.response ?? result?.message ?? '').trim()
+      const firstLine = response.split('\n')[0]?.toUpperCase() ?? ''
+      const messageContent = response.split('\n').slice(1).join('\n').trim() || response
+
+      if (firstLine.includes('CLARIFY') && aiClarificationCount < MAX_AI_CLARIFICATIONS) {
+        setAiClarificationCount((c) => c + 1)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: prev.length + 2,
+            type: 'bot',
+            content: messageContent,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ])
+      } else {
+        const nextQuestionText =
+          firstLine.includes('NEXT_QUESTION') && messageContent
+            ? messageContent
+            : currentQuestion < assessmentQuestions.length
+              ? assessmentQuestions[currentQuestion]
+              : null
+        if (nextQuestionText) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: prev.length + 2,
+              type: 'bot',
+              content: nextQuestionText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            },
+          ])
+          setCurrentQuestion((prev) => prev + 1)
+        } else {
+          setPhase('complete')
+        }
+      }
+    } catch (err) {
+      console.error('Assessment AI error', err)
+      if (currentQuestion < assessmentQuestions.length) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: prev.length + 2,
+            type: 'bot',
+            content: assessmentQuestions[currentQuestion],
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ])
+        setCurrentQuestion((prev) => prev + 1)
+      } else {
+        setPhase('complete')
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
+  const goToConfig = () => setPhase('config')
+
   const startAssessment = () => {
+    const questions = buildQuestionsFromConfig()
+    setAssessmentQuestions(questions)
     setPhase('assessment')
+    setAiClarificationCount(0)
     const botMessage: Message = {
       id: 2,
       type: 'bot',
-      content: assessmentQuestions[0],
+      content: questions[0],
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
     setMessages((prev) => [...prev, botMessage])
@@ -301,7 +415,7 @@ Required Qualifications
                     </div>
 
                     <Button 
-                      onClick={startAssessment} 
+                      onClick={goToConfig} 
                       className="w-full h-14 bg-white text-brand-orange hover:bg-orange-50 font-black text-lg rounded-2xl transition-all active:scale-95 shadow-xl"
                     >
                       Start Assessment
@@ -326,6 +440,131 @@ Required Qualifications
               </div>
             </div>
           </div>
+        </main>
+      </div>
+    )
+  }
+
+  // Assessment config: enter questions or autopilot, strict vs AI-interactive
+  if (phase === 'config') {
+    return (
+      <div className="relative min-h-screen bg-dark-950 overflow-hidden">
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand-orange/10 blur-[130px] rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+        <header className="relative z-10 border-b border-white/5 bg-dark-950/50 backdrop-blur-xl">
+          <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+            <Logo size="sm" />
+            <span className="text-xs font-bold text-dark-400 uppercase tracking-widest">Set up assessment</span>
+          </div>
+        </header>
+        <main className="relative z-10 max-w-3xl mx-auto px-6 py-10 space-y-8">
+          <div>
+            <h2 className="text-2xl font-black text-white mb-1">How do you want to run the assessment?</h2>
+            <p className="text-dark-400 text-sm">Enter your own questions or use autopilot with question agents.</p>
+          </div>
+
+          <div className="flex gap-4">
+            <button
+              type="button"
+              onClick={() => setStartMode('enter')}
+              className={`flex-1 p-5 rounded-2xl border-2 text-left transition-all ${
+                startMode === 'enter' ? 'border-brand-orange bg-brand-orange/10 text-white' : 'border-white/10 bg-dark-900/40 text-dark-300 hover:border-white/20'
+              }`}
+            >
+              <span className="font-bold block mb-1">Enter questions</span>
+              <span className="text-xs opacity-80">Paste or type one question per line</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStartMode('autopilot')}
+              className={`flex-1 p-5 rounded-2xl border-2 text-left transition-all ${
+                startMode === 'autopilot' ? 'border-brand-orange bg-brand-orange/10 text-white' : 'border-white/10 bg-dark-900/40 text-dark-300 hover:border-white/20'
+              }`}
+            >
+              <span className="font-bold block mb-1">Autopilot</span>
+              <span className="text-xs opacity-80">Select question agents, pick how many (1–10)</span>
+            </button>
+          </div>
+
+          {startMode === 'enter' && (
+            <div>
+              <label className="block text-sm font-bold text-dark-300 mb-2">Questions (one per line)</label>
+              <textarea
+                value={customQuestionsText}
+                onChange={(e) => setCustomQuestionsText(e.target.value)}
+                placeholder="Paste or type questions here...&#10;e.g. Tell me about your experience with React.&#10;How do you handle state management?"
+                rows={8}
+                className="w-full bg-dark-900/60 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-dark-500 focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/50 resize-y"
+              />
+              <p className="text-xs text-dark-500 mt-1">Leave empty to use default questions.</p>
+            </div>
+          )}
+
+          {startMode === 'autopilot' && (
+            <>
+              <div>
+                <label className="block text-sm font-bold text-dark-300 mb-2">Question agents</label>
+                <div className="flex flex-wrap gap-2">
+                  {agentXSpecialities.map((s) => (
+                    <label key={s.id} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-dark-900/60 border border-white/10 cursor-pointer hover:border-brand-orange/30">
+                      <input
+                        type="checkbox"
+                        checked={selectedAgentIds.includes(s.id)}
+                        onChange={(e) =>
+                          setSelectedAgentIds((prev) =>
+                            e.target.checked ? [...prev, s.id] : prev.filter((id) => id !== s.id)
+                          )
+                        }
+                        className="rounded border-white/20 text-brand-orange focus:ring-brand-orange"
+                      />
+                      <span className="text-sm font-medium text-white">{s.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-dark-300 mb-2">Number of questions (1–10)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={questionCount}
+                  onChange={(e) => setQuestionCount(Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 1)))}
+                  className="w-24 bg-dark-900/60 border border-white/10 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-brand-orange/50"
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="block text-sm font-bold text-dark-300 mb-2">Response mode</label>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setStrictMode(true)}
+                className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${
+                  strictMode ? 'border-brand-orange bg-brand-orange/10 text-white' : 'border-white/10 bg-dark-900/40 text-dark-300'
+                }`}
+              >
+                <span className="font-bold block">Strict</span>
+                <span className="text-xs opacity-80">Next question right after each answer</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStrictMode(false)}
+                className={`flex-1 p-4 rounded-xl border-2 text-left transition-all ${
+                  !strictMode ? 'border-brand-orange bg-brand-orange/10 text-white' : 'border-white/10 bg-dark-900/40 text-dark-300'
+                }`}
+              >
+                <span className="font-bold block">AI-interactive</span>
+                <span className="text-xs opacity-80">AI may clarify (max 2) or go to next question</span>
+              </button>
+            </div>
+          </div>
+
+          <Button onClick={startAssessment} className="w-full h-14 bg-brand-orange text-white font-black text-lg rounded-2xl">
+            Start assessment
+            <ArrowRight size={20} className="ml-2" />
+          </Button>
         </main>
       </div>
     )
@@ -361,7 +600,88 @@ Required Qualifications
                 />
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg ${strictMode ? 'bg-dark-700 text-dark-300' : 'bg-blue-500/20 text-blue-400'}`}>
+                {strictMode ? 'Strict' : `AI (${MAX_AI_CLARIFICATIONS - aiClarificationCount} clarifications left)`}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-dark-400 hover:bg-white/5"
+                onClick={() => setIsPaused((p) => !p)}
+              >
+                {isPaused ? <Play size={14} className="mr-1.5" /> : <Pause size={14} className="mr-1.5" />}
+                {isPaused ? 'Resume' : 'Pause'}
+              </Button>
+            </div>
           </div>
+          {isPaused && (
+            <div className="max-w-5xl mx-auto px-6 py-2 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-center gap-2 text-amber-400 text-sm font-medium">
+              <Pause size={16} />
+              Assessment paused. Click Resume to continue.
+            </div>
+          )}
+          {/* Lead-only recording controls: pause when answering candidate questions, then resume */}
+          {isLeadView && (
+            <div className="max-w-5xl mx-auto px-6 pb-4 flex items-center justify-center gap-3">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-dark-900/80 border border-white/10">
+                {recordingStatus === 'idle' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                    onClick={() => setRecordingStatus('recording')}
+                  >
+                    <Circle size={14} className="mr-1.5 fill-current" />
+                    Record
+                  </Button>
+                )}
+                {recordingStatus === 'recording' && (
+                  <>
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-red-400">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      Recording
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-dark-300 hover:bg-white/5"
+                      onClick={() => setRecordingStatus('paused')}
+                    >
+                      <Pause size={14} className="mr-1.5" />
+                      Pause
+                    </Button>
+                  </>
+                )}
+                {recordingStatus === 'paused' && (
+                  <>
+                    <span className="text-xs font-bold text-amber-400">Paused</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-brand-orange/50 text-brand-orange hover:bg-brand-orange/10"
+                      onClick={() => setRecordingStatus('recording')}
+                    >
+                      <Play size={14} className="mr-1.5" />
+                      Continue
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-dark-400 hover:bg-white/5"
+                      onClick={() => setRecordingStatus('idle')}
+                    >
+                      <Square size={14} className="mr-1.5" />
+                      Stop
+                    </Button>
+                  </>
+                )}
+              </div>
+              <span className="text-[10px] font-medium text-dark-500 uppercase tracking-wider">
+                Lead controls • Pause to answer candidate questions, then Continue
+              </span>
+            </div>
+          )}
         </header>
 
         <main className="relative z-10 flex-1 max-w-4xl w-full mx-auto px-6 py-8 overflow-y-auto custom-scrollbar">
@@ -412,15 +732,21 @@ Required Qualifications
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Type your expertise..."
-                className="w-full h-16 bg-dark-900/50 border border-white/10 rounded-2xl px-6 pr-20 text-white placeholder:text-dark-600 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all font-medium"
+                onKeyDown={(e) => e.key === 'Enter' && !isPaused && !isSubmitting && handleSendMessage()}
+                placeholder={isPaused ? 'Paused — click Resume to continue' : isSubmitting ? 'Sending...' : 'Type your answer...'}
+                disabled={isPaused || isSubmitting}
+                className="w-full h-16 bg-dark-900/50 border border-white/10 rounded-2xl px-6 pr-20 text-white placeholder:text-dark-600 focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all font-medium disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <button 
-                onClick={handleSendMessage}
-                className="absolute right-2 top-2 bottom-2 px-6 rounded-xl bg-brand-orange text-white hover:bg-brand-orange/90 active:scale-95 transition-all shadow-lg shadow-brand-orange/20 flex items-center justify-center"
+                onClick={() => !isPaused && !isSubmitting && handleSendMessage()}
+                disabled={isPaused || isSubmitting}
+                className="absolute right-2 top-2 bottom-2 px-6 rounded-xl bg-brand-orange text-white hover:bg-brand-orange/90 active:scale-95 transition-all shadow-lg shadow-brand-orange/20 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Send size={20} />
+                {isSubmitting ? (
+                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Send size={20} />
+                )}
               </button>
             </div>
             <div className="flex items-center justify-center gap-4 mt-4">

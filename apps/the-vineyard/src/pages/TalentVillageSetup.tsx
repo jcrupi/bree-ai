@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight, Shield, Users, Network } from 'lucide-react';
+import { saveVillage } from '../utils/talentVillages';
 
 export function TalentVillageSetup() {
   const navigate = useNavigate();
@@ -18,7 +19,16 @@ export function TalentVillageSetup() {
     
     // Generate a unique ID for the village's communication channels
     const villageId = crypto.randomUUID();
-    
+
+    // Persist village to localStorage for the villages list
+    saveVillage({
+      villageId,
+      villageName: villageName.trim(),
+      description: villageDescription.trim(),
+      leadName: leadName.trim(),
+      createdAt: new Date().toISOString(),
+    });
+
     // Simulate brief processing state for premium feel
     setTimeout(() => {
       // Redirect to the board with the necessary parameters

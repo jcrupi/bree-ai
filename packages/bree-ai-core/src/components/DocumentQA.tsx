@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { currentBrand } from '../config/branding';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SendIcon, Loader2Icon, Volume2Icon, VolumeXIcon, MicIcon, SettingsIcon, MaximizeIcon, PlayIcon, RadioIcon, FileText, Gauge, SparklesIcon } from 'lucide-react';
+import { SendIcon, Loader2Icon, Volume2Icon, VolumeXIcon, MicIcon, SettingsIcon, MaximizeIcon, PlayIcon, RadioIcon, FileText, Gauge, SparklesIcon, Trash2Icon } from 'lucide-react';
 import { DocumentSelector } from './DocumentSelector';
 import { ChatMessage } from './ChatMessage';
 import { SpeakingAvatar } from './SpeakingAvatar';
@@ -116,6 +116,7 @@ export function DocumentQA({
 }: DocumentQAProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<'play' | 'live'>('live');
+  const [documents, setDocuments] = useState<Document[]>(initialDocuments);
   const [selectedDoc, setSelectedDoc] = useState<string>('all-docs');
   const [bubbles, setBubbles] = useState<any[]>([]);
 
@@ -134,8 +135,37 @@ export function DocumentQA({
   useEffect(() => {
     loadBubbles();
   }, []);
-  const [documents, setDocuments] = useState<Document[]>(initialDocuments);
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  // Load initial messages from localStorage or use mock
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`${currentBrand.name}_chat_history`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse chat history', e);
+      }
+    }
+    return initialMessages;
+  });
+
+  // Save messages to localStorage whenever they change, but don't overwrite with empty
+  useEffect(() => {
+    if (messages && messages.length > 0) {
+      localStorage.setItem(`${currentBrand.name}_chat_history`, JSON.stringify(messages));
+    }
+  }, [messages]);
+
+  // Support clearing history
+  const clearHistory = () => {
+    setMessages([]);
+    localStorage.removeItem(`${currentBrand.name}_chat_history`);
+  };
+
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [speakingEnabled, setSpeakingEnabled] = useState(false);
@@ -145,7 +175,7 @@ export function DocumentQA({
     }
     setSpeakingEnabled(!speakingEnabled);
   };
-  const [speakingRate, setSpeakingRate] = useState(1.1);
+  const [speakingRate, setSpeakingRate] = useState(1.25); // Increased from 1.1x
   const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [avatarMode, setAvatarMode] = useState(false);
   const [avatarSessionStart, setAvatarSessionStart] = useState<number>(0);
@@ -505,7 +535,7 @@ export function DocumentQA({
       let context = '';
       if (searchResults.results && searchResults.results.length > 0) {
         context = searchResults.results
-          .map((result, idx) => `[Segment ${idx + 1}](Collection: ${result.collection || 'Default'}):\n${result.text}`)
+          .map((result, idx) => `[Source ${idx + 1}](Collection: ${result.collection || 'Default'}):\n${result.text}`)
           .join('\n\n---\n\n');
       }
 
@@ -513,7 +543,7 @@ export function DocumentQA({
       
       try {
         // Build system instruction
-        let systemInstruction = `${currentInstructions || `You are ${currentBrand.aiName}, a helpful AI assistant.`}\n\nIMPORTANT: Use the provided document context to answer questions. Do not state how many snippets you found or mention internal document IDs. Simply provide a helpful answer based on the knowledge provided.\nLanguage: ${language === 'spanish' ? 'Spanish' : 'English'}\nStyle: ${responseStyle}\n\n`;
+        let systemInstruction = `${currentInstructions || `You are ${currentBrand.aiName}, a helpful AI assistant.`}\n\nIMPORTANT: Use the provided document context to answer questions. DO NOT use the word 'Source', 'Document', or 'Segment' in your response. DO NOT mention internal document IDs or formatting tags. Do not state how many snippets you found. Speak naturally and directly to the user as if you just hold this knowledge in your head.\nLanguage: ${language === 'spanish' ? 'Spanish' : 'English'}\nStyle: ${responseStyle}\n\n`;
         
         // Add specific bubble instructions if matching
         const matchingBubble = bubbles.find(b => b.text === query && b.active && b.instructions);
@@ -924,18 +954,30 @@ export function DocumentQA({
                               : 'bg-slate-800 text-slate-100 border-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/30'
                           }`}
                         />
-                        <button 
-                          onClick={() => handleSend()} 
-                          disabled={!input.trim() || isLoading} 
-                          className={`px-6 py-3 rounded-xl font-medium transition-all disabled:opacity-50 ${
-                            isLightTheme
-                              ? 'bg-[#D448AA] text-white hover:bg-[#b03a8d]'
-                              : 'bg-blue-600 text-white hover:bg-blue-500'
-                          }`}
-                        >
-                          {isLoading ? <Loader2Icon className="animate-spin" size={18} /> : <SendIcon size={18} />}
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            onClick={clearHistory}
+                            disabled={isLoading || messages.length === 0}
+                            className={`p-3 rounded-xl transition-all ${
+                              messages.length === 0 ? 'opacity-50 cursor-not-allowed text-slate-400 bg-slate-100/50' : 'text-slate-400 hover:text-red-500 hover:bg-red-50'
+                            }`}
+                            title="Clear Chat History"
+                          >
+                            <Trash2Icon size={18} className={isLoading ? 'animate-pulse' : ''} />
+                          </button>
+                          <button 
+                            onClick={() => handleSend()} 
+                            disabled={!input.trim() || isLoading} 
+                            className={`px-6 py-3 rounded-xl font-medium transition-all disabled:opacity-50 ${
+                              isLightTheme
+                                ? 'bg-[#D448AA] text-white hover:bg-[#b03a8d]'
+                                : 'bg-blue-600 text-white hover:bg-blue-500'
+                            }`}
+                            title="Send Message"
+                          >
+                            {isLoading ? <Loader2Icon className="animate-spin" size={18} /> : <SendIcon size={18} />}
+                          </button>
+                        </div>
                       {/* Language Quick Toggle */}
                       <div className="flex justify-end mt-2 px-1">
                         <button 

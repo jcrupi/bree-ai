@@ -166,6 +166,9 @@ export default function JobDetail() {
         description={`${job.location} • ${job.salary} • Created ${job.createdAt}`}
         actions={
           <div className="flex gap-2">
+            <Link to={`/assess/${id ?? 'demo'}?view=lead`}>
+              <Button variant="outline" leftIcon={<Eye size={18} />}>Lead view (Record)</Button>
+            </Link>
             <Button variant="secondary" leftIcon={<Settings size={18} />}>Edit Job</Button>
             <Button leftIcon={<Play size={18} />}>Share Link</Button>
           </div>

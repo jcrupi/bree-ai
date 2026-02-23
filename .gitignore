@@ -13,6 +13,8 @@ dist/
 # Environment variables
 .env
 .env.local
+# AgentX runner (OPENAI_API_KEY etc.)
+apps/genius-talent/agentx-assessments/.env
 .env.development.local
 .env.test.local
 .env.production.local
@@ -38,3 +40,7 @@ lerna-debug.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Moved out of monorepo (talent-village is now its own repo)
+.MOVED
+*.MOVED

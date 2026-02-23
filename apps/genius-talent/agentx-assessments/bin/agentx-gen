@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# Executable AgentX notes runner.
+# Usage:
+#   ./meta.database.agentx.md [options...]
+#   agentx-gen meta.database.agentx.md [options...]
+# Level flags (default: one mid-to-advanced file):
+#   -basic, --basic       generate basic (junior/mid) questions file
+#   -advanced, --advanced generate advanced (senior+) questions file
+#   -domain [slug], --domain [slug]  generate domain file(s); if slug omitted, all domains in meta
+#   With both -basic and -advanced, generates 2 files. -domain can be repeated or use one value for all.
+#   -v, --verbose         verbose output (meta path, jobs, API, writes).
+#
+# When an .agentx.md file is executable (chmod +x) and has shebang #!/path/to/agentx-gen,
+# running ./that-file.agentx.md invokes this script with the file path as first argument.
+
+set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+META_FILE=""
+PROMPT=""
+WITH_FILES=()
+PDF_FILE=""
+OUT_FILE=""
+BASIC=0
+ADVANCED=0
+VERBOSE=0
+DOMAIN_SLUGS=()   # empty = not requested; ("all") or ("healthcare" "financial") = requested
+
+# If we were invoked as the interpreter for an executable .agentx.md, first arg is that file.
+if [[ "$1" == *".agentx.md" ]]; then
+  META_FILE="$1"
+  shift
+fi
+
+# Parse remaining args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -basic|--basic)
+      BASIC=1
+      shift
+      ;;
+    -advanced|--advanced)
+      ADVANCED=1
+      shift
+      ;;
+    -domain|--domain)
+      shift
+      if [[ $# -gt 0 && "$1" != -*,* && "$1" != --* ]]; then
+        DOMAIN_SLUGS+=("$1")
+        shift
+      else
+        DOMAIN_SLUGS+=("__all__")
+      fi
+      ;;
+    --prompt)
+      PROMPT="$2"
+      shift 2
+      ;;
+    --with)
+      shift
+      while [[ $# -gt 0 && "$1" != --* && "$1" != -basic && "$1" != -advanced && "$1" != -domain ]]; do
+        WITH_FILES+=("$1")
+        shift
+      done
+      ;;
+    --pdf)
+      PDF_FILE="$2"
+      shift 2
+      ;;
+    --out)
+      OUT_FILE="$2"
+      shift 2
+      ;;
+    -v|--verbose)
+      VERBOSE=1
+      shift
+      ;;
+    *)
+      if [[ -z "$META_FILE" && "$1" == *".agentx.md" ]]; then
+        META_FILE="$1"
+      fi
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$META_FILE" || ! -f "$META_FILE" ]]; then
+  echo "Usage: agentx-gen <meta.agentx.md> [-basic] [-advanced] [-domain [slug]] [--prompt \"...\"] [--with note.agentx.md ...] [--pdf file.pdf] [--out output.agentx.md] [-v|--verbose]" >&2
+  echo "   Or: ./meta.database.agentx.md [same options]" >&2
+  echo "   Default (no level flag): one mid-to-advanced agentx file. -basic/-advanced generate 1 or 2 files; -domain generates domain file(s)." >&2
+  exit 1
+fi
+
+[[ $VERBOSE -eq 1 ]] && echo "[agentx-gen] meta=$META_FILE basic=$BASIC advanced=$ADVANCED domains=${DOMAIN_SLUGS[*]} prompt=${PROMPT:+set} pdf=${PDF_FILE:-none} out=${OUT_FILE:-none}" >&2
+
+# Resolve meta file to absolute path so runner can resolve --with relative paths
+META_DIR="$(cd "$(dirname "$META_FILE")" && pwd)"
+META_FILE="$META_DIR/$(basename "$META_FILE")"
+cd "$META_DIR"
+
+# Default output from meta front matter would require parsing YAML; runner can do that. Pass through.
+RUNNER="$SCRIPT_DIR/agentx-run.ts"
+if [[ ! -f "$RUNNER" ]]; then
+  RUNNER="$SCRIPT_DIR/agentx-run.js"
+fi
+if [[ ! -f "$RUNNER" ]]; then
+  echo "agentx-run.ts not found in $SCRIPT_DIR" >&2
+  exit 1
+fi
+
+ARGS=(--meta "$META_FILE")
+[[ -n "$PROMPT" ]] && ARGS+=(--prompt "$PROMPT")
+[[ -n "$PDF_FILE" ]] && ARGS+=(--pdf "$PDF_FILE")
+[[ -n "$OUT_FILE" ]] && ARGS+=(--out "$OUT_FILE")
+[[ $BASIC -eq 1 ]] && ARGS+=(--basic)
+[[ $ADVANCED -eq 1 ]] && ARGS+=(--advanced)
+[[ $VERBOSE -eq 1 ]] && ARGS+=(--verbose)
+for s in "${DOMAIN_SLUGS[@]}"; do
+  if [[ "$s" == "__all__" ]]; then
+    ARGS+=(--domain)
+  else
+    ARGS+=(--domain "$s")
+  fi
+done
+for f in "${WITH_FILES[@]}"; do ARGS+=(--with "$f"); done
+exec bun run "$RUNNER" -- "${ARGS[@]}"

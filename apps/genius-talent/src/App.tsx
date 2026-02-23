@@ -12,10 +12,13 @@ import {
   JobChat,
   Settings,
 } from './pages'
+import { ObserverAI } from '@bree-ai/core'
 
 export default function App() {
   return (
-    <Routes>
+    <>
+      <ObserverAI />
+      <Routes>
       {/* Public Routes */}
       <Route path="/" element={<Landing />} />
       <Route path="/demo" element={<Landing />} />
@@ -37,5 +40,6 @@ export default function App() {
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
+    </>
   )
 }

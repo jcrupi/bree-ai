@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import { currentBrand } from '../config/branding';
 import { breezeAPI } from '../utils/breeAPI';
 import { safeEnv } from '../utils/env';
+import { IdentityZeroConsole } from './identity-zero/identity-zero-console';
 
 interface Document {
   id: string;
@@ -93,6 +94,7 @@ export function AdminSettings({
     { id: 'instructions', label: 'Instructions' },
     { id: 'bubbles', label: 'Bubbles' },
     { id: 'identity', label: 'Identity (AM)' },
+    { id: 'identity_zero', label: 'Identity Zero' },
   ];
   const visibleBuiltIn = builtInTabs.filter(t => !hideTabs.includes(t.id));
   const allTabs = [...visibleBuiltIn, ...customTabs.map(ct => ({ id: ct.id, label: ct.label }))];
@@ -1311,6 +1313,20 @@ export function AdminSettings({
                     </div>
                   )}
                 </div>
+              </div>
+            </motion.div>
+          ) : activeMainTab === 'identity_zero' ? (
+            <motion.div
+              key="identity_zero"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <div className={`p-6 rounded-2xl border transition-all ${
+                isLightTheme ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-900/50 border-slate-800'
+              }`}>
+                <IdentityZeroConsole />
               </div>
             </motion.div>
           ) : (() => {

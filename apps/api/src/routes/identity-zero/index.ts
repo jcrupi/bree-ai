@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import bcrypt from "bcryptjs";
-import { identityDb } from "./db";
+import { sql } from "./db";
 import { identityZeroAuthRoute } from "./auth";
 import { jwt } from '@elysiajs/jwt';
 
@@ -32,32 +32,84 @@ export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
   // Public Auth Routes
   .use(identityZeroAuthRoute)
   
+  // Public Observation Submission
+  .post("/observations", async ({ body, set, jwt, headers }) => {
+    try {
+      const { app_name, page_url, type, description, screenshot_data } = body as any;
+      let client_id = "unknown";
+      try {
+        const authHeader = headers['authorization'];
+        if (authHeader?.startsWith('Bearer ')) {
+          const payload = await jwt.verify(authHeader.slice(7));
+          if (payload && payload.client_id) {
+            client_id = payload.client_id as string;
+          }
+        }
+      } catch (e) {}
+
+      const id = `obs-${Date.now()}`;
+      await sql`
+        INSERT INTO observations (id, client_id, app_name, page_url, type, description, screenshot_data)
+        VALUES (${id}, ${client_id}, ${app_name}, ${page_url}, ${type}, ${description}, ${screenshot_data})
+      `;
+      
+      return { success: true, observationId: id };
+    } catch (error) {
+      set.status = 500;
+      return { error: "Failed to create observation", details: String(error) };
+    }
+  }, {
+    body: t.Object({
+      app_name: t.Optional(t.String()),
+      page_url: t.Optional(t.String()),
+      type: t.String(),
+      description: t.String(),
+      screenshot_data: t.Optional(t.String())
+    })
+  })
+  
   // Protected Routes - Require Identity Zero Super Admin
   .onBeforeHandle(requireAuth)
 
   // ===== USERS MANAGEMENT (Members/Providers) =====
   .get("/users", async ({ query }) => {
     const { clientId, role } = query as { clientId?: string, role?: string };
-    let sql = `
-      SELECT u.id, u.username, u.client_id, u.role, u.active, u.must_change_password, u.is_lead_admin, u.created_at, c.client_name
-      FROM member u
-      LEFT JOIN client c ON u.client_id = c.client_id
-      WHERE 1=1
-    `;
-    const params: any[] = [];
     
-    if (clientId) {
-      sql += ` AND u.client_id = ? `;
-      params.push(clientId);
+    // Using dynamic query builder for Postgres
+    let users;
+    if (clientId && role) {
+      users = await sql`
+        SELECT u.id, u.username, u.client_id, u.role, u.active, u.must_change_password, u.is_lead_admin, u.created_at, c.client_name
+        FROM member u
+        LEFT JOIN client c ON u.client_id = c.client_id
+        WHERE u.client_id = ${clientId} AND u.role = ${role}
+        ORDER BY u.role ASC, u.created_at DESC
+      `;
+    } else if (clientId) {
+      users = await sql`
+        SELECT u.id, u.username, u.client_id, u.role, u.active, u.must_change_password, u.is_lead_admin, u.created_at, c.client_name
+        FROM member u
+        LEFT JOIN client c ON u.client_id = c.client_id
+        WHERE u.client_id = ${clientId}
+        ORDER BY u.role ASC, u.created_at DESC
+      `;
+    } else if (role) {
+      users = await sql`
+        SELECT u.id, u.username, u.client_id, u.role, u.active, u.must_change_password, u.is_lead_admin, u.created_at, c.client_name
+        FROM member u
+        LEFT JOIN client c ON u.client_id = c.client_id
+        WHERE u.role = ${role}
+        ORDER BY u.role ASC, u.created_at DESC
+      `;
+    } else {
+      users = await sql`
+        SELECT u.id, u.username, u.client_id, u.role, u.active, u.must_change_password, u.is_lead_admin, u.created_at, c.client_name
+        FROM member u
+        LEFT JOIN client c ON u.client_id = c.client_id
+        ORDER BY u.role ASC, u.created_at DESC
+      `;
     }
 
-    if (role) {
-      sql += ` AND u.role = ? `;
-      params.push(role);
-    }
-    
-    sql += ` ORDER BY u.role ASC, u.created_at DESC `;
-    const users = identityDb.query(sql).all(...params);
     return { users };
   }, {
     query: t.Object({
@@ -73,10 +125,13 @@ export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
       const password_hash = await bcrypt.hash(defaultPassword, 10);
       const id = `${role}-${username.split('@')[0]}-${Date.now()}`;
       
-      identityDb.query(`
+      const isLeadAdminInt = is_lead_admin ? 1 : 0;
+      const mustChangePasswordInt = must_change_password ? 1 : 0;
+      
+      await sql`
         INSERT INTO member (id, username, password_hash, client_id, role, is_lead_admin, must_change_password)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(id, username, password_hash, client_id, role, is_lead_admin ? 1 : 0, must_change_password ? 1 : 0);
+        VALUES (${id}, ${username}, ${password_hash}, ${client_id}, ${role}, ${isLeadAdminInt}, ${mustChangePasswordInt})
+      `;
       
       return { success: true, user: { id, username, client_id, role, is_lead_admin, must_change_password } };
     } catch (error) {
@@ -99,11 +154,14 @@ export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
       const { id } = params;
       const { username, client_id, role, is_lead_admin, must_change_password } = body as any;
       
-      identityDb.query(`
+      const isLeadAdminInt = is_lead_admin ? 1 : 0;
+      const mustChangePasswordInt = must_change_password ? 1 : 0;
+      
+      await sql`
         UPDATE member 
-        SET username = ?, client_id = ?, role = ?, is_lead_admin = ?, must_change_password = ?
-        WHERE id = ?
-      `).run(username, client_id, role, is_lead_admin ? 1 : 0, must_change_password ? 1 : 0, id);
+        SET username = ${username}, client_id = ${client_id}, role = ${role}, is_lead_admin = ${isLeadAdminInt}, must_change_password = ${mustChangePasswordInt}
+        WHERE id = ${id}
+      `;
       
       return { success: true };
     } catch (error) {
@@ -124,7 +182,7 @@ export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
   .delete("/users/:id", async ({ params, set }) => {
     try {
       const { id } = params;
-      identityDb.query(`DELETE FROM member WHERE id = ?`).run(id);
+      await sql`DELETE FROM member WHERE id = ${id}`;
       return { success: true };
     } catch (error) {
       set.status = 500;
@@ -136,12 +194,12 @@ export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
 
   // ===== ORGANIZATIONS (Clients) MANAGEMENT =====
   .get("/organizations", async () => {
-    const clients = identityDb.query(`
+    const clients = await sql`
       SELECT c.*, 
         (SELECT COUNT(*) FROM member WHERE client_id = c.client_id) as user_count
       FROM client c
       ORDER BY c.client_name
-    `).all();
+    `;
     return { organizations: clients };
   })
   
@@ -150,10 +208,10 @@ export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
       const { client_id, client_name } = body as any;
       const id = `client-${client_id}`;
       
-      identityDb.query(`
+      await sql`
         INSERT INTO client (id, client_id, client_name)
-        VALUES (?, ?, ?)
-      `).run(id, client_id, client_name);
+        VALUES (${id}, ${client_id}, ${client_name})
+      `;
       
       return { success: true, organization: { id, client_id, client_name } };
     } catch (error) {
@@ -172,11 +230,11 @@ export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
       const { id } = params;
       const { client_name } = body as any;
       
-      identityDb.query(`
+      await sql`
         UPDATE client 
-        SET client_name = ?
-        WHERE id = ?
-      `).run(client_name, id);
+        SET client_name = ${client_name}
+        WHERE id = ${id}
+      `;
       
       return { success: true };
     } catch (error) {
@@ -191,17 +249,18 @@ export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
   .delete("/organizations/:id", async ({ params, set }) => {
     try {
       const { id } = params;
-      const userCount = identityDb.query(`
+      const userCountRows = await sql`
         SELECT COUNT(*) as count FROM member 
-        WHERE client_id = (SELECT client_id FROM client WHERE id = ?)
-      `).get(id) as any;
+        WHERE client_id = (SELECT client_id FROM client WHERE id = ${id})
+      `;
+      const userCount = userCountRows[0] || { count: 0 };
       
       if (userCount.count > 0) {
         set.status = 400;
         return { error: "Cannot delete organization with existing users" };
       }
       
-      identityDb.query(`DELETE FROM client WHERE id = ?`).run(id);
+      await sql`DELETE FROM client WHERE id = ${id}`;
       return { success: true };
     } catch (error) {
       set.status = 500;
@@ -209,4 +268,78 @@ export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
     }
   }, {
     params: t.Object({ id: t.String() })
+  })
+
+  // ===== OBSERVATIONS (Admin) =====
+  .get("/observations", async () => {
+    const observations = await sql`
+      SELECT id, client_id, app_name, page_url, type, description, status, created_at 
+      FROM observations 
+      ORDER BY created_at DESC
+    `;
+    return { observations };
+  })
+  
+  // ===== OBSERVATIONS AI CHAT (Admin) =====
+  .post("/observations/chat", async ({ body, set }) => {
+    try {
+      const { message, observationId } = body as any;
+      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+      
+      if (!OPENAI_API_KEY) {
+        set.status = 500;
+        return { error: 'OPENAI_API_KEY not configured on server' };
+      }
+
+      // Fetch context
+      let contextData = "";
+      if (observationId) {
+        const obsRows = await sql`SELECT * FROM observations WHERE id = ${observationId}`;
+        const obs = obsRows[0];
+        if (obs) {
+          contextData = `Focus Observation: ${JSON.stringify(obs)}\n\n`;
+        }
+      } else {
+        const obs = await sql`SELECT id, app_name, type, status, description, created_at FROM observations ORDER BY created_at DESC LIMIT 50`;
+        contextData = `Recent Observations: ${JSON.stringify(obs)}\n\n`;
+      }
+
+      const systemPrompt = `You are Observer.ai, an expert product manager and engineering assistant for the Bree AI ecosystem. 
+You are analyzing user feedback, bug reports, and feature requests.
+Be concise, helpful, and analytical.
+Here is the observation data context:
+${contextData}`;
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: message }
+          ],
+          temperature: 0.7,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'OpenAI API Error');
+      }
+
+      const data = await response.json();
+      return { reply: data.choices[0].message.content };
+    } catch (error) {
+      set.status = 500;
+      return { error: "Failed to process AI chat", details: String(error) };
+    }
+  }, {
+    body: t.Object({
+      message: t.String(),
+      observationId: t.Optional(t.String())
+    })
   });

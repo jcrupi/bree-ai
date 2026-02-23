@@ -17,8 +17,9 @@ import {
   Check,
   X
 } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useVillageVine } from '../hooks/useVillageVine';
+import { getSavedVillages } from '../utils/talentVillages';
 
 // Types for consistent message handling
 interface AssessmentMessage {
@@ -30,6 +31,7 @@ interface AssessmentMessage {
 }
 
 export function TalentVillageBoard() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialRole = (searchParams.get('role') as 'candidate' | 'expert') || 'candidate';
   const initialName = searchParams.get('name') || '';
@@ -416,6 +418,73 @@ export function TalentVillageBoard() {
       setSearchParams(newParams);
     }
   };
+
+  // Hub: show villages list + Start new when no village selected and no name
+  const savedVillages = getSavedVillages();
+  const showHub = !villageId && !hasEnteredName && !initialName;
+
+  if (showHub) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
+        <div className="flex items-center justify-between px-8 py-4 bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+          <div className="flex items-center gap-4">
+            <Link to="/" className="p-2 hover:bg-slate-100 rounded-full transition-all text-slate-400">
+              <ArrowLeft size={20} />
+            </Link>
+            <div>
+              <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-indigo-900">
+                Genius<span className="text-indigo-600">Talent.ai</span>
+              </span>
+              <span className="ml-3 text-xs font-black text-slate-400 uppercase tracking-widest">Talent Village</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 p-8 max-w-4xl mx-auto w-full">
+          <div className="mb-8">
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Your Villages</h1>
+            <p className="text-slate-500 mt-1">Select a village to join or start a new assessment session.</p>
+          </div>
+
+          <div className="grid gap-4">
+            {savedVillages.map((v) => (
+              <motion.div
+                key={v.villageId}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all overflow-hidden group cursor-pointer"
+                onClick={() => navigate(`/talent-village?villageId=${v.villageId}&villageName=${encodeURIComponent(v.villageName)}&role=expert`)}
+              >
+                <div className="p-5 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-100 transition-colors">
+                    <Users size={24} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-800 truncate">{v.villageName}</h3>
+                    <p className="text-sm text-slate-500 truncate mt-0.5">{v.description}</p>
+                    <p className="text-xs text-slate-400 mt-1">Lead: {v.leadName}</p>
+                  </div>
+                  <ChevronRight size={20} className="text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {savedVillages.length === 0 && (
+            <p className="text-slate-500 text-center py-8">No villages yet. Start your first one below.</p>
+          )}
+
+          <Link
+            to="/talent-village/setup"
+            className="mt-8 flex items-center justify-center gap-3 w-full py-5 rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 transition-all text-indigo-600 font-bold"
+          >
+            <Plus size={24} />
+            Start New Village
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (!hasEnteredName) {
     return (

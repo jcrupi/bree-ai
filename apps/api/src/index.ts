@@ -14,8 +14,9 @@ import { mightyRoutes as habitawareMighty } from './routes/habitaware/mighty';
 import { chatRoutes as habitawareChat } from './routes/habitaware/chat';
 import { agentxRoutes as habitawareAgentx } from './routes/habitaware/agentx';
 import { identityZeroRoutes } from './routes/identity-zero';
+import { assessmentQuestionsRoutes } from './routes/assessment-questions';
 import * as jose from 'jose';
-import { identityDb, decryptKey } from './routes/identity-zero/db';
+import { sql, decryptKey } from './routes/identity-zero/db';
 
 // For WebSocket connection state (NATS subscriptions)
 const wsConnections = new Map<any, () => void>();
@@ -57,9 +58,10 @@ export async function requireAuth(headers: Record<string, string | undefined>, j
     }
 
     // 2. Lookup the dynamic Client Secret from Identity Zero
-    const client = identityDb.query(`
-      SELECT jwt_secret FROM client WHERE client_id = ?
-    `).get(clientId) as any;
+    const clients = await sql`
+      SELECT jwt_secret FROM client WHERE client_id = ${clientId}
+    `;
+    const client = clients[0];
 
     if (!client || !client.jwt_secret) {
         console.error(`Missing encryption key configuration for client: ${clientId}`);
@@ -85,6 +87,31 @@ export async function requireAuth(headers: Record<string, string | undefined>, j
     }
     set.status = 401;
     return null;
+  }
+}
+
+/**
+ * Helper to dynamically extract and decrypt the tenant's exact Envelope Encryption key
+ * without running the full signature verification (which requireAuth handles globally).
+ * This is used to pass the key downstream over NATS to isolated AgentX instances.
+ */
+export async function getTenantEncryptionKey(headers: Record<string, string | undefined>): Promise<string | undefined> {
+  try {
+    const authHeader = headers['authorization'];
+    if (!authHeader?.startsWith('Bearer ')) return undefined;
+    
+    const token = authHeader.substring(7);
+    const unverified = jose.decodeJwt(token);
+    
+    if (!unverified.iss) return undefined;
+    
+    const clients = await sql`SELECT encryption_key FROM client WHERE client_id = ${unverified.iss}`;
+    const client = clients[0];
+    if (!client || !client.encryption_key) return undefined;
+    
+    return await decryptKey(client.encryption_key);
+  } catch (error) {
+    return undefined;
   }
 }
 
@@ -131,6 +158,7 @@ export const app = new Elysia()
   .use(habitawareChat)
   .use(habitawareAgentx)
   .use(identityZeroRoutes)
+  .use(assessmentQuestionsRoutes)
 
   // Knowledge (Ragster) Proxy Group
   .group('/api/knowledge', (app) =>
@@ -663,8 +691,9 @@ export const app = new Elysia()
           };
         }
       })
-      .post('/:id/message', async ({ params: { id }, body }) => {
+      .post('/:id/message', async ({ params: { id }, body, headers }) => {
         try {
+          const encryptionKey = await getTenantEncryptionKey(headers);
           const nats = await getNatsService();
           
           const message: AgentMessage = {
@@ -674,7 +703,8 @@ export const app = new Elysia()
             metadata: body.metadata
           };
 
-          await nats.sendMessageToAgent(id, message);
+          const customHeaders = encryptionKey ? { 'x-tenant-encryption-key': encryptionKey } : undefined;
+          await nats.sendMessageToAgent(id, message, customHeaders);
 
           return {
             success: true,
@@ -735,10 +765,13 @@ export const app = new Elysia()
 
           if (message && message.type === 'command') {
             try {
+              const encryptionKey = await getTenantEncryptionKey(ws.data.headers as any);
+              const customHeaders = encryptionKey ? { 'x-tenant-encryption-key': encryptionKey } : undefined;
+              
               const nats = await getNatsService();
               // Publish the command to the agent's action subject if specified, else generic messages
               const subject = message.action ? `agent.${id}.${message.action}` : `agents.${id}.messages`;
-              await nats.publish(subject, message.payload || message.content);
+              await nats.publish(subject, message.payload || message.content, customHeaders);
             } catch (error) {
               console.error(`❌ Error publishing command to agent ${id}:`, error);
             }

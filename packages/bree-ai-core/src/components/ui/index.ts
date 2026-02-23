@@ -9,3 +9,9 @@ export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs'
 export * from './ActionGroup'
 export * from './ActionToggle'
 export * from './PageHeader'
+
+export * from './table';
+export * from './dialog';
+export * from './select';
+export * from './checkbox';
+export * from './label';

@@ -1,4 +1,4 @@
-import { connect, NatsConnection, StringCodec, Subscription } from 'nats';
+import { connect, StringCodec, headers as createHeaders, type NatsConnection, type Subscription, type MsgHdrs } from 'nats';
 
 // Message interfaces
 export interface AgentMessage {
@@ -103,10 +103,19 @@ class NatsService {
   /**
    * Publish a message to a subject
    */
-  async publish(subject: string, data: any): Promise<void> {
+  async publish(subject: string, data: any, customHeaders?: Record<string, string>): Promise<void> {
     const nc = this.ensureConnection();
     const payload = typeof data === 'string' ? data : JSON.stringify(data);
-    nc.publish(subject, this.codec.encode(payload));
+    
+    let msgHdrs: MsgHdrs | undefined = undefined;
+    if (customHeaders) {
+      msgHdrs = createHeaders();
+      for (const [k, v] of Object.entries(customHeaders)) {
+        msgHdrs.append(k, v);
+      }
+    }
+
+    nc.publish(subject, this.codec.encode(payload), msgHdrs ? { headers: msgHdrs } : undefined);
   }
 
   /**
@@ -231,8 +240,8 @@ class NatsService {
   /**
    * Send a message to a specific agent
    */
-  async sendMessageToAgent(agentId: string, message: AgentMessage): Promise<void> {
-    await this.publish(`agents.${agentId}.messages`, message);
+  async sendMessageToAgent(agentId: string, message: AgentMessage, customHeaders?: Record<string, string>): Promise<void> {
+    await this.publish(`agents.${agentId}.messages`, message, customHeaders);
   }
 
   /**

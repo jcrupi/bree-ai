@@ -11,7 +11,7 @@ describe('App', () => {
         <App />
       </BrowserRouter>
     )
-    expect(screen.getByRole('heading', { level: 1, name: /Better Hiring for/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: /Genius Talent/i })).toBeInTheDocument()
   })
 
   it('has link to dashboard', () => {
@@ -21,9 +21,9 @@ describe('App', () => {
         <App />
       </BrowserRouter>
     )
-    const seeItLinks = screen.getAllByRole('link', { name: /see it/i })
-    expect(seeItLinks.length).toBeGreaterThan(0)
-    expect(seeItLinks[0]).toHaveAttribute('href', '/dashboard')
+    const dashboardLinks = screen.getAllByRole('link', { name: /get matched|get started/i })
+    expect(dashboardLinks.length).toBeGreaterThan(0)
+    expect(dashboardLinks[0]).toHaveAttribute('href', '/dashboard')
   })
 
   it('has link to try as candidate', () => {

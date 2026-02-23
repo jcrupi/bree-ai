@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import bcrypt from "bcryptjs";
-import { identityDb, decryptKey } from "./db";
+import { sql, decryptKey } from "./db";
 import * as jose from "jose";
 
 export const identityZeroAuthRoute = new Elysia()
@@ -8,10 +8,11 @@ export const identityZeroAuthRoute = new Elysia()
     try {
       const { username, password } = body;
 
-      const user = identityDb.query(`
+      const users = await sql`
         SELECT * FROM member 
-        WHERE username = ? 
-      `).get(username) as any;
+        WHERE username = ${username}
+      `;
+      const user = users[0];
 
       if (!user) {
         set.status = 401;
@@ -30,9 +31,10 @@ export const identityZeroAuthRoute = new Elysia()
       }
 
       // Fetch the multi-tenant client secret dynamically
-      const client = identityDb.query(`
-        SELECT jwt_secret FROM client WHERE client_id = ?
-      `).get(user.client_id) as any;
+      const clients = await sql`
+        SELECT jwt_secret FROM client WHERE client_id = ${user.client_id}
+      `;
+      const client = clients[0];
 
       if (!client || !client.jwt_secret) {
          set.status = 500;

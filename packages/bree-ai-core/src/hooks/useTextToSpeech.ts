@@ -12,7 +12,7 @@ export function useTextToSpeech() {
   // Queue state
   const queueRef = useRef<string[]>([]);
   const isProcessingRef = useRef(false);
-  const currentRateRef = useRef(1.1);
+  const currentRateRef = useRef(1.25); // Increased from 1.1x default
   const stopRequestedRef = useRef(false);
 
   const stop = useCallback(() => {
@@ -101,16 +101,16 @@ export function useTextToSpeech() {
     isProcessingRef.current = false;
   }, []);
 
-  const speak = useCallback((text: string, rate: number = 1.1) => {
+  const speak = useCallback((text: string, rate: number = 1.25) => {
     stop(); // Clear previous
     stopRequestedRef.current = false;
     currentRateRef.current = rate;
     
-    // Split text into sentences for streaming feel
+    // Advanced Lookbehind Regex: Split text into sentences but ignore common abbreviations like U.S.
     const sentences = text
       .replace(/\[Sources:.*?\]/gi, '')
-      .split(/(?<=[.!?])\s+/)
-      .filter(s => s.trim().length > 0);
+      .split(/(?<!\b(?:[A-Za-z]|e\.g|i\.e|Mr|Mrs|Ms|Dr|Inc|Ltd|vs|etc))[.!?]+(\s+|$)/)
+      .filter(s => s && s.trim().length > 0);
 
     if (sentences.length === 0) return;
 
@@ -118,13 +118,14 @@ export function useTextToSpeech() {
     processQueue();
   }, [stop, processQueue]);
 
-  const enqueue = useCallback((text: string, rate: number = 1.1) => {
+  const enqueue = useCallback((text: string, rate: number = 1.25) => {
     stopRequestedRef.current = false;
     currentRateRef.current = rate;
 
+    // Advanced Lookbehind Regex: Split text into sentences but ignore common abbreviations like U.S.
     const chunks = text
-      .split(/(?<=[.!?])\s+/)
-      .filter(s => s.trim().length > 0);
+      .split(/(?<!\b(?:[A-Za-z]|e\.g|i\.e|Mr|Mrs|Ms|Dr|Inc|Ltd|vs|etc))[.!?]+(\s+|$)/)
+      .filter(s => s && s.trim().length > 0);
 
     queueRef.current.push(...chunks);
     if (!isProcessingRef.current) {

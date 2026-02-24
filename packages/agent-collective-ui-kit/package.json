@@ -1,0 +1,15 @@
+{
+  "name": "@agent-collective/ui-kit",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "react": "^18.2.0",
+    "lucide-react": "^0.284.0",
+    "framer-motion": "^10.16.4",
+    "nats.ws": "^1.30.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.2"
+  }
+}

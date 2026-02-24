@@ -1,0 +1,50 @@
+{
+  "name": "antimatterdb",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./lib": {
+      "import": "./src/lib/index.ts",
+      "default": "./src/lib/index.ts"
+    },
+    "./server": {
+      "import": "./src/server/index.ts",
+      "default": "./src/server/index.ts"
+    }
+  },
+  "bin": {
+    "antimatterdb": "./antimatterdb"
+  },
+  "scripts": {
+    "dev": "bun --hot run src/server/index.ts",
+    "dev:ui": "bun --hot run src/ui-server/index.ts",
+    "build": "bun build ./src/index.ts --outdir ./dist",
+    "cli": "bun run src/cli/index.ts",
+    "server": "bun run src/server/index.ts",
+    "ui": "bun run src/ui-server/index.ts",
+    "test": "bun test",
+    "postinstall": "chmod +x antimatterdb src/cli/index.ts"
+  },
+  "dependencies": {
+    "@agent-collective/sdk": "workspace:*",
+    "@aws-sdk/client-s3": "^3.995.0",
+    "duckdb": "^1.4.4",
+    "duckdb-async": "^1.4.2",
+    "gray-matter": "^4.0.3",
+    "kysely": "^0.28.8",
+    "nats": "^2.29.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "typescript": "^5.9.3"
+  }
+}

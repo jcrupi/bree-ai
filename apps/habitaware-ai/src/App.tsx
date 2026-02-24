@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { api } from "./api/client";
 import { marked } from "marked";
+import { IdentityZeroConsole } from "@bree-ai/core/components";
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -31,7 +32,8 @@ type Tab =
   | "ai_chat"
   | "members_ai"
   | "posts_ai"
-  | "raw";
+  | "raw"
+  | "identity_zero";
 
 type MainTab = "habitaware" | "advanced" | "book";
 
@@ -282,6 +284,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "members_ai", label: "Members AI" },
   { key: "posts_ai", label: "Posts AI" },
   { key: "raw", label: "Raw API" },
+  { key: "identity_zero", label: "Identity Zero" },
 ];
 
 const ANALYTICS_CATEGORIES = [
@@ -2082,6 +2085,10 @@ export default function App() {
               {renderAgentxNotes()}
             </div>
           </>
+        ) : tab === "identity_zero" ? (
+          <div style={{ padding: "20px", background: "#f8fafc", borderRadius: "12px", height: "100%" }}>
+            <IdentityZeroConsole />
+          </div>
         ) : tab === "raw" ? (
           <>
             <h2>Raw API Request</h2>

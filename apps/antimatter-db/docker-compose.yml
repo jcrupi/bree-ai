@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: "local_admin"
+      MINIO_ROOT_PASSWORD: "local_password123"
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  # This creates the default bucket automatically on startup
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      /usr/bin/mc alias set myminio http://minio:9000 local_admin local_password123;
+      /usr/bin/mc mb myminio/antimatter;
+      /usr/bin/mc anonymous set public myminio/antimatter;
+      exit 0;
+      "
+
+volumes:
+  minio_data:

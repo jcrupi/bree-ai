@@ -258,6 +258,14 @@ bree-ai/
 │   ├── genius-talent/             # Genius Talent - Recruitment AI
 │   │   └── [same structure as kat-ai]
 │   │
+│   ├── antimatter-db/             # AntiMatterDB - Identity & Org Management
+│   │   ├── src/
+│   │   │   ├── server/            # REST API server
+│   │   │   ├── lib/               # Core DB logic
+│   │   │   └── cli/               # CLI tools
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   │
 │   └── habitaware-ai/             # HabitAware AI - Behavioral coaching
 │       └── [same structure as kat-ai]
 │
@@ -308,12 +316,14 @@ bun install
 
 # Development servers
 bun run dev:api          # Start API server (:3000)
+bun run dev:antimatter   # Start AntiMatterDB server
 bun run dev:kat          # Start KAT.ai (:8769)
 bun run dev:genius       # Start Genius Talent (:5173)
 bun run dev:habitaware   # Start HabitAware AI (:8770)
 
 # Build for production
 bun run build:api        # Build API server
+bun run build:antimatter # Build AntiMatterDB
 bun run build:kat        # Build KAT.ai
 bun run build:genius     # Build Genius Talent
 bun run build:habitaware # Build HabitAware AI
@@ -493,6 +503,20 @@ DB_PATH=./data/bree.db
 - Awareness coaching interface
 - Progress tracking
 - Admin configuration
+
+---
+
+### 🗄️ AntiMatterDB - Identity & Org Management
+
+**Purpose:** Core identity and organization management database
+**Org ID:** Shared infrastructure
+
+**Features:**
+
+- RESTful API for graph-based identity management
+- Built-in schema support for common entities
+- Multi-brand and tenant isolation
+- CLI for database operations
 
 ---
 

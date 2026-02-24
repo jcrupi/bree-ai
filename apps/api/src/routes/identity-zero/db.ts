@@ -93,11 +93,16 @@ export async function initializeIdentityDatabase() {
       id TEXT PRIMARY KEY,
       client_id TEXT NOT NULL UNIQUE,
       client_name TEXT NOT NULL,
+      parent_client_id TEXT,
       jwt_secret TEXT NOT NULL DEFAULT '',
       encryption_key TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (parent_client_id) REFERENCES client(client_id) ON DELETE SET NULL
     );
   `;
+  try {
+    await sql`ALTER TABLE client ADD COLUMN parent_client_id TEXT REFERENCES client(client_id)`;
+  } catch (_) {}
 
   try {
     const clients = await sql`SELECT id FROM client WHERE jwt_secret = ''`;

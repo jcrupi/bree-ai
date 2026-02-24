@@ -4,17 +4,32 @@ export { bubbleDb };
 
 /**
  * JWT payload structure
+ * Extended with optional Better Auth / Token House claims when AUTH_PROVIDER=better-auth
  */
 export interface JWTPayload {
-  userId: number;
+  userId: number | string;
   email: string;
   name: string;
   roles: Array<{
-    role: 'super_org' | 'org' | 'admin' | 'member';
+    role: 'super_org' | 'org' | 'admin' | 'member' | string;
     organizationId?: number;
     organizationSlug?: string;
     organizationName?: string;
   }>;
+  /** Better Auth: active org id */
+  org_id?: string;
+  /** Better Auth: org role */
+  org_role?: string;
+  /** Better Auth: permission strings */
+  org_permissions?: string[];
+  /** Token House: token balance */
+  token_balance?: number;
+  /** Token House: monthly budget */
+  token_budget?: number;
+  /** Token House: allowed model ids */
+  allowed_models?: string[];
+  /** Token House: plan tier */
+  plan_tier?: string;
 }
 
 /**
@@ -147,12 +162,16 @@ export const authService = {
  */
 export async function seedDatabase() {
   try {
-    // Create organizations
-    const kickOrg = organizationDb.findBySlug('kick-analytics') || 
-      organizationDb.create('kick-analytics', 'Kick Analytics');
-    
-    const grelinOrg = organizationDb.findBySlug('grelin') || 
-      organizationDb.create('grelin', 'Grelin');
+    // Create Super Org (BreeAI) - top level
+    const breeOrg = organizationDb.findBySlug('bree-ai') ||
+      organizationDb.create('bree-ai', 'Bree AI');
+
+    // Create child organizations under BreeAI
+    const kickOrg = organizationDb.findBySlug('kick-analytics') ||
+      organizationDb.create('kick-analytics', 'Kick Analytics', breeOrg.id);
+
+    const grelinOrg = organizationDb.findBySlug('grelin') ||
+      organizationDb.create('grelin', 'Grelin', breeOrg.id);
 
     // Create super admin user
     let superAdmin = userDb.findByEmail('admin@bree.ai');

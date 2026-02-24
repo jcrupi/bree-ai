@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useVillageVine } from '../hooks/useVillageVine';
+import { useSaveCandidateConversation } from '../hooks/useSaveCandidateConversation';
 import { getSavedVillages } from '../utils/talentVillages';
 
 // Types for consistent message handling
@@ -29,6 +30,13 @@ interface AssessmentMessage {
   timestamp: string;
   isInjection?: boolean;
 }
+
+// Anti-cheat helper
+const generateGibberish = (lines: number = 1) => {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()';
+  const genLine = () => Array.from({ length: 40 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+  return Array.from({ length: lines }, genLine).join('\n');
+};
 
 export function TalentVillageBoard() {
   const navigate = useNavigate();
@@ -63,6 +71,9 @@ export function TalentVillageBoard() {
   const [seed, setSeed] = useState('');
   const [generatedQuestion, setGeneratedQuestion] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingAnswer, setIsGeneratingAnswer] = useState(false);
+  const [generatedAnswer, setGeneratedAnswer] = useState('');
+  const [showAIAnswer, setShowAIAnswer] = useState(false);
 
   // Profile switcher: which panel to show in expert view
   const [viewProfile, setViewProfile] = useState<'candidate' | 'self' | 'experts'>('self');
@@ -84,6 +95,7 @@ export function TalentVillageBoard() {
   // Expert chat permission state (Lead controls which experts can chat with candidate)
   const [enabledExperts, setEnabledExperts] = useState<Set<string>>(new Set());
   const [canChatWithCandidate, setCanChatWithCandidate] = useState(false);
+  const [isStealthMode, setIsStealthMode] = useState(false);
 
   // Determine if the user is the Lead expert. Invited experts (isLead=false in URL) are never Lead.
   const isLead = isInvitedExpert ? false : (isLeadRole || userName === 'Expert 1' || userName.toLowerCase().includes('lead'));
@@ -104,14 +116,15 @@ export function TalentVillageBoard() {
   const villageName = searchParams.get('villageName') || 'Talent Village';
 
   // LIVE NATS VINES
-  // 1. Assessment Vine: Shared between Candidate and Expert (Mirror)
+  // 1. Assessment Vine: Shared between Candidate and Expert (Mirror) - persisted to DB
   const { 
     isConnected: isAssessmentConnected, 
     messages: assessmentMessages, 
     sendMessage: sendAssessmentMessage 
-  } = useVillageVine({
+  } = useSaveCandidateConversation({
     vineId: villageId ? `talent-assessment-live-${villageId}` : 'talent-assessment-live',
     userName: userName,
+    loadHistory: true,
     onMessage: (msg) => {
       console.log('Assessment Message:', msg);
     }
@@ -141,7 +154,16 @@ export function TalentVillageBoard() {
     messages: permissionMessages,
     sendMessage: sendPermissionMessage
   } = useVillageVine({
-    vineId: role === 'expert' ? (villageId ? `talent-permissions-live-${villageId}` : 'talent-permissions-live') : null,
+    vineId: (villageId ? `talent-permissions-live-${villageId}` : 'talent-permissions-live'),
+    userName: userName,
+  });
+
+  // 5. Stealth Alerts Vine: Only for Experts in Stealth Mode
+  const {
+    messages: stealthMessages,
+    sendMessage: sendStealthMessage
+  } = useVillageVine({
+    vineId: (villageId ? `talent-stealth-live-${villageId}` : 'talent-stealth-live'),
     userName: userName,
   });
 
@@ -157,17 +179,18 @@ export function TalentVillageBoard() {
     return Array.from(names);
   }, [privateExpertMessages]);
 
-  // Listen for permission updates (non-lead experts)
+  // Listen for permission and stealth updates (non-lead experts and candidate)
   useEffect(() => {
-    if (isLead) return;
-    // Find the latest PERMISSIONS message
+    // Find the latest PERMISSIONS/STEALTH message
     for (let i = permissionMessages.length - 1; i >= 0; i--) {
       try {
         const data = JSON.parse(permissionMessages[i].content);
-        if (data.type === 'PERMISSIONS') {
+        if (data.type === 'PERMISSIONS' && !isLead) {
           setCanChatWithCandidate(data.enabledExperts.includes(userName));
-          break;
+        } else if (data.type === 'STEALTH_UPDATE') {
+          setIsStealthMode(data.isStealth);
         }
+        // If we found a relevant message, we could break, but let's check for both
       } catch { /* skip */ }
     }
   }, [permissionMessages, userName, isLead]);
@@ -178,6 +201,20 @@ export function TalentVillageBoard() {
       type: 'PERMISSIONS',
       enabledExperts: Array.from(newSet)
     }));
+  };
+
+  const broadcastStealthStatus = (stealth: boolean) => {
+    sendPermissionMessage(userName, JSON.stringify({
+      type: 'STEALTH_UPDATE',
+      isStealth: stealth
+    }));
+  };
+
+  const toggleStealthMode = () => {
+    if (!isLead) return;
+    const next = !isStealthMode;
+    setIsStealthMode(next);
+    broadcastStealthStatus(next);
   };
 
   const toggleExpertPermission = (expertName: string) => {
@@ -221,10 +258,68 @@ export function TalentVillageBoard() {
     return items.filter(i => i.status === 'pending');
   }, [queueMessages]);
 
+  // Combined messages for Expert Mirror (Assessment + Stealth Alerts)
+  const allMessagesForExpert = useMemo(() => {
+    const combined = [
+      ...assessmentMessages.map(m => ({ ...m, isStealth: false })),
+      ...stealthMessages.map(m => ({ ...m, isStealth: true }))
+    ];
+    // Sort by timestamp
+    return combined.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  }, [assessmentMessages, stealthMessages]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     expertEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [assessmentMessages, privateExpertMessages]);
+
+  // No global copy listener - restricted to chat area via onCopy
+
+  // Handle initial message after creation
+  useEffect(() => {
+    const startVining = searchParams.get('startVining') === 'true';
+    if (startVining && isAssessmentConnected && isLead) {
+      sendAssessmentMessage(userName, 'Start Vining...');
+      // Remove the flag from URL to prevent duplicate sends on refresh
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('startVining');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [isAssessmentConnected, isLead, searchParams, setSearchParams, userName, sendAssessmentMessage]);
+
+  // Anti-cheat Handlers
+  const handleCopyAction = () => {
+    if (role === 'candidate') {
+      const selectedText = window.getSelection()?.toString() || '';
+      if (!selectedText) return;
+      const gibberish = `COPIED-\n${generateGibberish(2)}\nOriginal: ${selectedText}`;
+      
+      if (isStealthMode) {
+        sendStealthMessage(userName, gibberish);
+      } else {
+        sendAssessmentMessage(userName, gibberish);
+      }
+    }
+  };
+
+  const handlePasteAction = (e: React.ClipboardEvent, isSim?: boolean) => {
+    if (role === 'candidate' || isSim) {
+      e.preventDefault();
+      const pastedText = e.clipboardData.getData('text');
+      const gibberish = `🚨 PASTED- ${generateGibberish(1)} 🚨\nOriginal: ${pastedText}`;
+      const sender = isSim ? 'Candidate' : userName;
+      
+      // Auto-submit as requested
+      if (isStealthMode) {
+        sendStealthMessage(sender, gibberish);
+      } else {
+        sendAssessmentMessage(sender, gibberish);
+      }
+      
+      // Also update the input so they see what happened, but it's already sent
+      if (isSim) setSimulationInput(''); else setInputText('');
+    }
+  };
 
   // Handlers
   const handleSendCandidateMessage = async (e: React.FormEvent) => {
@@ -340,8 +435,34 @@ export function TalentVillageBoard() {
       if (difficulty === 'expert') finalQuestion = "At an advanced level: " + question;
       
       setGeneratedQuestion(finalQuestion);
+      setGeneratedAnswer('');
+      setShowAIAnswer(false);
       setIsGenerating(false);
     }, 800);
+  };
+
+  const handleGenerateAnswer = () => {
+    if (!generatedQuestion) return;
+    setIsGeneratingAnswer(true);
+    
+    setTimeout(() => {
+      // Simple mock answers based on question content
+      let answer = "To answer a question about " + specialty + ", one should focus on best practices, scalability, and performance optimization. Provide code examples where relevant.";
+      
+      if (generatedQuestion.includes('state management')) {
+        answer = "A robust state management strategy involves choosing between local state (useState/useReducer) and global state (Context/Redux/Zustand). For large-scale apps, Zustand or Redux are preferred for predictable state transitions and better debugging tools.";
+      } else if (generatedQuestion.includes('hooks')) {
+        answer = "Hooks allow for easier logic reuse, better code organization than HOCs or Render Props, and they work perfectly with functional components. They also avoid the 'this' keyword complexities found in class components.";
+      } else if (generatedQuestion.includes('event loop')) {
+        answer = "The Node.js event loop allows for non-blocking I/O operations by offloading tasks to the system kernel whenever possible. It consists of several phases including timers, pending callbacks, poll, check, and close callbacks.";
+      } else if (generatedQuestion.includes('microservices')) {
+        answer = "Microservices offer independent scaling and technology diversity but introduce network complexity and data consistency challenges (Eventual Consistency). Monoliths are simpler to deploy and test initially but can become a bottleneck as the team grows.";
+      }
+      
+      setGeneratedAnswer(answer);
+      setIsGeneratingAnswer(false);
+      setShowAIAnswer(true);
+    }, 1200);
   };
 
   // Effect to handle Auto-AI response logic
@@ -602,16 +723,33 @@ export function TalentVillageBoard() {
                    </button>
                  ))}
                </div>
-               {isLead && (
-                 <button
-                   onClick={() => { setShowCreateVine(true); setCreatedVineLink(''); }}
-                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#3876F2] text-white rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-blue-600 transition-all shadow-md shadow-blue-200"
-                   title="Invite candidate or other experts"
-                 >
-                   <Plus size={12} />
-                   INVITE
-                 </button>
-               )}
+                {isLead && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={toggleStealthMode}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full border-2 transition-all ${
+                        isStealthMode 
+                          ? 'bg-rose-50 border-rose-200 text-rose-600 shadow-sm shadow-rose-100' 
+                          : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300'
+                      }`}
+                      title="Stealth Mode: Alerts only visible to experts"
+                    >
+                      <div className={`w-1.5 h-1.5 rounded-full ${isStealthMode ? 'bg-rose-500 animate-pulse' : 'bg-slate-300'}`} />
+                      <span className="text-[9px] font-black uppercase tracking-widest">
+                        Stealth: {isStealthMode ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+                    
+                    <button
+                      onClick={() => { setShowCreateVine(true); setCreatedVineLink(''); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#3876F2] text-white rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-blue-600 transition-all shadow-md shadow-blue-200"
+                      title="Invite candidate or other experts"
+                    >
+                      <Plus size={12} />
+                      INVITE
+                    </button>
+                  </div>
+                )}
              </div>
            ) : (
              <button 
@@ -635,7 +773,7 @@ export function TalentVillageBoard() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col md:flex-row overflow-hidden p-4 md:p-6 gap-4 md:gap-6">
+      <main className="flex-1 flex flex-col md:flex-row overflow-y-auto p-4 md:p-6 gap-4 md:gap-6">
         
         <AnimatePresence mode="wait">
           {role === 'candidate' ? (
@@ -645,9 +783,9 @@ export function TalentVillageBoard() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="flex-1 flex flex-col max-w-4xl mx-auto w-full"
+              className="flex-shrink-0 flex flex-col h-[65vh] max-w-4xl mx-auto w-full resize-y overflow-hidden"
             >
-              <div className="flex-1 bg-white rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 bg-white rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-200 flex flex-col overflow-hidden">
                 <div className="px-6 md:px-8 py-4 md:py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-2xl bg-[#7FE1C7] flex items-center justify-center text-white shadow-lg shadow-emerald-200">
@@ -661,9 +799,12 @@ export function TalentVillageBoard() {
                   <div className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[9px] font-bold text-slate-400 uppercase tracking-widest">End-to-End Encrypted</div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-[#FDFDFD]">
+                <div 
+                  className="flex-1 min-h-0 overflow-y-auto p-8 space-y-6 bg-[#FDFDFD]"
+                  onCopy={handleCopyAction}
+                >
                   {assessmentMessages.length === 0 && (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40">
+                    <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-center p-12 opacity-40">
                        <Sparkles size={48} className="text-amber-400 mb-4" />
                        <h4 className="text-lg font-bold">Initializing Assessment...</h4>
                        <p className="text-sm max-w-xs">Start the conversation by sending a message.</p>
@@ -684,13 +825,15 @@ export function TalentVillageBoard() {
                                  {isInjection ? '🔴 EXPERT INTERVENTION' : msg.sender}
                                </span>
                             </div>
-                            <div className={`px-5 py-4 rounded-[24px] shadow-sm text-sm leading-relaxed transition-all ${
-                              isMe 
-                                ? 'bg-slate-800 text-white rounded-tr-none' 
-                                : isAI 
-                                  ? 'bg-white border border-slate-200 text-slate-700 rounded-tl-none' 
-                                  : 'bg-rose-50 border-2 border-rose-200 text-rose-800 rounded-tl-none font-medium'
-                            }`}>
+                            <div 
+                              className={`px-5 py-4 rounded-[24px] shadow-sm text-sm leading-relaxed transition-all whitespace-pre-wrap ${
+                                isMe 
+                                  ? 'bg-slate-800 text-white rounded-tr-none' 
+                                  : isAI 
+                                    ? 'bg-white border border-slate-200 text-slate-700 rounded-tl-none' 
+                                    : 'bg-rose-50 border-2 border-rose-200 text-rose-800 rounded-tl-none font-medium'
+                              }`}
+                            >
                               {msg.content}
                             </div>
                          </div>
@@ -706,6 +849,7 @@ export function TalentVillageBoard() {
                       type="text"
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
+                      onPaste={handlePasteAction}
                       placeholder="Type your response to the AI..."
                       className="flex-1 bg-slate-50 border-none rounded-2xl px-6 py-4 text-sm focus:ring-2 focus:ring-[#3876F2]/20 transition-all shadow-inner placeholder:text-slate-400"
                     />
@@ -730,8 +874,8 @@ export function TalentVillageBoard() {
             >
               {/* Profile: Candidate — show the candidate mirror full-screen */}
               {viewProfile === 'candidate' && (
-                <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full">
-                  <div className="flex-1 bg-white rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-200 flex flex-col overflow-hidden">
+                <div className="flex-shrink-0 flex flex-col h-[65vh] max-w-4xl mx-auto w-full resize-y overflow-hidden">
+                  <div className="flex-1 min-h-0 bg-white rounded-[32px] md:rounded-[40px] shadow-sm border border-slate-200 flex flex-col overflow-hidden">
                     <div className="px-6 md:px-8 py-4 border-b border-slate-100 flex items-center gap-3 bg-indigo-50/30">
                       <div className="p-2 bg-indigo-500 rounded-xl text-white"><Eye size={16} /></div>
                       <div>
@@ -739,26 +883,37 @@ export function TalentVillageBoard() {
                         <p className="text-[10px] text-indigo-500 font-bold uppercase tracking-wider">Viewing as Candidate</p>
                       </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-[#FDFDFD]">
-                      {assessmentMessages.length === 0 && (
-                        <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40">
+                    <div 
+                      className="flex-1 min-h-0 overflow-y-auto p-8 space-y-6 bg-[#FDFDFD]"
+                      onCopy={() => handleCopyAction()}
+                    >
+                      {allMessagesForExpert.length === 0 && (
+                        <div className="h-full min-h-[200px] flex flex-col items-center justify-center text-center p-12 opacity-40">
                           <Sparkles size={48} className="text-amber-400 mb-4" />
                           <h4 className="text-lg font-bold">No messages yet</h4>
                           <p className="text-sm max-w-xs">The candidate hasn't sent anything yet.</p>
                         </div>
                       )}
-                      {assessmentMessages.map((msg) => {
+                      {allMessagesForExpert.map((msg: any) => {
                         const isCandidate = msg.sender === 'Candidate';
                         const isInjection = msg.sender === 'EXPERT_INJECTION';
+                        const isStealth = msg.isStealth;
+                        
                         return (
                           <div key={msg.id} className={`flex ${isCandidate ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[80%] flex flex-col gap-1 ${isCandidate ? 'items-end' : 'items-start'}`}>
-                              <span className={`text-[9px] font-black uppercase tracking-widest px-1 ${
+                              <span className={`text-[9px] font-black uppercase tracking-widest px-1 flex items-center gap-1.5 ${
                                 isCandidate ? 'text-slate-400' : isInjection ? 'text-rose-500' : 'text-[#3876F2]'
-                              }`}>{isInjection ? '🔴 EXPERT INTERVENTION' : msg.sender}</span>
-                              <div className={`px-5 py-4 rounded-[24px] shadow-sm text-sm leading-relaxed ${
+                              }`}>
+                                {isInjection ? '🔴 EXPERT INTERVENTION' : msg.sender}
+                                {isStealth && (
+                                  <span className="bg-rose-500 text-white px-1.5 py-0.5 rounded text-[8px] animate-pulse">🕵️ STEALTH ALERT</span>
+                                )}
+                              </span>
+                              <div className={`px-5 py-4 rounded-[24px] shadow-sm text-sm leading-relaxed whitespace-pre-wrap ${
                                 isCandidate ? 'bg-slate-800 text-white rounded-tr-none'
                                 : isInjection ? 'bg-rose-50 border-2 border-rose-200 text-rose-800 rounded-tl-none'
+                                : isStealth ? 'bg-rose-50 border-2 border-dashed border-rose-300 text-rose-900 rounded-tl-none'
                                 : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none'
                               }`}>{msg.content}</div>
                             </div>
@@ -774,6 +929,7 @@ export function TalentVillageBoard() {
                           type="text"
                           value={simulationInput}
                           onChange={(e) => setSimulationInput(e.target.value)}
+                          onPaste={(e) => handlePasteAction(e, true)}
                           placeholder="Type as Candidate (simulation)..."
                           className="flex-1 bg-slate-50 border-none rounded-2xl px-6 py-4 text-sm focus:ring-2 focus:ring-indigo-100"
                         />
@@ -788,8 +944,8 @@ export function TalentVillageBoard() {
 
               {/* Profile: Experts — show private expert collaboration */}
               {viewProfile === 'experts' && (
-                <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full">
-                  <div className="flex-1 bg-white rounded-[32px] border border-slate-200 shadow-xl shadow-indigo-500/5 flex flex-col overflow-hidden min-h-[500px]">
+                <div className="flex-shrink-0 flex flex-col h-[65vh] max-w-4xl mx-auto w-full resize-y overflow-hidden">
+                  <div className="flex-1 min-h-0 bg-white rounded-[32px] border border-slate-200 shadow-xl shadow-indigo-500/5 flex flex-col overflow-hidden">
                     <div className="px-6 py-5 bg-[#D3CFEF] border-b border-indigo-200 flex justify-between items-center">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-lg">
@@ -809,7 +965,7 @@ export function TalentVillageBoard() {
                         </button>
                       )}
                     </div>
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-indigo-50/10">
+                    <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4 bg-indigo-50/10">
                       {privateExpertMessages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40">
                           <Users size={40} className="text-indigo-300 mb-3" />
@@ -855,13 +1011,12 @@ export function TalentVillageBoard() {
 
               {/* Profile: Self — Candidate chat (left) + Expert Vine Chat (right) at top, tools below */}
               {viewProfile === 'self' && (
-              <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-1 custom-scrollbar">
+              <div className="flex-1 flex flex-col min-h-0 gap-6 overflow-hidden pr-1">
 
                 {/* TOP ROW: Candidate Chat + Expert Vine Chat side by side */}
-                <div className="flex flex-col md:flex-row gap-6" style={{ minHeight: '420px' }}>
-
+                <div className="flex-shrink-0 flex flex-col md:flex-row gap-6 h-[65vh] resize-y overflow-hidden">
                   {/* LEFT: Candidate Mirror */}
-                  <div className="flex-1 bg-[#D3CFEF]/30 rounded-[32px] border-2 border-[#D3CFEF] flex flex-col overflow-hidden relative">
+                  <div className="flex-1 min-h-0 bg-[#D3CFEF]/30 rounded-[32px] border-2 border-[#D3CFEF] flex flex-col overflow-hidden relative">
                     <div className="px-6 py-4 flex items-center justify-between border-b border-indigo-200/50 bg-[#D3CFEF]/50 flex-shrink-0">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-indigo-500 rounded-xl text-white">
@@ -877,9 +1032,9 @@ export function TalentVillageBoard() {
                       )}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                    <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
                       {assessmentMessages.length === 0 && (
-                        <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
+                        <div className="h-full min-h-[120px] flex flex-col items-center justify-center text-center opacity-30">
                           <Eye size={32} className="text-indigo-300 mb-2" />
                           <p className="text-sm font-medium text-slate-400">Waiting for candidate...</p>
                         </div>
@@ -1005,7 +1160,7 @@ export function TalentVillageBoard() {
                       width: isExpertChatCollapsed ? '48px' : 'auto',
                       flex: isExpertChatCollapsed ? '0 0 48px' : '1 1 0%'
                     }}
-                    className="bg-white rounded-[32px] border border-slate-200 shadow-xl shadow-indigo-500/5 flex flex-col overflow-hidden relative"
+                    className="min-h-0 bg-white rounded-[32px] border border-slate-200 shadow-xl shadow-indigo-500/5 flex flex-col overflow-hidden relative"
                   >
                     <div className="px-6 py-4 bg-[#D3CFEF] border-b border-indigo-200 flex justify-between items-center flex-shrink-0">
                       {!isExpertChatCollapsed ? (
@@ -1055,7 +1210,7 @@ export function TalentVillageBoard() {
 
                     {!isExpertChatCollapsed && (
                       <>
-                        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-indigo-50/10">
+                        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4 bg-indigo-50/10">
                       {privateExpertMessages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
                           <Users size={32} className="text-indigo-300 mb-2" />
@@ -1366,14 +1521,42 @@ export function TalentVillageBoard() {
                       </button>
                       {generatedQuestion && (
                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-2 p-4 bg-purple-50 rounded-2xl border border-purple-100">
-                          <p className="text-xs text-purple-900 leading-relaxed italic mb-3">"{generatedQuestion}"</p>
-                          <div className="flex gap-2">
-                            <button onClick={() => handleProposeToQueue(generatedQuestion, true)} className="flex-1 py-2 bg-indigo-500 text-white rounded-xl text-[10px] font-bold hover:bg-indigo-600 transition-colors">
-                              {isLead ? 'Queue for Send' : 'Propose to Lead'}
-                            </button>
-                            {isLead && (
-                              <button onClick={() => handleInjectQuestion(undefined, generatedQuestion)} className="px-4 py-2 bg-rose-500 text-white rounded-xl text-[10px] font-bold hover:bg-rose-600 transition-colors">
-                                Send Now
+                          <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2 px-1">Exact Question for Candidate</p>
+                          <p className="text-xs text-purple-900 leading-relaxed italic mb-4 p-3 bg-white/50 rounded-xl border border-purple-100/50">"{generatedQuestion}"</p>
+                          
+                          {showAIAnswer && generatedAnswer && (
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              className="mb-4 p-3 bg-emerald-50 rounded-xl border border-emerald-100 overflow-hidden"
+                            >
+                              <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                <Shield size={10} /> AI Expected Answer
+                              </p>
+                              <p className="text-[11px] text-emerald-900 leading-relaxed">{generatedAnswer}</p>
+                            </motion.div>
+                          )}
+
+                          <div className="flex flex-col gap-2">
+                            <div className="flex gap-2">
+                              <button onClick={() => handleProposeToQueue(generatedQuestion, true)} className="flex-1 py-2 bg-indigo-500 text-white rounded-xl text-[10px] font-bold hover:bg-indigo-600 transition-colors">
+                                {isLead ? 'Queue for Send' : 'Propose to Lead'}
+                              </button>
+                              {isLead && (
+                                <button onClick={() => handleInjectQuestion(undefined, generatedQuestion)} className="px-4 py-2 bg-rose-500 text-white rounded-xl text-[10px] font-bold hover:bg-rose-600 transition-colors">
+                                  Send Now
+                                </button>
+                              )}
+                            </div>
+                            
+                            {isLead && !showAIAnswer && (
+                              <button 
+                                onClick={handleGenerateAnswer}
+                                disabled={isGeneratingAnswer}
+                                className="w-full py-2 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-bold hover:bg-emerald-200 transition-colors flex items-center justify-center gap-2"
+                              >
+                                {isGeneratingAnswer ? 'Analyzing Question...' : 'See AI Answer'}
+                                {!isGeneratingAnswer && <Eye size={12} />}
                               </button>
                             )}
                           </div>
@@ -1428,7 +1611,7 @@ export function TalentVillageBoard() {
 
               <div className="space-y-6">
                 {/* Role Selection */}
-                <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+                <div className="flex p-1 bg-slate-100 rounded-full gap-1">
                   <button
                     onClick={() => { setInviteRole('candidate'); setCreatedVineLink(''); setInviteName(''); }}
                     className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${inviteRole === 'candidate' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}

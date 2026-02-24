@@ -6,7 +6,8 @@ import { swagger } from '@elysiajs/swagger';
 import { jwt } from '@elysiajs/jwt';
 import { getNatsService, type AgentMessage } from './nats';
 import { authService, seedDatabase, type JWTPayload } from './auth';
-import { contactDb, bubbleDb } from './db';
+import { contactDb, bubbleDb, organizationDb, userDb, roleDb } from './db';
+import { conversationDb, initConversationDb } from './conversation-db';
 import { mkdir, writeFile, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import crypto from 'node:crypto';
@@ -17,6 +18,7 @@ import { identityZeroRoutes } from './routes/identity-zero';
 import { assessmentQuestionsRoutes } from './routes/assessment-questions';
 import * as jose from 'jose';
 import { sql, decryptKey } from './routes/identity-zero/db';
+import { AUTH_PROVIDER, verifyToken, isBetterAuth } from './auth-provider';
 
 // For WebSocket connection state (NATS subscriptions)
 const wsConnections = new Map<any, () => void>();
@@ -28,10 +30,21 @@ const villageVines = new Map<string, {
   claimed: Set<string> 
 }>();
 
+async function identityZeroVerifyToken(token: string): Promise<jose.JWTPayload> {
+  const unverifiedPayload = jose.decodeJwt(token);
+  const clientId = unverifiedPayload.iss;
+  if (!clientId) throw new Error('Invalid token format');
+  const clients = await sql`SELECT jwt_secret FROM client WHERE client_id = ${clientId}`;
+  const client = clients[0];
+  if (!client?.jwt_secret) throw new Error('Client configuration error');
+  const decryptedSecret = await decryptKey(client.jwt_secret);
+  const { payload } = await jose.jwtVerify(token, new TextEncoder().encode(decryptedSecret));
+  return payload;
+}
+
 export async function requireAuth(headers: Record<string, string | undefined>, jwtPluginContext: any, set: any): Promise<JWTPayload | null> {
   const authHeader = headers['authorization'];
-  
-  // Allow guest access if no auth header is provided and we are in demo mode
+
   if (!authHeader?.startsWith('Bearer ')) {
     if (process.env.DEMO_MODE === 'true') {
       return {
@@ -48,34 +61,9 @@ export async function requireAuth(headers: Record<string, string | undefined>, j
   const token = authHeader.slice(7);
 
   try {
-    // 1. Decode token to find the Issuer (Client ID)
-    const unverifiedPayload = jose.decodeJwt(token);
-    const clientId = unverifiedPayload.iss;
-
-    if (!clientId) {
-       console.error("JWT is missing issuer (client_id)");
-       throw new Error("Invalid token format");
-    }
-
-    // 2. Lookup the dynamic Client Secret from Identity Zero
-    const clients = await sql`
-      SELECT jwt_secret FROM client WHERE client_id = ${clientId}
-    `;
-    const client = clients[0];
-
-    if (!client || !client.jwt_secret) {
-        console.error(`Missing encryption key configuration for client: ${clientId}`);
-        throw new Error("Client configuration error");
-    }
-
-    // 3. Decrypt the envelope-encrypted secret from DB
-    const decryptedSecret = await decryptKey(client.jwt_secret);
-
-    // 4. Verify the token cryptographically using the specific client plaintext secret
-    const secretKey = new TextEncoder().encode(decryptedSecret);
-    const { payload } = await jose.jwtVerify(token, secretKey);
-    
-    return payload as unknown as JWTPayload;
+    const payload = await verifyToken(token, identityZeroVerifyToken);
+    if (!payload) return null;
+    return payload;
   } catch (err) {
     if (process.env.DEMO_MODE === 'true') {
       return {
@@ -94,21 +82,19 @@ export async function requireAuth(headers: Record<string, string | undefined>, j
  * Helper to dynamically extract and decrypt the tenant's exact Envelope Encryption key
  * without running the full signature verification (which requireAuth handles globally).
  * This is used to pass the key downstream over NATS to isolated AgentX instances.
+ * Returns undefined when AUTH_PROVIDER=better-auth (no envelope encryption).
  */
 export async function getTenantEncryptionKey(headers: Record<string, string | undefined>): Promise<string | undefined> {
+  if (isBetterAuth()) return undefined;
   try {
     const authHeader = headers['authorization'];
     if (!authHeader?.startsWith('Bearer ')) return undefined;
-    
     const token = authHeader.substring(7);
     const unverified = jose.decodeJwt(token);
-    
     if (!unverified.iss) return undefined;
-    
     const clients = await sql`SELECT encryption_key FROM client WHERE client_id = ${unverified.iss}`;
     const client = clients[0];
-    if (!client || !client.encryption_key) return undefined;
-    
+    if (!client?.encryption_key) return undefined;
     return await decryptKey(client.encryption_key);
   } catch (error) {
     return undefined;
@@ -360,6 +346,30 @@ export const app = new Elysia()
   // Authentication Group
   .group('/api/auth', (app) =>
     app
+      .get('/config', () => ({
+        provider: AUTH_PROVIDER,
+        demoMode: process.env.DEMO_MODE === 'true'
+      }))
+      .post('/decode-token', async ({ body, set }) => {
+        const token = (body as { token?: string }).token;
+        if (!token) {
+          set.status = 400;
+          return { success: false, error: 'Token required' };
+        }
+        try {
+          const payload = await verifyToken(token, identityZeroVerifyToken);
+          if (!payload) {
+            set.status = 401;
+            return { success: false, error: 'Invalid token' };
+          }
+          return { success: true, decoded: payload };
+        } catch (err) {
+          set.status = 401;
+          return { success: false, error: 'Invalid token' };
+        }
+      }, {
+        body: t.Object({ token: t.String() })
+      })
       .post('/register', async ({ body, jwt }) => {
         try {
           const user = await authService.register(
@@ -464,6 +474,52 @@ export const app = new Elysia()
         headers: t.Object({
           authorization: t.String()
         })
+      })
+      // Playground: org/member setup (BREE) - open when DEMO_MODE
+      .get('/playground/organizations', async () => {
+        const orgs = organizationDb.findWithChildren();
+        return { success: true, organizations: orgs };
+      })
+      .post('/playground/organizations', async ({ body, set }) => {
+        try {
+          const { slug, name, parentId } = body as { slug: string; name: string; parentId?: number };
+          if (!slug?.trim() || !name?.trim()) {
+            set.status = 400;
+            return { success: false, error: 'slug and name required' };
+          }
+          const existing = organizationDb.findBySlug(slug.trim());
+          if (existing) {
+            set.status = 400;
+            return { success: false, error: 'Organization slug already exists' };
+          }
+          const org = organizationDb.create(slug.trim(), name.trim(), parentId);
+          return { success: true, organization: org };
+        } catch (e: any) {
+          set.status = 500;
+          return { success: false, error: e.message || 'Failed to create organization' };
+        }
+      }, {
+        body: t.Object({
+          slug: t.String(),
+          name: t.String(),
+          parentId: t.Optional(t.Number())
+        })
+      })
+      .get('/playground/users', async () => {
+        const users = userDb.findAll();
+        const withRoles = users.map((u) => {
+          const roles = roleDb.findByUserIdWithOrgs(u.id);
+          return {
+            ...u,
+            password_hash: undefined,
+            roles: roles.map((r: any) => ({
+              role: r.role,
+              orgSlug: r.org_slug,
+              orgName: r.org_name
+            }))
+          };
+        });
+        return { success: true, users: withRoles };
       })
   )
 
@@ -835,14 +891,24 @@ export const app = new Elysia()
       .post('/:id/message', async ({ params: { id }, body }) => {
         try {
           const nats = await getNatsService();
+          const timestamp = new Date().toISOString();
           const message = {
             vineId: id,
             sender: body.sender,
             content: body.content,
-            timestamp: new Date().toISOString()
+            timestamp
           };
           
           await nats.publish(`village.vine.${id}.messages`, message);
+
+          // Persist candidate conversation to database
+          await conversationDb.insert({
+            id: `msg-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+            vineId: id,
+            sender: body.sender,
+            content: body.content,
+            timestamp
+          });
           
           return { success: true };
         } catch (error: any) {
@@ -913,17 +979,15 @@ export const app = new Elysia()
           return { success: false, error: error.message };
         }
       })
-      // Get messages for a vine (polling alternative to SSE)
+      // Get persisted messages for a vine (history)
       .get('/:id/messages', async ({ params: { id }, query }) => {
         try {
-          const nats = await getNatsService();
-          const since = query.since ? new Date(query.since as string) : new Date(Date.now() - 3600000);
-          
-          // In a real implementation, you'd store messages in a database or JetStream
-          // For now, we'll return an empty array and rely on real-time NATS pub/sub
+          const since = query.since as string | undefined;
+          const limit = query.limit ? parseInt(query.limit as string, 10) : 500;
+          const messages = await conversationDb.findByVineId(id, { since, limit });
           return {
             success: true,
-            messages: [],
+            messages,
             vineId: id
           };
         } catch (error: any) {
@@ -998,14 +1062,24 @@ export const app = new Elysia()
           if (message && message.type === 'message') {
             try {
               const nats = await getNatsService();
+              const timestamp = new Date().toISOString();
               const msg = {
                 vineId: id,
                 sender: message.sender,
                 content: message.content,
-                timestamp: new Date().toISOString()
+                timestamp
               };
               
               await nats.publish(`village.vine.${id}.messages`, msg);
+
+              // Persist candidate conversation to database
+              await conversationDb.insert({
+                id: `msg-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+                vineId: id,
+                sender: message.sender,
+                content: message.content,
+                timestamp
+              });
             } catch (error) {
               console.error(`❌ Error publishing message to vine ${id}:`, error);
             }
@@ -1449,6 +1523,9 @@ if (import.meta.main) {
   // Seed initial data (idempotent)
   await seedDatabase();
 
+  // Initialize village conversation persistence (SQLite or PostgreSQL)
+  await initConversationDb();
+
   // Serve static assets if configured (for single-container deployment)
   if (process.env.STATIC_ASSETS_PATH) {
     const { staticPlugin } = await import('@elysiajs/static');
@@ -1463,6 +1540,7 @@ if (import.meta.main) {
   console.log(
     `🦊 BREE AI Gateway is running at ${app.server?.hostname}:${app.server?.port}`
   );
+  console.log(`🔐 Auth provider: ${AUTH_PROVIDER}`);
 }
 
 export type App = typeof app;

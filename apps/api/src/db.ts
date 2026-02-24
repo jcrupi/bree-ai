@@ -25,15 +25,20 @@ export function initializeDatabase() {
     );
   `);
 
-  // Organizations table
+  // Organizations table (parent_id = null for Super Org BreeAI, set for child orgs)
   db.run(`
     CREATE TABLE IF NOT EXISTS organizations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       slug TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      parent_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (parent_id) REFERENCES organizations(id) ON DELETE SET NULL
     );
   `);
+  try {
+    db.run('ALTER TABLE organizations ADD COLUMN parent_id INTEGER REFERENCES organizations(id)');
+  } catch (_) {}
 
   // User roles table
   db.run(`
@@ -188,6 +193,7 @@ export interface Organization {
   id: number;
   slug: string;
   name: string;
+  parent_id?: number | null;
   created_at: string;
 }
 
@@ -242,11 +248,11 @@ export const userDb = {
  * Organization database operations
  */
 export const organizationDb = {
-  create: (slug: string, name: string): Organization => {
+  create: (slug: string, name: string, parentId?: number): Organization => {
     db.query(`
-      INSERT INTO organizations (slug, name)
-      VALUES ($slug, $name)
-    `).run({ $slug: slug, $name: name });
+      INSERT INTO organizations (slug, name, parent_id)
+      VALUES ($slug, $name, $parentId)
+    `).run({ $slug: slug, $name: name, $parentId: parentId ?? null });
     
     return organizationDb.findById(getLastInsertId())!;
   },
@@ -260,7 +266,25 @@ export const organizationDb = {
   },
 
   findAll: (): Organization[] => {
-    return db.query('SELECT * FROM organizations ORDER BY name').all() as Organization[];
+    return db.query('SELECT * FROM organizations ORDER BY COALESCE(parent_id, 0), name').all() as Organization[];
+  },
+
+  findWithChildren: (): (Organization & { children?: Organization[] })[] => {
+    const all = db.query('SELECT * FROM organizations ORDER BY name').all() as Organization[];
+    const byId = new Map(all.map((o) => [o.id, { ...o, children: [] as Organization[] }]));
+    const roots: (Organization & { children?: Organization[] })[] = [];
+    for (const o of all) {
+      const node = byId.get(o.id)!;
+      const parentId = (o as any).parent_id;
+      if (!parentId) {
+        roots.push(node);
+      } else {
+        const parent = byId.get(parentId);
+        if (parent?.children) parent.children.push(node);
+        else roots.push(node);
+      }
+    }
+    return roots;
   }
 };
 

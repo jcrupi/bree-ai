@@ -150,6 +150,23 @@ GET  /api/collections    - List collections
 GET  /api/collections/:id - Get collection by ID
 ```
 
+### AntiMatterDB (`apps/antimatter-db`)
+
+**Technology:**
+
+- **Bun** - Fast JavaScript runtime
+- **AntiMatter Core** - Graph-based markdown database
+- **REST API** - Standard endpoints for entries and collections
+
+**Port:** 3000 (standard, can be configured via PORT env)
+
+**Features:**
+
+- ✅ Graph-based identity management
+- ✅ Multi-tenant isolation
+- ✅ Built-in schema support
+- ✅ CLI for bulk operations
+
 ## Eden Type Safety Flow
 
 ```typescript
@@ -280,6 +297,7 @@ bun run dev
 
 ```bash
 bun run dev:api      # Start API server
+bun run dev:antimatter # Start AntiMatterDB
 bun run dev:kat      # Start KAT.ai
 bun run dev:genius   # Start Genius Talent
 bun run dev:keen     # Start Keen.ai
@@ -336,6 +354,11 @@ bree-ai/
 │   ├── api/                    # Bun + ElysiaJS backend
 │   │   ├── src/
 │   │   │   └── index.ts       # Main server file (exports App type)
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   │
+│   ├── antimatter-db/          # Identity & Org management
+│   │   ├── src/
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   │

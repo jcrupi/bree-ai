@@ -1,11 +1,11 @@
 import { Elysia, t } from "elysia";
 import bcrypt from "bcryptjs";
-import { sql } from "./db";
+import * as jose from "jose";
+import { sql, decryptKey } from "./db";
 import { identityZeroAuthRoute } from "./auth";
-import { jwt } from '@elysiajs/jwt';
 
-// Helper to require authentication (re-using bree-ai's JWT structure)
-const requireAuth = async ({ headers, jwt, set }: any) => {
+// Verify Identity Zero token (signed with per-tenant client secret)
+const requireAuth = async ({ headers, set }: any) => {
   const authHeader = headers['authorization'];
   if (!authHeader?.startsWith('Bearer ')) {
     set.status = 401;
@@ -13,7 +13,22 @@ const requireAuth = async ({ headers, jwt, set }: any) => {
   }
 
   const token = authHeader.slice(7);
-  const payload = await jwt.verify(token);
+  const unverified = jose.decodeJwt(token);
+  const clientId = unverified.iss;
+  if (!clientId) {
+    set.status = 401;
+    throw new Error('Invalid token');
+  }
+
+  const clients = await sql`SELECT jwt_secret FROM client WHERE client_id = ${clientId}`;
+  const client = clients[0];
+  if (!client?.jwt_secret) {
+    set.status = 401;
+    throw new Error('Client not found');
+  }
+
+  const secret = new TextEncoder().encode(await decryptKey(client.jwt_secret));
+  const { payload } = await jose.jwtVerify(token, secret);
   if (!payload || !['super_admin', 'super_agent', 'super_org_admin', 'org_admin'].includes(payload.role as string)) {
     set.status = 403;
     throw new Error('Forbidden: Insufficient privileges');
@@ -24,24 +39,19 @@ const requireAuth = async ({ headers, jwt, set }: any) => {
 
 // Identity Zero - Central Identity & Access Management API
 export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
-  .use(jwt({
-    name: 'jwt',
-    secret: process.env.JWT_SECRET || 'bree-secret-change-in-production',
-    exp: '7d'
-  }))
   // Public Auth Routes
   .use(identityZeroAuthRoute)
   
   // Public Observation Submission
-  .post("/observations", async ({ body, set, jwt, headers }) => {
+  .post("/observations", async ({ body, set, headers }) => {
     try {
       const { app_name, page_url, type, description, screenshot_data } = body as any;
       let client_id = "unknown";
       try {
         const authHeader = headers['authorization'];
         if (authHeader?.startsWith('Bearer ')) {
-          const payload = await jwt.verify(authHeader.slice(7));
-          if (payload && payload.client_id) {
+          const payload = jose.decodeJwt(authHeader.slice(7));
+          if (payload?.client_id) {
             client_id = payload.client_id as string;
           }
         }
@@ -205,15 +215,15 @@ export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
   
   .post("/organizations", async ({ body, set }) => {
     try {
-      const { client_id, client_name } = body as any;
+      const { client_id, client_name, parent_client_id } = body as any;
       const id = `client-${client_id}`;
       
       await sql`
-        INSERT INTO client (id, client_id, client_name)
-        VALUES (${id}, ${client_id}, ${client_name})
+        INSERT INTO client (id, client_id, client_name, parent_client_id)
+        VALUES (${id}, ${client_id}, ${client_name}, ${parent_client_id || null})
       `;
       
-      return { success: true, organization: { id, client_id, client_name } };
+      return { success: true, organization: { id, client_id, client_name, parent_client_id } };
     } catch (error) {
       set.status = 500;
       return { error: "Failed to create organization", details: String(error) };
@@ -221,7 +231,8 @@ export const identityZeroRoutes = new Elysia({ prefix: "/api/identity-zero" })
   }, {
     body: t.Object({
       client_id: t.String(),
-      client_name: t.String()
+      client_name: t.String(),
+      parent_client_id: t.Optional(t.String())
     })
   })
   

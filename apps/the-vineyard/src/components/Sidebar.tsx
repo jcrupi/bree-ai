@@ -26,7 +26,8 @@ import {
   MessageCircle,
   Zap,
   Sparkles,
-  Fingerprint
+  Fingerprint,
+  Shield
 } from
 'lucide-react';
 import {
@@ -305,6 +306,14 @@ export function Sidebar({
             <Fingerprint size={14} />
           </div>
           <span className="flex-1">Identity Zero</span>
+        </Link>
+        <Link
+          to="/auth-playground"
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${currentPath === '/auth-playground' ? 'bg-cyan-50 text-cyan-900 border-l-2 border-cyan-600' : 'text-slate-600 hover:bg-cyan-50/50 hover:text-cyan-700'}`}>
+          <div className={`p-1 rounded-md ${currentPath === '/auth-playground' ? 'bg-cyan-100 text-cyan-600' : 'bg-cyan-50 text-cyan-400'}`}>
+            <Shield size={14} />
+          </div>
+          <span className="flex-1">Auth Playground</span>
         </Link>
       </div>
 

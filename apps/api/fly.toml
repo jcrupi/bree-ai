@@ -20,6 +20,8 @@ primary_region = 'iad'
   PORT = "3000"
   NODE_ENV = "production"
   IDENTITY_ZERO_DB_PATH = "/app/data/identity-zero.db"
+  # SQLite for village conversations - persisted via volume mount
+  DB_PATH = "/app/data/bree.db"
 
 [[vm]]
   memory = '512mb'

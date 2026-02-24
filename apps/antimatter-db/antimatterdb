@@ -1,0 +1,16 @@
+#!/usr/bin/env bun
+/**
+ * AntiMatterDB CLI Executable
+ * Wrapper script for the CLI
+ */
+
+import { AntimatterCLI } from './src/cli/index';
+
+const cli = new AntimatterCLI();
+const args = process.argv.slice(2);
+
+cli.run(args).catch(err => {
+  console.error("Fatal error:", err);
+  process.exit(1);
+});
+

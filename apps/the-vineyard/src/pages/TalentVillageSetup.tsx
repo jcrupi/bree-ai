@@ -32,7 +32,7 @@ export function TalentVillageSetup() {
     // Simulate brief processing state for premium feel
     setTimeout(() => {
       // Redirect to the board with the necessary parameters
-      navigate(`/talent-village?villageId=${villageId}&role=expert&name=${encodeURIComponent(leadName.trim())}&isLead=true&villageName=${encodeURIComponent(villageName.trim())}&description=${encodeURIComponent(villageDescription.trim())}`);
+      navigate(`/talent-village?villageId=${villageId}&role=expert&name=${encodeURIComponent(leadName.trim())}&isLead=true&villageName=${encodeURIComponent(villageName.trim())}&description=${encodeURIComponent(villageDescription.trim())}&startVining=true`);
     }, 600);
   };
 

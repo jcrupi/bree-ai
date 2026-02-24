@@ -14,6 +14,7 @@ import { VinesEyeView } from './pages/VinesEyeView';
 import { TalentVillageSetup } from './pages/TalentVillageSetup';
 import { EmailJSTestPage } from './pages/EmailJSTestPage';
 import { IdentityZeroPage } from './pages/IdentityZeroPage';
+import { AuthPlaygroundPage } from './pages/AuthPlaygroundPage';
 import { AILensProvider, useAILens } from './hooks/useAILens';
 import { AILensMenu } from './components/AILensMenu';
 import { AILensOverlay } from './components/AILensOverlay';
@@ -77,6 +78,7 @@ export function App() {
           <Route path="/talent-village/vines-eye" element={<VinesEyeView />} />
           <Route path="/emailjs-test" element={<EmailJSTestPage />} />
           <Route path="/identity-zero" element={<IdentityZeroPage />} />
+          <Route path="/auth-playground" element={<AuthPlaygroundPage />} />
         </Routes>
       </AILensProvider>
     </Router>);

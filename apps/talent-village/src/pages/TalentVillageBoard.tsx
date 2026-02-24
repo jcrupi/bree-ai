@@ -79,6 +79,13 @@ export function TalentVillageBoard() {
   const [isBottomToolsCollapsed, setIsBottomToolsCollapsed] = useState(false);
   const [isRosterOpen, setIsRosterOpen] = useState(false);
 
+  // Lead Link PIN modal
+  const [isLeadLinkOpen, setIsLeadLinkOpen] = useState(false);
+  const [leadPin, setLeadPin] = useState('');
+  const [leadPinError, setLeadPinError] = useState(false);
+  const [leadLinkUnlocked, setLeadLinkUnlocked] = useState(false);
+  const [leadLinkCopied, setLeadLinkCopied] = useState(false);
+
   // Expert chat permission state (Lead controls which experts can chat with candidate)
   const [enabledExperts, setEnabledExperts] = useState<Set<string>>(new Set());
   const [canChatWithCandidate, setCanChatWithCandidate] = useState(false);
@@ -633,6 +640,14 @@ export function TalentVillageBoard() {
                    >
                      <Plus size={12} />
                      Invite
+                   </button>
+                   <button
+                     onClick={() => { setIsLeadLinkOpen(true); setLeadPin(''); setLeadPinError(false); }}
+                     className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 text-white rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-slate-700 transition-all shadow-md shadow-slate-300"
+                     title="Get your Lead link back to this village"
+                   >
+                     <Shield size={12} />
+                     My Link
                    </button>
                  </>
                )}
@@ -1647,6 +1662,120 @@ export function TalentVillageBoard() {
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* Lead Village Link — PIN Modal */}
+      <AnimatePresence>
+        {isLeadLinkOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) { setIsLeadLinkOpen(false); setLeadLinkUnlocked(false); setLeadPin(''); } }}
+          >
+            <motion.div
+              initial={{ scale: 0.93, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.93, opacity: 0, y: 20 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+              className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-white shadow-lg">
+                  <Shield size={22} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800">Your Lead Link</h2>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Secure Village Access</p>
+                </div>
+                <button onClick={() => { setIsLeadLinkOpen(false); setLeadLinkUnlocked(false); setLeadPin(''); }} className="ml-auto p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {!leadLinkUnlocked ? (
+                /* PIN Entry */
+                <div className="space-y-5">
+                  <p className="text-sm text-slate-500 text-center">
+                    Enter your Lead access code to reveal your village link.
+                  </p>
+                  <div className="flex flex-col items-center gap-3">
+                    <input
+                      type="password"
+                      value={leadPin}
+                      onChange={(e) => { setLeadPin(e.target.value); setLeadPinError(false); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (leadPin === '20816') {
+                            setLeadLinkUnlocked(true);
+                            setLeadPinError(false);
+                          } else {
+                            setLeadPinError(true);
+                            setLeadPin('');
+                          }
+                        }
+                      }}
+                      placeholder="Enter code"
+                      className={`w-40 text-center text-2xl font-mono tracking-[0.4em] bg-slate-50 border-2 rounded-2xl px-4 py-3 focus:outline-none transition-all ${
+                        leadPinError ? 'border-rose-400 animate-pulse' : 'border-slate-200 focus:border-slate-400'
+                      }`}
+                      autoFocus
+                    />
+                    {leadPinError && (
+                      <p className="text-[11px] font-bold text-rose-500 uppercase tracking-wider">Incorrect code</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (leadPin === '20816') {
+                        setLeadLinkUnlocked(true);
+                        setLeadPinError(false);
+                      } else {
+                        setLeadPinError(true);
+                        setLeadPin('');
+                      }
+                    }}
+                    className="w-full py-3 bg-slate-800 text-white font-bold rounded-2xl text-sm hover:bg-slate-700 transition-all"
+                  >
+                    Unlock
+                  </button>
+                </div>
+              ) : (
+                /* Revealed Link */
+                <div className="space-y-4">
+                  <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest text-center flex items-center justify-center gap-1">
+                    <Check size={12} /> Access Verified — Your Lead Link
+                  </p>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    <p className="text-[10px] font-mono text-slate-500 break-all leading-relaxed">
+                      {`${window.location.origin}/board?role=expert&isLead=true&name=${encodeURIComponent(userName)}${villageId ? `&villageId=${villageId}` : ''}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const link = `${window.location.origin}/board?role=expert&isLead=true&name=${encodeURIComponent(userName)}${villageId ? `&villageId=${villageId}` : ''}`;
+                      navigator.clipboard.writeText(link);
+                      setLeadLinkCopied(true);
+                      setTimeout(() => setLeadLinkCopied(false), 2000);
+                    }}
+                    className={`w-full py-3 font-bold rounded-2xl text-sm flex items-center justify-center gap-2 transition-all ${
+                      leadLinkCopied
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-slate-800 text-white hover:bg-slate-700'
+                    }`}
+                  >
+                    {leadLinkCopied ? <><Check size={14} /> Copied!</> : <><Copy size={14} /> Copy Link</>}
+                  </button>
+                  <p className="text-[9px] text-slate-400 text-center">
+                    Bookmark this link to return to your village as Lead at any time.
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

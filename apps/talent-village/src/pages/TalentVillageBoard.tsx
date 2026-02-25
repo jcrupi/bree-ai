@@ -418,12 +418,7 @@ export function TalentVillageBoard() {
       const baseQuestions = templates[specialty] || templates['Architecture'];
       const question = baseQuestions[Math.floor(Math.random() * baseQuestions.length)];
       
-      // Add difficulty modifiers
-      let finalQuestion = question;
-      if (difficulty === 'beginner') finalQuestion = "Starting with the basics: " + question;
-      if (difficulty === 'expert') finalQuestion = "At an advanced level: " + question;
-      
-      setGeneratedQuestion(finalQuestion);
+      setGeneratedQuestion(question);
       setIsGenerating(false);
     }, 800);
   };
@@ -1495,7 +1490,13 @@ export function TalentVillageBoard() {
                       </button>
                       {generatedQuestion && (
                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-2 p-4 bg-purple-50 rounded-2xl border border-purple-100">
-                          <p className="text-xs text-purple-900 leading-relaxed italic mb-3">"{generatedQuestion}"</p>
+                          <p className="text-[9px] font-black text-purple-400 uppercase tracking-widest mb-2">Edit before sending</p>
+                          <textarea
+                            value={generatedQuestion}
+                            onChange={(e) => setGeneratedQuestion(e.target.value)}
+                            rows={3}
+                            className="w-full bg-white border border-purple-100 rounded-xl px-3 py-2.5 text-xs text-purple-900 leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-purple-300 mb-3"
+                          />
                           <div className="flex gap-2">
                             <button onClick={() => handleProposeToQueue(generatedQuestion, true)} className="flex-1 py-2 bg-indigo-500 text-white rounded-xl text-[10px] font-bold hover:bg-indigo-600 transition-colors">
                               {isLead ? 'Queue for Send' : 'Propose to Lead'}

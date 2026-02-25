@@ -44,3 +44,4 @@ Thumbs.db
 # Moved out of monorepo (talent-village is now its own repo)
 .MOVED
 *.MOVED
+apps/live-ai-talent.IGNORE

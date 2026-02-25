@@ -33,7 +33,7 @@ export function TalentVillageSetup() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-indigo-900">
-              Genius<span className="text-indigo-600">Talent.ai</span>
+              TalentVillage<span className="text-indigo-600">.ai</span>
             </span>
           </div>
           <div className="h-4 w-[1px] bg-slate-200" />

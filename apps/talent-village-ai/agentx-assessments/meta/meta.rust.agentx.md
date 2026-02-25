@@ -26,7 +26,7 @@ instructions: |
   Each generated file MUST have YAML front matter with kind (basic|advanced|domain), slug, version, and parent_meta pointing to this slug.
 ---
 
-# Rust Systems & Backend Standards - Genius Talent
+# Rust Systems & Backend Standards - TalentVillage.ai
 
 ## Core Stack
 

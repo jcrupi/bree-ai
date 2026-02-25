@@ -24,7 +24,7 @@ instructions: |
   Each generated file MUST have YAML front matter with kind (basic|advanced|domain), slug, version, and parent_meta pointing to this slug.
 ---
 
-# Backend TypeScript Standards - Genius Talent
+# Backend TypeScript Standards - TalentVillage.ai
 
 ## Runtime & Framework
 

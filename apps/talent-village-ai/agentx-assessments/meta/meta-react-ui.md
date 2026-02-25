@@ -1,4 +1,4 @@
-# React & UI Development Standards - Genius Talent
+# React & UI Development Standards - TalentVillage.ai
 
 ## Core Technology Stack
 

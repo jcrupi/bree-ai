@@ -1,4 +1,4 @@
-# Backend TypeScript Interview Questions - Genius Talent
+# Backend TypeScript Interview Questions - TalentVillage.ai
 
 ## Technical Interview Questions (Medium to Senior Level)
 

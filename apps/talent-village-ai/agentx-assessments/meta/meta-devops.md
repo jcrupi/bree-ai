@@ -1,4 +1,4 @@
-# DevOps & Infrastructure Standards - Genius Talent
+# DevOps & Infrastructure Standards - TalentVillage.ai
 
 ## Cloud Platform
 

@@ -1,4 +1,4 @@
-# Backend TypeScript Standards - Genius Talent
+# Backend TypeScript Standards - TalentVillage.ai
 
 ## Runtime & Framework
 

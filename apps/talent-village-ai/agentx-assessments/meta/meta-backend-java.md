@@ -1,4 +1,4 @@
-# Backend Java Standards - Genius Talent
+# Backend Java Standards - TalentVillage.ai
 
 ## Runtime & Framework
 

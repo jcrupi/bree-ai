@@ -1,6 +1,6 @@
 # Talent Village
 
-**Bree app** — Genius Talent.ai Live Assessment Engine. Real-time candidate assessment with Lead and Expert roles, NATS-backed vines, and invite flows. Uses **@bree-ai/core** (ObserverAI, shared components) and **Bun** in the monorepo.
+**Bree app** — TalentVillage.ai Live Assessment Engine. Real-time candidate assessment with Lead and Expert roles, NATS-backed vines, and invite flows. Uses **@bree-ai/core** (ObserverAI, shared components) and **Bun** in the monorepo.
 
 **Folder (in Bree monorepo):** `apps/talent-village`
 

@@ -24,7 +24,7 @@ instructions: |
   Each generated file MUST have YAML front matter with kind (basic|advanced|domain), slug, version, and parent_meta pointing to this slug.
 ---
 
-# React & UI Development Standards - Genius Talent
+# React & UI Development Standards - TalentVillage.ai
 
 ## Core Technology Stack
 

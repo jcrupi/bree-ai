@@ -431,7 +431,7 @@ export function TalentVillageBoard() {
       // If last message was from Candidate and we haven't hit the limit
       if (lastMessage.sender === 'Candidate' && currentQuestionCount < maxQuestions) {
         const timer = setTimeout(async () => {
-          await sendAssessmentMessage('Genius AI', `[AI Auto-Response] Interesting point about "${lastMessage.content.slice(0, 20)}...". Let's dig deeper. Question ${currentQuestionCount + 1}/${maxQuestions}: How does this scale?`);
+          await sendAssessmentMessage('TalentVillage AI', `[AI Auto-Response] Interesting point about "${lastMessage.content.slice(0, 20)}...". Let's dig deeper. Question ${currentQuestionCount + 1}/${maxQuestions}: How does this scale?`);
           setCurrentQuestionCount(prev => prev + 1);
         }, 3000);
         return () => clearTimeout(timer);
@@ -562,7 +562,7 @@ export function TalentVillageBoard() {
           </Link>
           <div className="flex flex-col">
             <h1 className="text-xl font-display font-semibold tracking-tight flex items-center">
-              Genius <span className="text-[#3876F2] font-bold ml-1">Talent.ai</span>
+              TalentVillage<span className="text-[#3876F2] font-bold ml-1">.ai</span>
               {villageId && (
                 <span className="ml-4 px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100 shadow-sm flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
@@ -740,7 +740,7 @@ export function TalentVillageBoard() {
                   )}
                   {assessmentMessages.map((msg) => {
                     const isMe = msg.sender === userName;
-                    const isAI = msg.sender === 'Genius AI';
+                    const isAI = msg.sender === 'TalentVillage AI';
                     const isInjection = msg.sender === 'EXPERT_INJECTION';
 
                     return (

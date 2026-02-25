@@ -1,4 +1,4 @@
-# Backend Java Interview Questions - Genius Talent
+# Backend Java Interview Questions - TalentVillage.ai
 
 ## Technical Interview Questions (Medium to Senior Level)
 

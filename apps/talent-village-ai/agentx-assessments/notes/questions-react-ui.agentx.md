@@ -1,4 +1,4 @@
-# React & UI Development Interview Questions - Genius Talent
+# React & UI Development Interview Questions - TalentVillage.ai
 
 ## Technical Interview Questions (Medium to Senior Level)
 

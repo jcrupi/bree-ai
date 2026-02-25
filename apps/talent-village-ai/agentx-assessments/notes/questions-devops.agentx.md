@@ -1,4 +1,4 @@
-# DevOps & Infrastructure Interview Questions - Genius Talent
+# DevOps & Infrastructure Interview Questions - TalentVillage.ai
 
 ## Technical Interview Questions (Medium to Senior Level)
 

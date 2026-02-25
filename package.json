@@ -35,8 +35,8 @@
     "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules",
     "dev:fatapps": "bun --filter fatapps-ai dev",
     "build:fatapps": "bun --filter fatapps-ai build",
-    "dev:talent-village": "bun --filter talent-village dev",
-    "build:talent-village": "bun --filter talent-village build"
+    "dev:talent-village-ai": "bun --filter talent-village-ai dev",
+    "build:talent-village-ai": "bun --filter talent-village-ai build"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

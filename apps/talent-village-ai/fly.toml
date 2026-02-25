@@ -1,9 +1,9 @@
-# fly.toml app configuration file for talent-village
+# fly.toml app configuration file for talent-village-ai
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'talent-village'
+app = 'talent-village-ai'
 primary_region = 'ord'
 
 [build]

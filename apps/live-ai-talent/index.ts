@@ -57,4 +57,4 @@ const server = Bun.serve({
   },
 });
 
-console.log(`GeniusTalentAI running at http://localhost:${port}`);
+console.log(`LiveAITalent running at http://localhost:${port}`);

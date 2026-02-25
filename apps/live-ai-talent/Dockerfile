@@ -33,13 +33,13 @@ ENV VITE_BRAND_ID=$VITE_BRAND_ID
 
 COPY package.json bun.lock ./
 COPY packages/ ./packages/
-COPY apps/genius-talent/ ./apps/genius-talent/
+COPY apps/live-ai-talent/ ./apps/live-ai-talent/
 
 # Install dependencies
 RUN bun install
 
 # Build the app
-WORKDIR /app/apps/genius-talent
+WORKDIR /app/apps/live-ai-talent
 RUN bun run build
 
 # Production stage
@@ -47,9 +47,9 @@ FROM oven/bun:latest
 WORKDIR /app
 
 # Copy built assets
-COPY --from=builder /app/apps/genius-talent/dist ./apps/genius-talent/dist
-COPY --from=builder /app/apps/genius-talent/index.ts ./apps/genius-talent/index.ts
-COPY --from=builder /app/apps/genius-talent/package.json ./apps/genius-talent/package.json
+COPY --from=builder /app/apps/live-ai-talent/dist ./apps/live-ai-talent/dist
+COPY --from=builder /app/apps/live-ai-talent/index.ts ./apps/live-ai-talent/index.ts
+COPY --from=builder /app/apps/live-ai-talent/package.json ./apps/live-ai-talent/package.json
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/package.json /app/bun.lock ./
 
@@ -60,5 +60,5 @@ ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
 
-WORKDIR /app/apps/genius-talent
+WORKDIR /app/apps/live-ai-talent
 CMD ["bun", "index.ts"]

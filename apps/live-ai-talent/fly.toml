@@ -1,9 +1,9 @@
-# fly.toml app configuration file for genius-talent
+# fly.toml app configuration file for live-ai-talent
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'genius-talent'
+app = 'live-ai-talent'
 primary_region = 'ord'
 
 [build]
@@ -13,10 +13,10 @@ primary_region = 'ord'
     VITE_AGENTX_URL = "https://agent-collective-agentx.fly.dev"
     VITE_COLLECTIVE_URL = "https://agent-collective-agentx.fly.dev"
     VITE_ANTIMATTER_URL = "https://agent-collective-antimatter.fly.dev"
-    VITE_RAGSTER_DEFAULT_ORG_ID = "genius-talent"
-    VITE_RAGSTER_DEFAULT_USER_ID = "user@genius-talent.com"
+    VITE_RAGSTER_DEFAULT_ORG_ID = "live-ai-talent"
+    VITE_RAGSTER_DEFAULT_USER_ID = "user@live-ai-talent.com"
     VITE_APP_NAME = "Genius Talent"
-    VITE_BRAND_ID = "genius-talent"
+    VITE_BRAND_ID = "live-ai-talent"
 
 [http_service]
   internal_port = 3000

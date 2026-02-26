@@ -389,11 +389,13 @@ export const breeAPI = {
 
   /**
    * OpenAI Proxy Service
-   * Routes through the API gateway with auth
+   * Chat routes through bree-api-realtime (NATS streaming).
+   * TTS/STT remain on bree-api (not latency-sensitive).
    */
   openai: {
     /**
-     * Chat completion via proxy
+     * Streaming chat — returns the full assembled response.
+     * Uses NATS-backed SSE pipeline via bree-api-realtime.
      */
     chat: async (params: {
       query: string;
@@ -404,22 +406,44 @@ export const breeAPI = {
         max_tokens?: number;
         systemPrompt?: string;
       };
-    }) => {
-      const token = localStorage.getItem('bree_jwt');
-      const response = await fetch(`${API_URL}/api/openai/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify(params)
-      });
-      if (!response.ok) throw new Error(await response.text());
-      return response.json();
+    }): Promise<{ response: string }> => {
+      const { generateChatResponseStream } = await import('./openai-chat');
+      const text = await generateChatResponseStream(
+        params.query,
+        params.context,
+        params.options ?? {}
+      );
+      return { response: text };
     },
 
     /**
-     * Text-to-speech via proxy
+     * Progressive streaming chat — onToken fires for every token.
+     * Use this to render text progressively as it arrives.
+     */
+    chatStream: async (params: {
+      query: string;
+      context: string;
+      options?: {
+        model?: string;
+        temperature?: number;
+        max_tokens?: number;
+        systemPrompt?: string;
+      };
+      onToken?: (token: string, accumulated: string) => void;
+      onDone?: (fullText: string) => void;
+    }): Promise<string> => {
+      const { generateChatResponseStream } = await import('./openai-chat');
+      return generateChatResponseStream(
+        params.query,
+        params.context,
+        params.options ?? {},
+        params.onToken,
+        params.onDone
+      );
+    },
+
+    /**
+     * Text-to-speech via bree-api (blocking, audio blob)
      */
     tts: async (params: {
       text: string;
@@ -440,7 +464,7 @@ export const breeAPI = {
     },
 
     /**
-     * Speech-to-text via proxy
+     * Speech-to-text via bree-api (blocking upload → transcript)
      */
     stt: async (file: File) => {
       const token = localStorage.getItem('bree_jwt');
@@ -457,6 +481,7 @@ export const breeAPI = {
       return response.json();
     }
   }
+
 };
 
 /**

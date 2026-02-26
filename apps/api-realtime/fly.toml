@@ -1,0 +1,26 @@
+# fly.toml — bree-api-realtime
+# Handles all WebSocket / NATS real-time traffic (village vines, agent terminals)
+
+app = 'bree-api-realtime'
+primary_region = 'ord'
+
+[build]
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  # WebSocket connections need longer timeouts
+  [http_service.concurrency]
+    type = 'connections'
+    hard_limit = 500
+    soft_limit = 400
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

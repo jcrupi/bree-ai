@@ -1,0 +1,20 @@
+{
+  "name": "bree-api-realtime",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir ./dist --target bun",
+    "start": "bun dist/index.js"
+  },
+  "dependencies": {
+    "elysia": "^1.1.0",
+    "@elysiajs/cors": "^1.1.0",
+    "@elysiajs/jwt": "^1.1.0",
+    "@elysiajs/swagger": "^1.1.0",
+    "nats": "^2.28.2",
+    "twilio": "^5.0.0",
+    "postgres": "^3.4.4",
+    "jose": "^5.9.6"
+  }
+}

@@ -586,6 +586,7 @@ NODE_ENV=production
 - **[ACCESSING_ADMIN_SETTINGS.md](ACCESSING_ADMIN_SETTINGS.md)** - Admin panel guide
 - **[RAGSTER_CONNECTION_STATUS.md](RAGSTER_CONNECTION_STATUS.md)** - Ragster integration status
 - **[BUN_MONOREPO_BEST_PRACTICES.md](BUN_MONOREPO_BEST_PRACTICES.md)** - 🏆 Definitive guide to our Monorepo & Fly.io deployment architecture
+- **[agentx/graphite.agentx.md](agentx/graphite.agentx.md)** - 🌿 Graphite stacked-PR branching workflow
 
 ---
 
@@ -623,16 +624,21 @@ NODE_ENV=production
 
 ## Contributing
 
+> 🌿 We use **[Graphite](https://graphite.dev/)** for stacked PRs. See [agentx/graphite.agentx.md](agentx/graphite.agentx.md) for the full workflow.
+
 ### Development Workflow
 
 1. **Fork and clone** the repository
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+2. **Create a feature branch** using Graphite:
+   ```bash
+   gt branch create feature/<app>/<description>
+   ```
 3. **Install dependencies**: `bun install`
 4. **Make your changes** with proper type safety
 5. **Test locally** across affected apps
 6. **Commit**: `git commit -m 'Add amazing feature'`
-7. **Push**: `git push origin feature/amazing-feature`
-8. **Open a Pull Request**
+7. **Submit PRs** in stack order: `gt submit`
+8. **Sync with remote changes**: `gt sync`
 
 ### Code Standards
 
@@ -642,6 +648,7 @@ NODE_ENV=production
 - ✅ **Type-safe** API contracts via Eden
 - ✅ **Component-driven** architecture
 - ✅ **Responsive design** with Tailwind CSS
+- ✅ **Graphite** for stacked PRs — `gt branch create`, `gt sync`, `gt submit`
 
 ---
 

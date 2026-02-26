@@ -136,10 +136,18 @@ set_secrets() {
             print_warning "Please ensure the following secrets are set for bree-api:"
             echo "  fly secrets set ANTHROPIC_API_KEY=sk-... -a bree-api"
             echo "  fly secrets set MIGHTY_API_KEY=... -a bree-api"
-            echo "  fly secrets set MIGHTY_NETWORK_ID=... -a bree-api"
             echo "  fly secrets set DB_PATH=/app/data/bree.db -a bree-api"
-            echo "  fly secrets set AGENTX_DIR=/app/data/agentx -a bree-api"
             echo "  fly secrets set OPENAI_API_KEY=sk-... -a bree-api"
+            echo "  fly secrets set REALTIME_URL=https://bree-api-realtime.fly.dev -a bree-api"
+            ;;
+        "bree-api-realtime"|"api-realtime")
+            print_warning "Please ensure the following secrets are set for bree-api-realtime:"
+            echo "  fly secrets set NATS_URL=nats://... -a bree-api-realtime"
+            echo "  fly secrets set JWT_SECRET=... -a bree-api-realtime"
+            echo "  fly secrets set DB_PATH=/app/data/bree.db -a bree-api-realtime"
+            echo "  fly secrets set TWILIO_SID=... -a bree-api-realtime"
+            echo "  fly secrets set TWILIO_TOKEN=... -a bree-api-realtime"
+            echo "  fly secrets set TWILIO_PHONE_NUMBER=... -a bree-api-realtime"
             ;;
     esac
 
@@ -172,28 +180,38 @@ main() {
             print_info "Deploying all apps..."
             echo ""
 
-            # Deploy API first
+            # Deploy data plane first
             deploy_app "api"
+
+            # Deploy real-time plane
+            deploy_app "api-realtime"
 
             # Deploy frontend apps
             deploy_app "kat-ai"
             deploy_app "genius-talent"
             deploy_app "habitaware-ai"
             deploy_app "the-vineyard"
+            deploy_app "talent-village-ai"
 
             echo ""
             print_success "All apps deployed successfully!"
             echo ""
             print_info "App URLs:"
-            echo "  - API:          https://bree-api.fly.dev"
-            echo "  - KAT.ai:       https://kat-ai.fly.dev"
-            echo "  - Genius:       https://genius-talent.fly.dev"
-            echo "  - HabitAware:   https://habitaware-ai.fly.dev"
-            echo "  - The Vineyard: https://the-vineyard.fly.dev"
+            echo "  - API (data):       https://bree-api.fly.dev"
+            echo "  - API (realtime):   https://bree-api-realtime.fly.dev"
+            echo "  - KAT.ai:           https://kat-ai.fly.dev"
+            echo "  - Genius:           https://genius-talent.fly.dev"
+            echo "  - HabitAware:       https://habitaware-ai.fly.dev"
+            echo "  - The Vineyard:     https://the-vineyard.fly.dev"
+            echo "  - Talent Village:   https://talent-village-ai.fly.dev"
             ;;
 
         "api")
             deploy_app "api"
+            ;;
+
+        "api-realtime"|"realtime"|"rt")
+            deploy_app "api-realtime"
             ;;
 
         "kat-ai"|"kat")
@@ -212,11 +230,18 @@ main() {
             deploy_app "the-vineyard"
             ;;
 
+        "talent-village-ai"|"talent-village"|"tv")
+            deploy_app "talent-village-ai"
+            ;;
+
         "status")
             show_status "bree-api"
+            show_status "bree-api-realtime"
             show_status "kat-ai"
             show_status "genius-talent"
             show_status "habitaware-ai"
+            show_status "the-vineyard"
+            show_status "talent-village-ai"
             ;;
 
         "secrets")

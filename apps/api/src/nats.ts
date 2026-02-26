@@ -184,6 +184,36 @@ class NatsService {
   }
 
   /**
+   * Subscribe to a wildcard subject — callback receives (data, subject) so
+   * callers can distinguish event types from the subject suffix.
+   * Example: subscribeWildcard('openai.stream.abc.*', (data, subj) => ...)
+   */
+  async subscribeWildcard(
+    subject: string,
+    callback: (data: any, subject: string) => void | Promise<void>
+  ): Promise<() => void> {
+    const nc = this.ensureConnection();
+    const sub = nc.subscribe(subject);
+
+    const unsubscribe = () => { sub.unsubscribe(); };
+
+    (async () => {
+      for await (const msg of sub) {
+        try {
+          const decoded = this.codec.decode(msg.data);
+          const data = JSON.parse(decoded);
+          await callback(data, msg.subject);
+        } catch (error) {
+          console.error(`Error processing wildcard message from ${subject}:`, error);
+        }
+      }
+    })();
+
+    return unsubscribe;
+  }
+
+
+  /**
    * Discover all connected agents
    * 
    * This sends a discovery request to all agents listening on the

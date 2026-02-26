@@ -16,6 +16,7 @@ import { chatRoutes as habitawareChat } from './routes/habitaware/chat';
 import { agentxRoutes as habitawareAgentx } from './routes/habitaware/agentx';
 import { identityZeroRoutes } from './routes/identity-zero';
 import { assessmentQuestionsRoutes } from './routes/assessment-questions';
+import { talentVillageRoutes } from './routes/talent-village';
 import * as jose from 'jose';
 import { sql, decryptKey } from './routes/identity-zero/db';
 import { AUTH_PROVIDER, verifyToken, isBetterAuth } from './auth-provider';
@@ -145,6 +146,7 @@ export const app = new Elysia()
   .use(habitawareAgentx)
   .use(identityZeroRoutes)
   .use(assessmentQuestionsRoutes)
+  .use(talentVillageRoutes)
 
   // Knowledge (Ragster) Proxy Group
   .group('/api/knowledge', (app) =>
@@ -697,415 +699,29 @@ export const app = new Elysia()
       })
   )
 
-  // Agents (NATS) Group - AI Agent Communication
+  // ── Real-time routes moved to bree-api-realtime ────────────────────
+  // /api/agents  → https://bree-api-realtime.fly.dev/api/agents
+  // /api/village → https://bree-api-realtime.fly.dev/api/village
+  //
+  // Stubs below return 301 redirects for clients that hit the data plane.
+  // Clients should update VITE_REALTIME_URL to point to bree-api-realtime.
+
   .group('/api/agents', (app) =>
-    app
-      .onBeforeHandle(async ({ headers, jwt, set }) => {
-        const payload = await requireAuth(headers, jwt, set);
-        if (!payload) return { error: 'Unauthorized' };
-      })
-      .get('/', async () => {
-        try {
-          const nats = await getNatsService();
-          const agents = await nats.discoverAgents();
-          return {
-            success: true,
-            count: agents.length,
-            agents
-          };
-        } catch (error: any) {
-          return {
-            success: false,
-            error: error.message || 'Failed to discover agents',
-            agents: []
-          };
-        }
-      })
-      .get('/:id', async ({ params: { id } }) => {
-        try {
-          const nats = await getNatsService();
-          const status = await nats.getAgentStatus(id);
-          
-          if (!status) {
-            return {
-              success: false,
-              error: `Agent ${id} not found or not responding`
-            };
-          }
-
-          return {
-            success: true,
-            agent: {
-              agentId: id,
-              status
-            }
-          };
-        } catch (error: any) {
-          return {
-            success: false,
-            error: error.message || `Failed to get agent ${id}`
-          };
-        }
-      })
-      .post('/:id/message', async ({ params: { id }, body, headers }) => {
-        try {
-          const encryptionKey = await getTenantEncryptionKey(headers);
-          const nats = await getNatsService();
-          
-          const message: AgentMessage = {
-            agentId: id,
-            content: body.content,
-            timestamp: new Date().toISOString(),
-            metadata: body.metadata
-          };
-
-          const customHeaders = encryptionKey ? { 'x-tenant-encryption-key': encryptionKey } : undefined;
-          await nats.sendMessageToAgent(id, message, customHeaders);
-
-          return {
-            success: true,
-            message: 'Message sent successfully',
-            sentTo: id
-          };
-        } catch (error: any) {
-          return {
-            success: false,
-            error: error.message || 'Failed to send message'
-          };
-        }
-      }, {
-        body: t.Object({
-          content: t.String(),
-          metadata: t.Optional(t.Any())
-        })
-      })
-      
-      // Real-time terminal/log connection via WebSocket
-      .ws('/:id/ws', {
-        idleTimeout: 3600, // 1 hour
-        async open(ws) {
-          const { id } = ws.data.params;
-          console.log(`🔌 Agent WebSocket connection attempt for agent: ${id}`);
-          
-          try {
-            const nats = await getNatsService();
-            
-            ws.send({ type: 'connected', agentId: id, message: `Connected to grape/agent ${id} stream` });
-            
-            // Subscribe to both logs and lifecycle events
-            const unsubLogs = await nats.subscribe(`logs.${id}.>`, (message) => {
-              ws.send({ type: 'log', ...message });
-            });
-            const unsubLifecycle = await nats.subscribe(`lifecycle.${id}.>`, (message) => {
-              ws.send({ type: 'lifecycle', ...message });
-            });
-            
-            // Store metadata in a map to clean up on close
-            wsConnections.set(ws, () => {
-              unsubLogs();
-              unsubLifecycle();
-            });
-          } catch (error) {
-            console.error(`❌ Error opening WS for agent ${id}:`, error);
-            ws.send({ type: 'error', message: 'Failed to connect to agent stream on NATS' });
-            ws.close();
-          }
-        },
-        async message(ws, message: any) {
-          const { id } = ws.data.params;
-          
-          if (message && message.type === 'ping') {
-            ws.send({ type: 'pong', timestamp: new Date().toISOString() });
-            return;
-          }
-
-          if (message && message.type === 'command') {
-            try {
-              const encryptionKey = await getTenantEncryptionKey(ws.data.headers as any);
-              const customHeaders = encryptionKey ? { 'x-tenant-encryption-key': encryptionKey } : undefined;
-              
-              const nats = await getNatsService();
-              // Publish the command to the agent's action subject if specified, else generic messages
-              const subject = message.action ? `agent.${id}.${message.action}` : `agents.${id}.messages`;
-              await nats.publish(subject, message.payload || message.content, customHeaders);
-            } catch (error) {
-              console.error(`❌ Error publishing command to agent ${id}:`, error);
-            }
-          }
-        },
-        close(ws) {
-          const { id } = ws.data.params;
-          console.log(`🔌 Agent WebSocket disconnected from agent: ${id}`);
-          
-          const unsubscribe = wsConnections.get(ws);
-          if (unsubscribe) {
-            unsubscribe();
-            wsConnections.delete(ws);
-          }
-        }
-      })
+    app.all('/*', ({ set }) => {
+      set.redirect = `${process.env.REALTIME_URL || 'https://bree-api-realtime.fly.dev'}/api/agents`;
+      set.status = 301;
+      return { moved: true, realtime: process.env.REALTIME_URL || 'https://bree-api-realtime.fly.dev' };
+    })
   )
-  
-  // Village (Human-Agent NATS) Group
+
   .group('/api/village', (app) =>
-    app
-      .onBeforeHandle(async ({ headers, jwt, set, request }) => {
-        // Exempt WebSocket upgrade requests from this check
-        if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') return;
-        
-        const payload = await requireAuth(headers, jwt, set);
-        if (!payload) return { error: 'Unauthorized' };
-      })
-      // Start a village vine
-      .post('/start', async ({ body }) => {
-        const vineId = `village-${crypto.randomUUID()}`;
-        const nats = await getNatsService();
-
-        // Store vine metadata for participant tracking
-        villageVines.set(vineId, {
-          topic: body.topic,
-          invited: body.invited,
-          claimed: new Set<string>()
-        });
-
-        // Notify the collective about a new village vine
-        await nats.publish('village.vines.created', {
-          vineId,
-          topic: body.topic,
-          invited: body.invited,
-          createdAt: new Date().toISOString()
-        });
-        
-        return {
-          success: true,
-          vineId,
-          topic: body.topic
-        };
-      }, {
-        body: t.Object({
-          topic: t.String(),
-          invited: t.Array(t.String())
-        })
-      })
-      // Send message to village vine
-      .post('/:id/message', async ({ params: { id }, body }) => {
-        try {
-          const nats = await getNatsService();
-          const timestamp = new Date().toISOString();
-          const message = {
-            vineId: id,
-            sender: body.sender,
-            content: body.content,
-            timestamp
-          };
-          
-          await nats.publish(`village.vine.${id}.messages`, message);
-
-          // Persist candidate conversation to database
-          await conversationDb.insert({
-            id: `msg-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
-            vineId: id,
-            sender: body.sender,
-            content: body.content,
-            timestamp
-          });
-          
-          return { success: true };
-        } catch (error: any) {
-          return { success: false, error: error.message };
-        }
-      }, {
-        body: t.Object({
-          sender: t.String(),
-          content: t.String()
-        })
-      })
-      // Send SMS invitation via Twilio
-      .post('/send-invite-sms', async ({ body, set }) => {
-        const twilioSid = process.env.TWILIO_SID;
-        const twilioToken = process.env.TWILIO_TOKEN;
-        const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
-
-        if (!twilioSid || !twilioToken || !twilioPhone) {
-          console.error('❌ Twilio credentials missing');
-          set.status = 500;
-          return { success: false, error: 'SMS service not configured' };
-        }
-
-        try {
-          const client = twilio(twilioSid, twilioToken);
-          await client.messages.create({
-            body: `🌿 Village Vine Invite: You've been invited by ${body.name} to join "${body.topic}". Join here: ${body.link}`,
-            from: twilioPhone,
-            to: body.phoneNumber
-          });
-          
-          // Save or update contact
-          contactDb.upsert(body.phoneNumber, body.name);
-          
-          console.log(`📱 SMS invite sent to ${body.phoneNumber} (${body.name})`);
-          return { success: true };
-        } catch (error: any) {
-          console.error('❌ Failed to send SMS:', error);
-          set.status = 500;
-          return { success: false, error: error.message };
-        }
-      }, {
-        body: t.Object({
-          phoneNumber: t.String(),
-          link: t.String(),
-          topic: t.String(),
-          name: t.String()
-        })
-      })
-      // List all saved contacts
-      .get('/contacts', async () => {
-        try {
-          const contacts = contactDb.findAll();
-          return { success: true, contacts };
-        } catch (error: any) {
-          return { success: false, error: error.message };
-        }
-      })
-      // Search contact by phone
-      .get('/contacts/lookup', async ({ query }) => {
-        const phone = query.phone as string;
-        if (!phone) return { success: false, error: 'Phone number required' };
-        
-        try {
-          const contact = contactDb.findByPhone(phone);
-          return { success: true, contact };
-        } catch (error: any) {
-          return { success: false, error: error.message };
-        }
-      })
-      // Get persisted messages for a vine (history)
-      .get('/:id/messages', async ({ params: { id }, query }) => {
-        try {
-          const since = query.since as string | undefined;
-          const limit = query.limit ? parseInt(query.limit as string, 10) : 500;
-          const messages = await conversationDb.findByVineId(id, { since, limit });
-          return {
-            success: true,
-            messages,
-            vineId: id
-          };
-        } catch (error: any) {
-          return { success: false, error: error.message, messages: [] };
-        }
-      })
-      
-      // Real-time messaging via WebSocket
-      .ws('/:id/ws', {
-        idleTimeout: 240, // 4 minutes
-        async open(ws) {
-          const { id } = ws.data.params;
-          const { name } = ws.data.query as any;
-          console.log(`🔌 WebSocket connection attempt for vine: ${id} as ${name}`);
-          
-          try {
-            const vine = villageVines.get(id);
-            
-            // Enrollment/Claim check
-            if (vine) {
-              const isInvited = vine.invited.includes(name);
-              const alreadyClaimed = vine.claimed.has(name);
-              
-              if (!isInvited) {
-                console.log(`🚫 Name ${name} not invited to vine ${id}`);
-                ws.send({ type: 'error', message: 'You are not invited to this village vine.' });
-                ws.close();
-                return;
-              }
-
-              if (alreadyClaimed) {
-                console.log(`🚫 Name ${name} already active in vine ${id}`);
-                ws.send({ type: 'error', message: 'This name is already active in the vine. Please use a different name or close other sessions.' });
-                ws.close();
-                return;
-              }
-
-              // Mark as active
-              vine.claimed.add(name);
-              console.log(`✅ Name ${name} joined vine ${id}`);
-            }
-
-            const nats = await getNatsService();
-            
-            ws.send({ type: 'connected', vineId: id, name });
-            
-            const unsubscribe = await nats.subscribe(
-              `village.vine.${id}.messages`,
-              (message) => {
-                ws.send({
-                  type: 'message',
-                  ...message
-                });
-              }
-            );
-            
-            // Store metadata in a map to clean up on close
-            wsConnections.set(ws, unsubscribe);
-          } catch (error) {
-            console.error(`❌ Error opening WS for vine ${id}:`, error);
-            ws.close();
-          }
-        },
-        async message(ws, message: any) {
-          const { id } = ws.data.params;
-          
-          if (message && message.type === 'ping') {
-            ws.send({ type: 'pong', timestamp: new Date().toISOString() });
-            return;
-          }
-
-          if (message && message.type === 'message') {
-            try {
-              const nats = await getNatsService();
-              const timestamp = new Date().toISOString();
-              const msg = {
-                vineId: id,
-                sender: message.sender,
-                content: message.content,
-                timestamp
-              };
-              
-              await nats.publish(`village.vine.${id}.messages`, msg);
-
-              // Persist candidate conversation to database
-              await conversationDb.insert({
-                id: `msg-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
-                vineId: id,
-                sender: message.sender,
-                content: message.content,
-                timestamp
-              });
-            } catch (error) {
-              console.error(`❌ Error publishing message to vine ${id}:`, error);
-            }
-          }
-        },
-        close(ws) {
-          const { id } = ws.data.params;
-          const { name } = ws.data.query as any;
-          console.log(`🔌 WebSocket disconnected from vine: ${id} (${name})`);
-          
-          // Cleanup active participant status
-          const vine = villageVines.get(id);
-          if (vine && name) {
-            vine.claimed.delete(name);
-          }
-
-          const unsubscribe = wsConnections.get(ws);
-          if (unsubscribe) {
-            unsubscribe();
-            wsConnections.delete(ws);
-          }
-        }
-      })
+    app.all('/*', ({ set }) => {
+      set.redirect = `${process.env.REALTIME_URL || 'https://bree-api-realtime.fly.dev'}/api/village`;
+      set.status = 301;
+      return { moved: true, realtime: process.env.REALTIME_URL || 'https://bree-api-realtime.fly.dev' };
+    })
   )
-  
-  // Feedback Group - Save feedback to filesystem
+
   .group('/api/feedback', (app) =>
     app
       .post('/', async ({ body, set }) => {

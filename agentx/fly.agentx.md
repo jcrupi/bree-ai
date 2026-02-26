@@ -41,6 +41,29 @@ The script:
 
 ---
 
+## Deploy a Single App Manually
+
+> [!IMPORTANT]
+> **Always run `fly deploy` from the monorepo root.** The Dockerfiles use `COPY packages/ ...` which requires the repo root as the build context. Running `fly deploy` from inside an app directory will fail with a "not found" error.
+
+```bash
+# ✅ Correct — run from the monorepo root
+fly deploy \
+  --config apps/talent-village-ai/fly.toml \
+  --dockerfile apps/talent-village-ai/Dockerfile
+
+# ❌ Wrong — running from inside the app dir loses the monorepo context
+cd apps/talent-village-ai && fly deploy
+```
+
+This pattern works for any app:
+
+```bash
+fly deploy --config apps/<app>/fly.toml --dockerfile apps/<app>/Dockerfile
+```
+
+---
+
 ## App Registry
 
 | Deploy target       | Fly app             | URL                               | Type                 |

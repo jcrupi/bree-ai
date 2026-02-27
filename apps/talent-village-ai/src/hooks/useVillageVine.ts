@@ -29,7 +29,7 @@ const REALTIME_BASE_URL = import.meta.env.VITE_REALTIME_URL || 'http://localhost
 export function useVillageVine({
   vineId,
   userName = 'You',
-  apiUrl = `${API_BASE_URL}/api/village`,
+  apiUrl = `${REALTIME_BASE_URL}/api/village`,
   onMessage,
   onError
 }: UseVillageVineOptions) {

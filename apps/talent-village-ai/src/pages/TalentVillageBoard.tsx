@@ -844,7 +844,6 @@ export const bus = new EventBus();
       const qList =
         questionTemplates[specialty] || questionTemplates["Architecture"];
       const question = qList[Math.floor(Math.random() * qList.length)];
-      setGeneratedQuestion(question);
 
       if (snippetMode) {
         const sKey =
@@ -855,8 +854,22 @@ export const bus = new EventBus();
         const chosen = sOptions[Math.floor(Math.random() * sOptions.length)];
         setGeneratedSnippet(chosen.code);
         setCodeLanguage(chosen.lang);
+
+        // Question must be about the code snippet above
+        const codeQuestions = [
+          `Looking at the code above, can you walk me through what this ${chosen.lang} implementation does step by step?`,
+          `Take a look at the snippet above. What potential issues or edge cases do you see in this implementation?`,
+          `Review the code above — how would you improve or refactor this to be more production-ready?`,
+          `Based on the snippet above, what does this pattern accomplish and where would you use it in a real project?`,
+          `Looking at this ${chosen.lang} code — what happens if ${seed || "an unexpected input is passed"}? How does it handle that?`,
+          `Can you explain the trade-offs of this approach shown above, and describe an alternative implementation?`,
+        ];
+        const snippetQuestion =
+          codeQuestions[Math.floor(Math.random() * codeQuestions.length)];
+        setGeneratedQuestion(snippetQuestion);
       } else {
         setGeneratedSnippet("");
+        setGeneratedQuestion(question);
       }
 
       setIsGenerating(false);

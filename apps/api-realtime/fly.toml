@@ -20,6 +20,12 @@ primary_region = 'ord'
     hard_limit = 500
     soft_limit = 400
 
+[env]
+  PORT = "3001"
+  NODE_ENV = "production"
+  # Talent Village is PIN-gated, not JWT-gated — skip Bearer auth on realtime plane
+  DEMO_MODE = "true"
+
 [[vm]]
   memory = '512mb'
   cpu_kind = 'shared'

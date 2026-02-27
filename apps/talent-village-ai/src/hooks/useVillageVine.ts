@@ -17,8 +17,10 @@ interface UseVillageVineOptions {
 }
 
 
-// Get API URL from environment variable
+// REST API base (bree-api) — used for createVine, HTTP fallback
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Realtime base (bree-api-realtime) — used for WebSocket connections
+const REALTIME_BASE_URL = import.meta.env.VITE_REALTIME_URL || 'http://localhost:3001';
 
 /**
  * Custom hook for real-time Village Vine messaging using NATS
@@ -60,8 +62,8 @@ export function useVillageVine({
         wsRef.current.close();
       }
 
-      // Determine WS protocol based on API URL
-      const wsUrl = API_BASE_URL.replace(/^http/, 'ws') + `/api/village/${vineId}/ws?name=${encodeURIComponent(userName)}`;
+      // Determine WS protocol — always use REALTIME_BASE_URL (bree-api-realtime handles /api/village WebSockets)
+      const wsUrl = REALTIME_BASE_URL.replace(/^http/, 'ws') + `/api/village/${vineId}/ws?name=${encodeURIComponent(userName)}`;
 
       console.log('🔌 Connecting to WebSocket:', wsUrl);
       

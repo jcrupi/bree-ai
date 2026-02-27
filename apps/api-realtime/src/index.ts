@@ -253,14 +253,8 @@ export const app = new Elysia()
           const nats = await getNatsService();
           const timestamp = new Date().toISOString();
           const message = { vineId: id, sender: body.sender, content: body.content, timestamp };
-          await nats.publish(`village.vine.${id}.messages`, message);
-          await conversationDb.insert({
-            id: `msg-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
-            vineId: id,
-            sender: body.sender,
-            content: body.content,
-            timestamp,
-          });
+          // Publish to JetStream for durable persistence
+          await nats.publishVillageMessage(id, message);
           return { success: true };
         } catch (error: any) {
           return { success: false, error: error.message };
@@ -319,14 +313,15 @@ export const app = new Elysia()
         }
       })
 
-      // Message history (REST polling fallback)
+      // Message history — reads from JetStream (durable, survives restarts)
       .get('/:id/messages', async ({ params: { id }, query }) => {
         try {
-          const since = query.since as string | undefined;
           const limit = query.limit ? parseInt(query.limit as string, 10) : 500;
-          const messages = await conversationDb.findByVineId(id, { since, limit });
+          const nats = await getNatsService();
+          const messages = await nats.getVillageHistory(id, limit);
           return { success: true, messages, vineId: id };
         } catch (error: any) {
+          console.error(`History fetch error for ${id}:`, error);
           return { success: false, error: error.message, messages: [] };
         }
       })
@@ -375,14 +370,8 @@ export const app = new Elysia()
               const nats = await getNatsService();
               const timestamp = new Date().toISOString();
               const msg = { vineId: id, sender: message.sender, content: message.content, timestamp };
-              await nats.publish(`village.vine.${id}.messages`, msg);
-              await conversationDb.insert({
-                id: `msg-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
-                vineId: id,
-                sender: message.sender,
-                content: message.content,
-                timestamp,
-              });
+              // Publish to JetStream (durable) — also fans out to live WS subscribers via core NATS
+              await nats.publishVillageMessage(id, msg);
             } catch (error) {
               console.error(`❌ Village WS message error ${id}:`, error);
             }

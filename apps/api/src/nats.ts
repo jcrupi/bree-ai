@@ -1,4 +1,4 @@
-import { connect, StringCodec, headers as createHeaders, type NatsConnection, type Subscription, type MsgHdrs } from 'nats';
+import { connect, StringCodec, headers as createHeaders, AckPolicy, DeliverPolicy, RetentionPolicy, StorageType, type NatsConnection, type Subscription, type MsgHdrs } from 'nats';
 
 // Message interfaces
 export interface AgentMessage {
@@ -290,7 +290,88 @@ class NatsService {
   isConnected(): boolean {
     return this.connection !== null && !this.reconnecting;
   }
-}
+
+  // ── JetStream Village Persistence ─────────────────────────────────
+
+  private villageStreamEnsured = false;
+
+  /**
+   * Ensure the VILLAGE_MESSAGES JetStream stream exists.
+   * Stream captures all village.vine.* subjects with file-backed storage.
+   */
+  async ensureVillageStream(): Promise<void> {
+    if (this.villageStreamEnsured) return;
+    const nc = this.ensureConnection();
+    const jsm = await nc.jetstreamManager();
+    const streamName = 'VILLAGE_MESSAGES';
+    try {
+      await jsm.streams.info(streamName);
+    } catch {
+      // Stream doesn't exist — create it
+      await jsm.streams.add({
+        name: streamName,
+        subjects: ['village.vine.>'],
+        storage: StorageType.File,
+        retention: RetentionPolicy.Limits,
+        max_age: 30 * 24 * 60 * 60 * 1_000_000_000, // 30 days in nanoseconds
+        max_msgs: 100_000,
+        max_bytes: 256 * 1024 * 1024, // 256 MB
+        num_replicas: 1,
+      });
+      console.log(`✅ JetStream stream '${streamName}' created`);
+    }
+    this.villageStreamEnsured = true;
+  }
+
+  /**
+   * Publish a village message to JetStream (durable).
+   * Subject: village.vine.{vineId}.messages
+   */
+  async publishVillageMessage(vineId: string, message: Record<string, any>): Promise<void> {
+    await this.ensureVillageStream();
+    const js = this.ensureConnection().jetstream();
+    const subject = `village.vine.${vineId}.messages`;
+    const payload = JSON.stringify(message);
+    await js.publish(subject, this.codec.encode(payload));
+  }
+
+  /**
+   * Retrieve full message history for a vineId from JetStream.
+   * Uses an ephemeral push consumer starting from the first stored message.
+   */
+  async getVillageHistory(vineId: string, limit = 500): Promise<Record<string, any>[]> {
+    await this.ensureVillageStream();
+    const nc = this.ensureConnection();
+    const js = nc.jetstream();
+    const subject = `village.vine.${vineId}.messages`;
+    const messages: Record<string, any>[] = [];
+
+    try {
+      const consumer = await js.consumers.get('VILLAGE_MESSAGES', await (async () => {
+        const jsm = await nc.jetstreamManager();
+        const info = await jsm.consumers.add('VILLAGE_MESSAGES', {
+          filter_subject: subject,
+          deliver_policy: DeliverPolicy.All,
+          ack_policy: AckPolicy.None,
+          // ephemeral — no durable name
+        });
+        return info.name;
+      })());
+
+      const iter = await consumer.fetch({ max_messages: limit, expires: 3000 });
+      for await (const msg of iter) {
+        try {
+          const decoded = this.codec.decode(msg.data);
+          messages.push(JSON.parse(decoded));
+        } catch { /* skip malformed */ }
+      }
+    } catch (err) {
+      console.warn(`⚠️  JetStream history fetch for ${vineId}:`, err);
+    }
+
+    return messages;
+  }
+} // end NatsService
 
 let natsServicePromise: Promise<NatsService> | null = null;
 

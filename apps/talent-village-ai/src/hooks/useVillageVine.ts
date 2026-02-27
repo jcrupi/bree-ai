@@ -36,6 +36,7 @@ export function useVillageVine({
 
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState<VillageMessage[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   
@@ -137,6 +138,35 @@ export function useVillageVine({
     }
   }, [vineId]);
 
+  // Load history from JetStream via REST on mount / vineId change
+  const fetchHistory = useCallback(async () => {
+    if (!vineId) return;
+    try {
+      const res = await fetch(`${REALTIME_BASE_URL}/api/village/${vineId}/messages?limit=500`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success && Array.isArray(data.messages) && data.messages.length > 0) {
+        const historical: VillageMessage[] = data.messages.map((m: any) => ({
+          id: m.id || `hist-${m.timestamp}-${Math.random().toString(36).slice(2, 7)}`,
+          sender: m.sender,
+          content: m.content,
+          timestamp: m.timestamp,
+          vineId: m.vineId || vineId,
+        }));
+        setMessages(prev => {
+          // Merge: history first, then deduplicate against live messages already in state
+          const existingIds = new Set(prev.map(m => m.id));
+          const newHistorical = historical.filter(m => !existingIds.has(m.id));
+          return [...newHistorical, ...prev];
+        });
+      }
+    } catch (err) {
+      console.warn('Could not load vine history:', err);
+    } finally {
+      setHistoryLoaded(true);
+    }
+  }, [vineId]);
+
   // Send message via WebSocket or HTTP fallback
   const sendMessage = useCallback(async (sender: string, content: string) => {
     if (!vineId) {
@@ -222,9 +252,12 @@ export function useVillageVine({
     }
   }, [apiUrl]);
 
-  // Connect when vineId changes
+  // Connect and load history when vineId changes
   useEffect(() => {
     if (vineId) {
+      setHistoryLoaded(false);
+      setMessages([]);
+      fetchHistory();
       connect();
     }
 
@@ -236,10 +269,11 @@ export function useVillageVine({
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [vineId, connect]);
+  }, [vineId, connect, fetchHistory]);
 
   return {
     isConnected,
+    historyLoaded,
     messages,
     sendMessage,
     createVine,

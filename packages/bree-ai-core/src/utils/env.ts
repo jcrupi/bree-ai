@@ -1,24 +1,42 @@
 /**
- * Helper to safely access environment variables in either Vite or Bun environments
+ * Helper to safely access environment variables.
+ *
+ * Resolution order:
+ *  1. window.__BREE_CONFIG__  — runtime config injected by docker-entrypoint.sh
+ *                               (enables `fly secrets set` without a rebuild)
+ *  2. import.meta.env         — Vite build-time baked values (local dev)
+ *  3. process.env / Bun.env   — server-side (API services)
  */
+
+// Strip the VITE_ prefix to get the config key used in window.__BREE_CONFIG__
+const toConfigKey = (key: string): string =>
+  key.startsWith('VITE_') ? key.slice(5) : key;
+
 export const safeEnv = (key: string, fallback: string = ''): string => {
   try {
-    // Try Vite's import.meta.env
-    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
-      return (import.meta as any).env[key] || fallback;
-    }
-    
-    // Try Node/Bun's process.env
-    if (typeof process !== 'undefined' && process.env) {
-      return process.env[key] || fallback;
+    // 1. Runtime window config (production containers)
+    if (typeof window !== 'undefined' && (window as any).__BREE_CONFIG__) {
+      const val = (window as any).__BREE_CONFIG__[toConfigKey(key)];
+      if (val) return val;
     }
 
-    // Try Bun.env
+    // 2. Vite build-time env (local dev)
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+      const val = (import.meta as any).env[key];
+      if (val) return val;
+    }
+
+    // 3. Node / Bun server-side env
+    if (typeof process !== 'undefined' && process.env) {
+      const val = process.env[key];
+      if (val) return val;
+    }
     if (typeof Bun !== 'undefined' && (Bun as any).env) {
-      return (Bun as any).env[key] || fallback;
+      const val = (Bun as any).env[key];
+      if (val) return val;
     }
   } catch (e) {
-    // Fallback to default
+    // fall through to default
   }
   return fallback;
 };

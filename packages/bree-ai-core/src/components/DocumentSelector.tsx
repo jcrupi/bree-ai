@@ -189,22 +189,5 @@ export function DocumentSelector({
         </AnimatePresence>
       </motion.div>
 
-      {/* Info note */}
-      <motion.div initial={{
-      opacity: 0
-    }} animate={{
-      opacity: 1
-    }} transition={{
-      delay: 0.3
-    }} className={`mt-6 p-4 rounded-xl border ${
-        currentBrand.name === 'habitaware-ai' ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-800/30 border-slate-700/30'
-      }`}>
-        <p className={`text-xs leading-relaxed ${currentBrand.name === 'habitaware-ai' ? 'text-slate-600' : 'text-slate-400'}`}>
-          <span className={`${currentBrand.name === 'habitaware-ai' ? 'text-[#D448AA]' : 'text-blue-400'} font-medium`}>Note:</span> The
-          "Speaking" toggle controls visual animations only. {currentBrand.displayName} doesn't
-          actually speak aloud—it's a visual indicator to show when the AI is
-          responding.
-        </p>
-      </motion.div>
     </div>;
 }

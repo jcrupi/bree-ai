@@ -21,6 +21,7 @@ import {
   Save } from
 'lucide-react';
 import { useAgentTasks } from '../hooks/useAgentTasks';
+import { useLensDropZone } from '../hooks/useAILens';
 import { MOCK_GRAPES } from '../data/grapes';
 import { TEAM_MEMBERS } from '../data/teamMembers';
 import { VINE_CONVERSATIONS } from '../data/vineConversations';
@@ -35,6 +36,7 @@ import {
 import { FlyDeploymentPanel } from '../components/FlyDeploymentPanel';
 import { GrapeNanoContainer } from '../components/GrapeNanoContainer';
 import { Rocket, Activity, Terminal, Layout } from 'lucide-react';
+
 
 type ExpandedCardType = 'tasks' | 'vines' | 'grapes' | 'git' | 'deploy' | null;
 export function ProjectBoardPage() {

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -10,6 +10,12 @@
     class="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 min-h-screen"
   >
     <div id="root"></div>
+    <!-- Runtime config injected by docker-entrypoint.sh (Fly secrets → window.__BREE_CONFIG__) -->
+    <!-- In local dev this file doesn't exist; safeEnv falls back to import.meta.env -->
+    <script
+      src="/config.js"
+      onerror="console.debug('No runtime config.js — using build-time env')"
+    ></script>
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>

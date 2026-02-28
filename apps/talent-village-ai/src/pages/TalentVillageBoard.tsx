@@ -1297,7 +1297,7 @@ export const bus = new EventBus();
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-[#FDFDFD]">
+                <div className="h-[30rem] max-h-[30rem] overflow-y-auto p-8 space-y-6 bg-[#FDFDFD]">
                   {assessmentMessages.length === 0 && (
                     <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40">
                       <Sparkles size={48} className="text-amber-400 mb-4" />

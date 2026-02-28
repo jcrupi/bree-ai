@@ -53,6 +53,8 @@ export interface AdminSettingsProps {
   customTabs?: CustomTab[];
   /** Override brand name in header */
   brandName?: string;
+  /** Hide the Create Collection input — use when only one fixed collection exists */
+  hideCreateCollection?: boolean;
 }
 
 export function AdminSettings({
@@ -73,7 +75,8 @@ export function AdminSettings({
   onTestBubble,
   hideTabs = [],
   customTabs = [],
-  brandName
+  brandName,
+  hideCreateCollection = false
 }: AdminSettingsProps) {
   const [instructions, setInstructions] = useState(initialInstructions);
   const [responseStyle, setResponseStyle] = useState<'thorough' | 'succinct'>(initialResponseStyle);
@@ -537,31 +540,33 @@ export function AdminSettings({
                       ? 'bg-white border-slate-100 shadow-sm hover:shadow-md transition-shadow' 
                       : 'bg-slate-800/30 border-slate-700/50'
                 }`}>
-                  <div className="flex gap-3">
-                    <input
-                      type="text"
-                      value={newCollectionName}
-                      onChange={e => setNewCollectionName(e.target.value)}
-                      placeholder="Enter new collection name..."
-                      disabled={mode === 'play'}
-                      className={`flex-1 text-xs font-bold rounded-2xl px-5 py-3 border transition-all outline-none ${
-                        isLightTheme 
-                          ? 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white focus:border-brand-orange/50 focus:ring-4 focus:ring-brand-orange/5' 
-                          : 'bg-black/50 text-slate-200 border-white/5 focus:border-brand-orange/50'
-                      }`}
-                    />
-                    <button
-                      onClick={handleCreateCollection}
-                      disabled={!newCollectionName.trim() || creatingCollection || mode === 'play'}
-                      className={`px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
-                        isLightTheme
-                          ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/20 hover:scale-[1.02] active:scale-[0.98]'
-                          : 'bg-brand-orange text-white shadow-xl shadow-brand-orange/20 hover:scale-[1.02]'
-                      } disabled:opacity-20`}
-                    >
-                      {creatingCollection ? <Loader2Icon className="animate-spin w-4 h-4" /> : 'Create'}
-                    </button>
-                  </div>
+                  {!hideCreateCollection && (
+                    <div className="flex gap-3 mb-4">
+                      <input
+                        type="text"
+                        value={newCollectionName}
+                        onChange={e => setNewCollectionName(e.target.value)}
+                        placeholder="Enter new collection name..."
+                        disabled={mode === 'play'}
+                        className={`flex-1 text-xs font-bold rounded-2xl px-5 py-3 border transition-all outline-none ${
+                          isLightTheme 
+                            ? 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white focus:border-brand-orange/50 focus:ring-4 focus:ring-brand-orange/5' 
+                            : 'bg-black/50 text-slate-200 border-white/5 focus:border-brand-orange/50'
+                        }`}
+                      />
+                      <button
+                        onClick={handleCreateCollection}
+                        disabled={!newCollectionName.trim() || creatingCollection || mode === 'play'}
+                        className={`px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                          isLightTheme
+                            ? 'bg-brand-orange text-white shadow-lg shadow-brand-orange/20 hover:scale-[1.02] active:scale-[0.98]'
+                            : 'bg-brand-orange text-white shadow-xl shadow-brand-orange/20 hover:scale-[1.02]'
+                        } disabled:opacity-20`}
+                      >
+                        {creatingCollection ? <Loader2Icon className="animate-spin w-4 h-4" /> : 'Create'}
+                      </button>
+                    </div>
+                  )}
 
                   {collections.length > 0 && mode === 'live' && (
                     <div className="mt-4">

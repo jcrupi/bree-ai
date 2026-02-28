@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { currentBrand } from '../config/branding';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SendIcon, Loader2Icon, Volume2Icon, VolumeXIcon, MicIcon, SettingsIcon, MaximizeIcon, PlayIcon, RadioIcon, FileText, Gauge, SparklesIcon, Trash2Icon } from 'lucide-react';
-import { DocumentSelector } from './DocumentSelector';
 import { ChatMessage } from './ChatMessage';
 import { SpeakingAvatar } from './SpeakingAvatar';
 import { AdminSettings } from './AdminSettings';
@@ -97,6 +96,8 @@ export interface DocumentQAProps {
   brandColor?: string;
   aiName?: string;
   instructionsPath?: string;
+  /** Hide the Create Collection UI — for apps with a single fixed collection */
+  hideCreateCollection?: boolean;
 }
 
 export function DocumentQA({
@@ -112,7 +113,8 @@ export function DocumentQA({
   brandLogo = currentBrand.logo,
   brandColor = currentBrand.colors.primary,
   aiName = currentBrand.aiName || 'AI Assistant',
-  instructionsPath = currentBrand.instructionsPath || '/instructions.md'
+  instructionsPath = currentBrand.instructionsPath || '/instructions.md',
+  hideCreateCollection = false
 }: DocumentQAProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<'play' | 'live'>('live');
@@ -575,9 +577,13 @@ export function DocumentQA({
           }
         };
 
+        const token = localStorage.getItem('bree_jwt');
         const response = await fetch(`${API_URL}/api/collective/chat`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { authorization: `Bearer ${token}` } : {})
+          },
           body: JSON.stringify(chatPayload)
         });
 
@@ -839,18 +845,7 @@ export function DocumentQA({
             }
           />
 
-          <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6 lg:gap-8">
-            <aside>
-              <DocumentSelector 
-                documents={documents} 
-                selectedId={selectedDoc} 
-                onSelect={setSelectedDoc}
-                collectionName={currentCollectionName}
-                documentCount={currentCollectionDocCount}
-              />
-            </aside>
-
-            <main className="flex flex-col">
+          <main className="flex flex-col">
               <div className={`backdrop-blur-sm border transition-all duration-500 rounded-3xl shadow-xl flex flex-col h-[500px] sm:h-[600px] lg:h-[calc(100vh-200px)] lg:min-h-[650px] overflow-hidden ${
                 isLightTheme 
                   ? 'bg-white border-slate-100 shadow-slate-200/50' 
@@ -872,7 +867,6 @@ export function DocumentQA({
                     defaultDocumentIds={defaultDocumentIds}
                     onDefaultDocumentChange={(ids) => {
                       setDefaultDocumentIds(ids);
-                      // If only one, select it for UI, otherwise use 'all-docs' as placeholder
                       if (ids.length === 1 && ids[0] !== 'all-docs') {
                         setSelectedDoc(ids[0]);
                       } else {
@@ -884,6 +878,7 @@ export function DocumentQA({
                       setShowAdminSettings(false);
                       handleSend(text);
                     }}
+                    hideCreateCollection={hideCreateCollection}
                   />
                 ) : (
                   <>
@@ -998,7 +993,6 @@ export function DocumentQA({
                 )}
               </div>
             </main>
-          </div>
         </div>
       </div>
       
@@ -1019,6 +1013,7 @@ export function DocumentQA({
             onStopSpeaking={stopSpeaking}
             brandLogo={brandLogo}
             brandColor={brandColor}
+            suggestedBubbles={suggestedBubbles}
           />}
       </AnimatePresence>
     </>

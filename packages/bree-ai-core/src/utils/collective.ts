@@ -1,9 +1,4 @@
-import { safeEnv } from './env';
-
-const COLLECTIVE_URL = safeEnv('VITE_AGENTX_URL', safeEnv('VITE_COLLECTIVE_URL', 'http://localhost:9000'));
-
-// Direct import to bypass collective hub issues for testing
-import { generateChatResponse } from './ragster';
+import { API_URL } from './api-client';
 
 export async function collectiveChat(params: {
   messages: any[];
@@ -11,27 +6,24 @@ export async function collectiveChat(params: {
   orgSlug: string;
   options?: any;
 }) {
-  // Direct routed to Ragster for debugging UI
-  try {
-      const result = await generateChatResponse(params.messages, params.options);
-      return { role: 'assistant', content: result };
-  } catch (err: any) {
-     console.error("Direct Ragster Chat failed, trying collective...", err);
-     
-      const response = await fetch(`${COLLECTIVE_URL}/api/collective/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Collective chat failed');
-      }
-      
-      return response.json();
+  const token = typeof window !== 'undefined' ? localStorage.getItem('bree_jwt') : null;
+  const response = await fetch(`${API_URL}/api/collective/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(params),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || 'Collective chat failed');
   }
+
+  return response.json();
 }
+
 
 /**
  * Proxy for Identity calls through the Collective

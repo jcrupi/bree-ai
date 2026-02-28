@@ -47,7 +47,7 @@ export function useAgentTasks() {
       setLoading(true);
       const [tasksRes, agentsRes, areasRes, projectsRes] = await Promise.all([
       client.api.tasks.get(),
-      client.api.agents.get(),
+      client.api.vineyardAgents.get(),
       client.api.areas.get(),
       client.api.projects.get()]
       );
@@ -134,9 +134,7 @@ export function useAgentTasks() {
     )
     );
     // Sync with API
-    await client.api.tasks.byId(taskId).put({
-      status
-    });
+    await client.api.tasks[":id"].patch(taskId, { status });
   };
   const updateTaskProject = async (taskId: string, projectId: string) => {
     setTasks((prev) =>
@@ -149,9 +147,7 @@ export function useAgentTasks() {
     t
     )
     );
-    await client.api.tasks.byId(taskId).put({
-      projectId
-    });
+    await client.api.tasks[":id"].patch(taskId, { projectId });
   };
   const addProject = async (project: Omit<Project, 'id' | 'createdAt'>) => {
     const { data } = await client.api.projects.post(project);

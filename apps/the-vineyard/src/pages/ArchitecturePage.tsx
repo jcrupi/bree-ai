@@ -1,7 +1,6 @@
-import React, { Component } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Layout,
   Server,
   Database,
   Globe,
@@ -10,47 +9,129 @@ import {
   Search,
   MessageSquare,
   Layers,
-  ArrowDown,
   BoxIcon,
-  Brain } from
-'lucide-react';
+  Brain,
+  Zap,
+  Radio,
+  Lock,
+  Users,
+  Star
+} from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
 import { useAgentTasks } from '../hooks/useAgentTasks';
-import { ArchitectureNode } from '../components/ArchitectureNode';
 import { useLensDropZone } from '../hooks/useAILens';
+
+interface NetworkNode {
+  id: string;
+  x: number;
+  y: number;
+  label: string;
+  sublabel: string;
+  icon: React.ElementType;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  tech: string[];
+  layer: 'frontend' | 'gateway' | 'services' | 'data';
+}
+
+interface NetworkEdge {
+  from: string;
+  to: string;
+  label?: string;
+  dashed?: boolean;
+  color?: string;
+}
+
+const NODES: NetworkNode[] = [
+  // Frontend layer
+  { id: 'kat-ai',      x: 80,  y: 60,  label: 'KAT.ai',           sublabel: 'Knowledge AI',      icon: MessageSquare, color: '#3b82f6', bgColor: '#eff6ff', borderColor: '#bfdbfe', tech: ['React', 'Vite'], layer: 'frontend' },
+  { id: 'habitaware',  x: 260, y: 60,  label: 'HabitAware',        sublabel: 'Behavioral AI',      icon: Brain,         color: '#8b5cf6', bgColor: '#f5f3ff', borderColor: '#ddd6fe', tech: ['React', 'Vite'], layer: 'frontend' },
+  { id: 'vineyard',   x: 440, y: 60,  label: 'The Vineyard',      sublabel: 'Project Hub',        icon: Star,          color: '#06b6d4', bgColor: '#ecfeff', borderColor: '#a5f3fc', tech: ['React', 'Vite'], layer: 'frontend' },
+  { id: 'talent',     x: 620, y: 60,  label: 'Talent Village',     sublabel: 'Recruitment AI',     icon: Users,         color: '#f59e0b', bgColor: '#fffbeb', borderColor: '#fde68a', tech: ['React', 'Vite'], layer: 'frontend' },
+
+  // Gateway layer
+  { id: 'bree-api',        x: 260, y: 220, label: 'bree-api',           sublabel: 'REST Gateway',       icon: Server,   color: '#10b981', bgColor: '#ecfdf5', borderColor: '#a7f3d0', tech: ['Bun', 'Elysia'], layer: 'gateway' },
+  { id: 'bree-realtime',   x: 440, y: 220, label: 'bree-api-realtime',  sublabel: 'SSE / WebSocket',    icon: Radio,    color: '#f97316', bgColor: '#fff7ed', borderColor: '#fed7aa', tech: ['Bun', 'NATS'],   layer: 'gateway' },
+
+  // Services layer
+  { id: 'agentx',   x: 120, y: 380, label: 'AgentX',        sublabel: 'AI Orchestration',  icon: Cpu,    color: '#8b5cf6', bgColor: '#f5f3ff', borderColor: '#ddd6fe', tech: ['Collective'], layer: 'services' },
+  { id: 'ragster',  x: 300, y: 380, label: 'Ragster',        sublabel: 'RAG / Search',       icon: Search, color: '#3b82f6', bgColor: '#eff6ff', borderColor: '#bfdbfe', tech: ['Vectors', 'LLM'], layer: 'services' },
+  { id: 'nats',     x: 480, y: 380, label: 'NATS',           sublabel: 'Message Bus',        icon: Zap,    color: '#f59e0b', bgColor: '#fffbeb', borderColor: '#fde68a', tech: ['JetStream'], layer: 'services' },
+  { id: 'identity', x: 650, y: 380, label: 'Identity Zero',  sublabel: 'Auth / JWT',         icon: Lock,   color: '#ef4444', bgColor: '#fef2f2', borderColor: '#fecaca', tech: ['JWT', 'RBAC'], layer: 'services' },
+
+  // Data layer
+  { id: 'antimatter', x: 200, y: 530, label: 'AntiMatterDB',  sublabel: 'Identity Store',     icon: Shield,   color: '#6366f1', bgColor: '#eef2ff', borderColor: '#c7d2fe', tech: ['Org', 'Users'], layer: 'data' },
+  { id: 'openai',     x: 440, y: 530, label: 'OpenAI',        sublabel: 'GPT-4o / Realtime',  icon: Brain,    color: '#10b981', bgColor: '#ecfdf5', borderColor: '#a7f3d0', tech: ['GPT-4o', 'TTS'], layer: 'data' },
+  { id: 'vectordb',   x: 650, y: 530, label: 'Vector DB',     sublabel: 'Embeddings',          icon: Database, color: '#8b5cf6', bgColor: '#f5f3ff', borderColor: '#ddd6fe', tech: ['pgvector'], layer: 'data' },
+];
+
+const EDGES: NetworkEdge[] = [
+  // Frontends → gateways
+  { from: 'kat-ai',     to: 'bree-api',      color: '#3b82f6' },
+  { from: 'kat-ai',     to: 'bree-realtime', color: '#3b82f6', dashed: true },
+  { from: 'habitaware', to: 'bree-api',      color: '#8b5cf6' },
+  { from: 'vineyard',   to: 'bree-api',      color: '#06b6d4' },
+  { from: 'vineyard',   to: 'bree-realtime', color: '#06b6d4', dashed: true },
+  { from: 'talent',     to: 'bree-api',      color: '#f59e0b' },
+  { from: 'talent',     to: 'bree-realtime', color: '#f59e0b', dashed: true },
+
+  // Gateways → services
+  { from: 'bree-api',      to: 'agentx',   color: '#10b981' },
+  { from: 'bree-api',      to: 'ragster',  color: '#10b981' },
+  { from: 'bree-api',      to: 'identity', color: '#10b981' },
+  { from: 'bree-realtime', to: 'nats',     color: '#f97316' },
+  { from: 'bree-realtime', to: 'agentx',  color: '#f97316', dashed: true },
+
+  // Services → data
+  { from: 'agentx',   to: 'openai',     color: '#8b5cf6' },
+  { from: 'agentx',   to: 'nats',       color: '#8b5cf6', dashed: true },
+  { from: 'ragster',  to: 'vectordb',   color: '#3b82f6' },
+  { from: 'ragster',  to: 'openai',     color: '#3b82f6', dashed: true },
+  { from: 'identity', to: 'antimatter', color: '#ef4444' },
+  { from: 'nats',     to: 'openai',     color: '#f59e0b', dashed: true },
+];
+
+const NODE_W = 130;
+const NODE_H = 76;
+const CANVAS_W = 800;
+const CANVAS_H = 640;
+
+function getNodeCenter(node: NetworkNode) {
+  return { x: node.x + NODE_W / 2, y: node.y + NODE_H / 2 };
+}
+
+function cubicBezier(x1: number, y1: number, x2: number, y2: number) {
+  const cy = (y1 + y2) / 2;
+  return `M ${x1} ${y1} C ${x1} ${cy}, ${x2} ${cy}, ${x2} ${y2}`;
+}
+
 export function ArchitecturePage() {
   const {
-    agents,
-    areas,
-    projects,
-    selectedAgentId,
-    selectedAreaId,
-    selectedProjectId,
-    setSelectedAgentId,
-    setSelectedAreaId,
-    setSelectedProjectId,
-    addProject,
-    updateTaskProject,
-    stats,
-    allTasks,
-    selectedSpecialties,
-    toggleSpecialty
+    agents, areas, projects, selectedAgentId, selectedAreaId, selectedProjectId,
+    setSelectedAgentId, setSelectedAreaId, setSelectedProjectId,
+    addProject, updateTaskProject, stats, allTasks, selectedSpecialties, toggleSpecialty
   } = useAgentTasks();
-  // AI Lens drop zone
+
   const archZone = useLensDropZone({
     id: 'architecture-page',
     label: 'Architecture',
     pageId: 'architecture',
     dataType: 'git',
-    getData: () => ({
-      tasks: allTasks,
-      vines: [],
-      grapes: [],
-      project: null
-    }),
-    getSummary: () =>
-    `System architecture with ${allTasks.length} tasks across services`
+    getData: () => ({ tasks: allTasks, vines: [], grapes: [], project: null }),
+    getSummary: () => `BREE architecture with ${NODES.length} services`,
   });
+
+  const nodeMap = Object.fromEntries(NODES.map(n => [n.id, n]));
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+
+  const layerLabel: Record<string, string> = {
+    frontend: 'Frontend Applications',
+    gateway:  'API Gateway Layer',
+    services: 'Core Services',
+    data:     'Data & AI Layer',
+  };
+
   return (
     <div className="flex h-screen bg-[#f8f6ff] text-slate-900 overflow-hidden font-sans">
       <Sidebar
@@ -68,218 +149,187 @@ export function ArchitecturePage() {
         onToggleSpecialty={toggleSpecialty}
         onAddProject={addProject}
         onDropTaskOnProject={updateTaskProject}
-        stats={stats} />
-
+        stats={stats}
+      />
 
       <main
         className={`flex-1 overflow-y-auto custom-scrollbar ${archZone.dropClassName} transition-all duration-200`}
-        {...archZone.dropProps}>
-
-        <div className="max-w-6xl mx-auto px-8 py-12">
+        {...archZone.dropProps}
+      >
+        <div className="max-w-5xl mx-auto px-8 py-10">
           {/* Header */}
-          <motion.div
-            initial={{
-              opacity: 0,
-              y: -20
-            }}
-            animate={{
-              opacity: 1,
-              y: 0
-            }}
-            className="mb-12 text-center">
-
-            <div className="inline-flex items-center justify-center p-4 rounded-2xl bg-violet-50 border border-violet-100 mb-5 shadow-sm">
-              <Layers className="w-10 h-10 text-violet-600" />
+          <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} className="mb-8 text-center">
+            <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-violet-50 border border-violet-100 mb-4 shadow-sm">
+              <Layers className="w-8 h-8 text-violet-600" />
             </div>
-            <h1 className="text-5xl font-display font-bold text-slate-900 mb-4 tracking-tight">
-              Grapes & Vines Architecture
-            </h1>
-            <p className="text-xl text-slate-500 max-w-2xl mx-auto leading-relaxed">
-              A modern, type-safe monorepo architecture powered by Bun,
-              ElysiaJS, and React 19.
+            <h1 className="text-4xl font-bold text-slate-900 mb-2 tracking-tight">BREE Architecture</h1>
+            <p className="text-base text-slate-500 max-w-xl mx-auto">
+              Live service topology — {NODES.length} services, {EDGES.length} connections
             </p>
           </motion.div>
 
-          <div className="space-y-12 relative">
-            {/* Connecting Line */}
-            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-violet-200/0 via-violet-200 to-violet-200/0 -translate-x-1/2 pointer-events-none" />
+          {/* Network Canvas */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="relative bg-white rounded-3xl border border-violet-100 shadow-lg overflow-hidden"
+            style={{ height: CANVAS_H + 40 }}
+          >
+            {/* Subtle dot grid */}
+            <div
+              className="absolute inset-0 opacity-30"
+              style={{
+                backgroundImage: 'radial-gradient(circle, #c4b5fd 1px, transparent 1px)',
+                backgroundSize: '24px 24px',
+              }}
+            />
 
-            {/* FRONTEND LAYER */}
-            <section className="relative">
-              <div className="flex items-center justify-center gap-2 mb-8">
-                <span className="px-4 py-1.5 rounded-full bg-blue-50 text-blue-600 text-xs font-bold uppercase tracking-wider border border-blue-100 shadow-sm">
-                  Frontend Applications
-                </span>
-              </div>
+            {/* Layer labels */}
+            {['frontend', 'gateway', 'services', 'data'].map((layer, i) => {
+              const ys = [60, 220, 380, 530];
+              return (
+                <div
+                  key={layer}
+                  className="absolute left-4 text-[10px] font-bold uppercase tracking-wider text-slate-400"
+                  style={{ top: ys[i] + 28 }}
+                >
+                  {layerLabel[layer]}
+                </div>
+              );
+            })}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <ArchitectureNode
-                  title="KAT.ai"
-                  subtitle="Knowledge Assistant"
-                  description="Document Q&A, RAG search, and admin settings interface."
-                  icon={MessageSquare}
-                  tech={['React 19', 'Vite', 'Eden']}
-                  port="8769"
-                  color="blue"
-                  delay={0.1} />
+            {/* SVG Edges */}
+            <svg
+              className="absolute inset-0 pointer-events-none"
+              width="100%"
+              height="100%"
+              viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
+              preserveAspectRatio="none"
+            >
+              <defs>
+                {NODES.map(n => (
+                  <marker
+                    key={`arrow-${n.id}`}
+                    id={`arrow-${n.id}`}
+                    markerWidth="6"
+                    markerHeight="6"
+                    refX="5"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <path d="M0,0 L6,3 L0,6 Z" fill={n.color} opacity="0.5" />
+                  </marker>
+                ))}
+              </defs>
+              {EDGES.map((edge, i) => {
+                const fromNode = nodeMap[edge.from];
+                const toNode = nodeMap[edge.to];
+                if (!fromNode || !toNode) return null;
+                const f = getNodeCenter(fromNode);
+                const t = getNodeCenter(toNode);
+                const isHovered = hoveredNode === edge.from || hoveredNode === edge.to;
+                return (
+                  <path
+                    key={i}
+                    d={cubicBezier(f.x, f.y, t.x, t.y)}
+                    fill="none"
+                    stroke={edge.color || '#94a3b8'}
+                    strokeWidth={isHovered ? 2 : 1.2}
+                    strokeOpacity={isHovered ? 0.8 : 0.3}
+                    strokeDasharray={edge.dashed ? '5,4' : undefined}
+                    markerEnd={`url(#arrow-${edge.to})`}
+                    style={{ transition: 'stroke-opacity 0.2s, stroke-width 0.2s' }}
+                  />
+                );
+              })}
+            </svg>
 
+            {/* Nodes */}
+            {NODES.map((node, i) => {
+              const Icon = node.icon;
+              const isHovered = hoveredNode === node.id;
+              // Find connected nodes
+              const connectedIds = new Set([
+                ...EDGES.filter(e => e.from === node.id).map(e => e.to),
+                ...EDGES.filter(e => e.to === node.id).map(e => e.from),
+              ]);
+              return (
+                <motion.div
+                  key={node.id}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.05 * i }}
+                  className="absolute cursor-pointer select-none"
+                  style={{
+                    left: node.x,
+                    top: node.y,
+                    width: NODE_W,
+                    zIndex: isHovered ? 20 : 10,
+                  }}
+                  onMouseEnter={() => setHoveredNode(node.id)}
+                  onMouseLeave={() => setHoveredNode(null)}
+                >
+                  <div
+                    className="rounded-2xl border px-3 py-2.5 transition-all duration-200"
+                    style={{
+                      backgroundColor: node.bgColor,
+                      borderColor: isHovered ? node.color : node.borderColor,
+                      boxShadow: isHovered
+                        ? `0 0 0 3px ${node.color}22, 0 8px 24px ${node.color}22`
+                        : '0 1px 4px rgba(0,0,0,0.06)',
+                      transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <div
+                        className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: `${node.color}18` }}
+                      >
+                        <Icon size={12} style={{ color: node.color }} />
+                      </div>
+                      <span className="text-[11px] font-bold text-slate-800 leading-tight truncate">{node.label}</span>
+                    </div>
+                    <p className="text-[9px] text-slate-500 leading-tight mb-1.5 pl-8">{node.sublabel}</p>
+                    <div className="flex flex-wrap gap-1 pl-8">
+                      {node.tech.map(t => (
+                        <span
+                          key={t}
+                          className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: `${node.color}15`, color: node.color }}
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                    {isHovered && connectedIds.size > 0 && (
+                      <div className="mt-1.5 pt-1.5 border-t border-slate-200 pl-8">
+                        <span className="text-[8px] text-slate-400">{connectedIds.size} connection{connectedIds.size !== 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </motion.div>
 
-                <ArchitectureNode
-                  title="Genius Talent"
-                  subtitle="Recruitment AI"
-                  description="Talent management dashboard and candidate search."
-                  icon={Users}
-                  tech={['React 19', 'Vite', 'Eden']}
-                  port="5173"
-                  color="blue"
-                  delay={0.2} />
-
-
-                <ArchitectureNode
-                  title="HabitAware AI"
-                  subtitle="Behavioral AI"
-                  description="Habit change coaching and awareness tools."
-                  icon={Brain}
-                  tech={['React 19', 'Vite', 'Eden']}
-                  port="8770"
-                  color="blue"
-                  delay={0.3} />
-
-
-                <ArchitectureNode
-                  title="Keen.ai"
-                  subtitle="Knowledge Base"
-                  description="Specialized knowledge interface and document management."
-                  icon={Globe}
-                  tech={['React 19', 'Vite', 'Eden']}
-                  color="blue"
-                  delay={0.4} />
-
-              </div>
-            </section>
-
-            {/* Arrow Down */}
-            <div className="flex justify-center py-2">
-              <ArrowDown className="text-violet-300 animate-bounce" size={24} />
+          {/* Legend */}
+          <div className="mt-6 flex items-center gap-6 justify-center text-[11px] text-slate-500">
+            <div className="flex items-center gap-1.5">
+              <div className="w-8 h-px bg-slate-400 opacity-60" />
+              <span>Direct call</span>
             </div>
-
-            {/* BACKEND LAYER */}
-            <section className="relative">
-              <div className="flex items-center justify-center gap-2 mb-8">
-                <span className="px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold uppercase tracking-wider border border-emerald-100 shadow-sm">
-                  Local API Backend
-                </span>
-              </div>
-
-              <div className="max-w-2xl mx-auto">
-                <ArchitectureNode
-                  title="ElysiaJS Server"
-                  subtitle="Type-Safe API"
-                  description="High-performance Bun server with end-to-end type safety via Eden Treaty. Auto-generates Swagger docs."
-                  icon={Server}
-                  tech={['Bun', 'ElysiaJS', 'Eden Treaty', 'Swagger']}
-                  port="3000"
-                  color="green"
-                  delay={0.5} />
-
-              </div>
-            </section>
-
-            {/* Arrow Down */}
-            <div className="flex justify-center py-2">
-              <ArrowDown className="text-violet-300 animate-bounce" size={24} />
+            <div className="flex items-center gap-1.5">
+              <div className="w-8 h-px border-t border-dashed border-slate-400 opacity-60" />
+              <span>Async / streaming</span>
             </div>
-
-            {/* CORE LAYER */}
-            <section className="relative">
-              <div className="flex items-center justify-center gap-2 mb-8">
-                <span className="px-4 py-1.5 rounded-full bg-amber-50 text-amber-600 text-xs font-bold uppercase tracking-wider border border-amber-100 shadow-sm">
-                  Shared Core Package
-                </span>
-              </div>
-
-              <div className="max-w-2xl mx-auto">
-                <ArchitectureNode
-                  title="@bree-ai/core"
-                  subtitle="Shared Library"
-                  description="Centralized UI components, API client utilities, type definitions, and configuration shared across all apps."
-                  icon={BoxIcon}
-                  tech={['Components', 'Utils', 'Types', 'Config']}
-                  color="amber"
-                  delay={0.6} />
-
-              </div>
-            </section>
-
-            {/* Arrow Down */}
-            <div className="flex justify-center py-2">
-              <ArrowDown className="text-violet-300 animate-bounce" size={24} />
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-violet-100 border border-violet-200" />
+              <span>Hover a node to highlight connections</span>
             </div>
-
-            {/* EXTERNAL SERVICES LAYER */}
-            <section className="relative">
-              <div className="flex items-center justify-center gap-2 mb-8">
-                <span className="px-4 py-1.5 rounded-full bg-violet-50 text-violet-600 text-xs font-bold uppercase tracking-wider border border-violet-100 shadow-sm">
-                  External Services (fly.io)
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <ArchitectureNode
-                  title="Ragster"
-                  subtitle="RAG Service"
-                  description="Document search, embedding, indexing, and chat generation."
-                  icon={Search}
-                  tech={['Vector DB', 'LLM', 'Embeddings']}
-                  color="violet"
-                  delay={0.7} />
-
-
-                <ArchitectureNode
-                  title="AgentX Collective"
-                  subtitle="Orchestration"
-                  description="Multi-agent coordination hub and collective chat interface."
-                  icon={Cpu}
-                  tech={['Agents', 'Orchestration']}
-                  color="violet"
-                  delay={0.8} />
-
-
-                <ArchitectureNode
-                  title="AntiMatterDB"
-                  subtitle="Identity & Org"
-                  description="Centralized identity management and organization structure."
-                  icon={Shield}
-                  tech={['Identity', 'Auth', 'RBAC']}
-                  color="violet"
-                  delay={0.9} />
-
-              </div>
-            </section>
           </div>
         </div>
       </main>
-    </div>);
-
-}
-function Users({ size, className }: {size?: number;className?: string;}) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size || 24}
-      height={size || 24}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}>
-
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>);
-
+    </div>
+  );
 }

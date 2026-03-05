@@ -17,6 +17,14 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'marketing', label: 'Marketing', icon: <Megaphone  className="w-4 h-4" /> },
 ];
 
+const BIZ_DEFAULT = `1) We are having a preliminary call with an Interventional pain medicine specialist who heads the department in Univ Miami. It is planned for March 13th. They want to understand how we can improve their efficiency and decrease cancellations
+2) We are actively onboarding an urgent care, will likely go live in a month or so.
+3) We are signing the contract with Sprinto and will start HIPAA, GDPR & SOC2-Type2! I do not know how this will affect your development but we will need all the software that we interact for the audit
+4) We are talking with Mount Sinai preliminary discussion completed and will likely have another meeting sometime soon for possible full RCM for a few of their entities. I will let you know on more details after the 2nd meeting
+5) Meeting with Wasson Enterprises on Thursday. Will keep you all posted if they have anything aligned
+6) Still awaiting response from DxTx and Pain care Florida, so slow, its painful.
+7) Will likely learn from Rod about a potential collaboration with Diabetic and wound care center of America, a possible implementation of our woundai in their flagship GA location.`;
+
 export function App() {
   const {
     tasks, filters, setFilters,
@@ -122,6 +130,7 @@ export function App() {
             field="bizText"
             label="Business Notes"
             placeholder="Enter business context, goals, stakeholder notes, ROI considerations, budget, timelines…"
+            defaultText={BIZ_DEFAULT}
           />
         )}
 

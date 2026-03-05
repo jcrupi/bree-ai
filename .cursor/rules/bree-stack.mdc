@@ -1,0 +1,236 @@
+---
+description: BREE Stack Rules — Bun, React, Elysia, Eden — enforced across the bree-ai monorepo
+globs:
+  [
+    "**/*.ts",
+    "**/*.tsx",
+    "**/package.json",
+    "**/vite.config.ts",
+    "**/Dockerfile",
+    "**/*.sh",
+  ]
+alwaysApply: true
+---
+
+# BREE Stack Monorepo Rules
+
+This is the **bree-ai monorepo**. All development must strictly conform to the **BREE stack**:
+
+| Layer | Technology                                                |
+| ----- | --------------------------------------------------------- |
+| **B** | **Bun** — runtime, package manager, test runner           |
+| **R** | **React 19** — frontend UI framework                      |
+| **E** | **Elysia** — backend API framework                        |
+| **E** | **Eden Treaty** (`@elysiajs/eden`) — type-safe API client |
+
+---
+
+## 🔴 ABSOLUTE PROHIBITIONS
+
+The following are **never allowed** under any circumstances:
+
+### Runtime & Package Manager
+
+- ❌ **No Node.js** — never use `node` to run scripts or servers
+- ❌ **No npm** — never use `npm install`, `npm run`, `npm ci`, etc.
+- ❌ **No yarn** — not permitted
+- ❌ **No pnpm** — not permitted
+- ✅ **Only `bun`** — use `bun install`, `bun run`, `bunx`, `bun test`
+
+### Language
+
+- ❌ **No plain JavaScript files** — `.js` and `.mjs` files are not allowed in `src/` directories
+- ❌ **No `require()`** — no CommonJS; use ESM `import`/`export` exclusively
+- ✅ **TypeScript only** — all source files must be `.ts` or `.tsx`
+- ✅ **Strict TypeScript** — `"strict": true` in all `tsconfig.json`
+
+### Configuration Files (Exceptions)
+
+- Config files that cannot be `.ts` (e.g., `postcss.config.js`, `tailwind.config.js`) are permitted as `.js` **only** when the tool requires it. These must use ESM (`import`/`export`), not CJS.
+
+---
+
+## ✅ REQUIRED PRACTICES
+
+### Package Manager
+
+```bash
+# Installing dependencies
+bun install
+
+# Adding a package
+bun add <package>
+bun add -d <package>   # devDependency
+
+# Running scripts
+bun run dev
+bun run build
+bun test
+
+# Running one-off scripts
+bunx <tool>
+```
+
+### Monorepo Structure
+
+```
+bree-ai/
+├── apps/           # Frontend React/Vite apps and backend Elysia servers
+│   ├── <app-name>/
+│   │   ├── src/           # TypeScript source only
+│   │   ├── vite.config.ts # Frontend apps use Vite
+│   │   └── package.json   # "type": "module"
+├── packages/       # Shared internal packages (workspace:*)
+│   └── bree-ai-core/
+└── package.json    # Root workspace config
+```
+
+### `package.json` Requirements
+
+Every `package.json` in this monorepo **must** have:
+
+```json
+{
+  "type": "module"
+}
+```
+
+Workspace dependencies must use `workspace:*`:
+
+```json
+{
+  "dependencies": {
+    "@bree-ai/core": "workspace:*"
+  }
+}
+```
+
+### Backend: Elysia APIs
+
+All backend services must use **Elysia** with full type export:
+
+```typescript
+// src/index.ts
+import { Elysia } from "elysia";
+
+const app = new Elysia().get("/health", () => ({ status: "ok" })).listen(3000);
+
+// REQUIRED: Always export the App type for Eden type-safety
+export type App = typeof app;
+```
+
+Run with Bun — never Node:
+
+```bash
+bun run src/index.ts
+```
+
+### Frontend: Eden Treaty Client
+
+All frontend apps must connect to Elysia APIs using **Eden Treaty**:
+
+```typescript
+// src/api/client.ts
+import { edenTreaty } from "@elysiajs/eden";
+import type { App } from "../../../api/src/index";
+
+const url = import.meta.env.VITE_API_URL || "/";
+export const api = edenTreaty<App>(url);
+```
+
+Never use raw `fetch()` for internal API calls — always use the typed Eden client.
+
+### Frontend: Vite Configuration
+
+Frontend apps use **Vite** (not Bun's bundler). The `vite.config.ts` **must** include:
+
+```typescript
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [
+    react({
+      jsxRuntime: "automatic",
+      babel: false, // REQUIRED: Prevents _lruCache errors under Bun
+    }),
+  ],
+});
+```
+
+### PostCSS Configuration
+
+When using Tailwind CSS, `postcss.config.js` **must** use explicit imports (not the shorthand object syntax), or it will fail under Bun:
+
+```javascript
+// ✅ CORRECT
+import tailwindcss from "tailwindcss";
+import autoprefixer from "autoprefixer";
+
+export default {
+  plugins: [tailwindcss, autoprefixer],
+};
+
+// ❌ WRONG — causes "plugin is not a function" under Bun+Vite
+export default {
+  plugins: { tailwindcss: {}, autoprefixer: {} },
+};
+```
+
+---
+
+## 📦 Approved Dependencies
+
+| Purpose            | Package                             |
+| ------------------ | ----------------------------------- |
+| Backend framework  | `elysia`                            |
+| API client         | `@elysiajs/eden`                    |
+| Frontend framework | `react`, `react-dom`                |
+| Build tool         | `vite`, `@vitejs/plugin-react`      |
+| Styling            | `tailwindcss`, `autoprefixer`       |
+| Markdown rendering | `marked`                            |
+| Validation         | `zod` (Elysia has built-in support) |
+| Testing            | Bun's built-in test runner          |
+
+---
+
+## 🏗️ App Build Checklist
+
+Before creating or modifying any app in this monorepo:
+
+- [ ] `package.json` has `"type": "module"`
+- [ ] All scripts use `bun` commands only
+- [ ] All source files are `.ts` or `.tsx`
+- [ ] Backend uses Elysia and exports `App` type
+- [ ] Frontend uses Eden Treaty for all API calls
+- [ ] `vite.config.ts` has `babel: false` in the React plugin
+- [ ] `postcss.config.js` uses explicit imports (not object shorthand)
+- [ ] No `node_modules/.gitignore` checked in
+- [ ] Internal packages referenced with `workspace:*`
+
+---
+
+## 🚫 Code Anti-Patterns to Reject
+
+```typescript
+// ❌ Never: CommonJS require
+const express = require("express");
+
+// ❌ Never: Node-specific APIs as primary runtime
+import { createServer } from "http";
+
+// ❌ Never: Raw fetch for internal APIs
+const res = await fetch("/api/users");
+
+// ❌ Never: .js file extension on source files
+// src/utils.js ← wrong
+
+// ✅ Always: ESM imports
+import { Elysia } from "elysia";
+
+// ✅ Always: Eden Treaty for internal API calls
+const res = await api.api.users.get();
+
+// ✅ Always: TypeScript source files
+// src/utils.ts ← correct
+```

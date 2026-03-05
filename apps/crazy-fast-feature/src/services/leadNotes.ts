@@ -1,8 +1,9 @@
 /**
- * LeadNotes — persists Biz and Marketing text via bree-api /api/config/:brandId
+ * crazy-weeks persistence service
+ * Saves tech tasks, biz notes, and marketing notes per calendar week
+ * as AgentX markdown files: crazy-weeks/YYYY-MM-DD/{tech,biz,marketing}.agentx.md
  */
 
-const BRAND_ID = 'crazy-fast-feature';
 const API_BASE = import.meta.env.VITE_API_URL || 'https://bree-api.fly.dev';
 
 function authHeaders(): Record<string, string> {
@@ -12,33 +13,64 @@ function authHeaders(): Record<string, string> {
     : { 'Content-Type': 'application/json' };
 }
 
+/** Returns YYYY-MM-DD of the Monday of the current week (client-side) */
+export function currentWeekKey(): string {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d.toISOString().split('T')[0];
+}
+
+export type WeekTab = 'tech' | 'biz' | 'marketing';
+
+export interface WeekData {
+  week: string;
+  tech: string | null;
+  biz: string | null;
+  marketing: string | null;
+}
+
+/** Load all three tabs for the current week at once */
+export async function loadCurrentWeek(): Promise<WeekData> {
+  try {
+    const res = await fetch(`${API_BASE}/api/crazy-weeks/current`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) return { week: currentWeekKey(), tech: null, biz: null, marketing: null };
+    return await res.json();
+  } catch {
+    return { week: currentWeekKey(), tech: null, biz: null, marketing: null };
+  }
+}
+
+/** Save a single tab's content for the current week */
+export async function saveWeekTab(tab: WeekTab, content: string): Promise<void> {
+  const week = currentWeekKey();
+  await fetch(`${API_BASE}/api/crazy-weeks/${week}/${tab}`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ content }),
+  });
+}
+
+// ── Legacy shim for LeadNotesTab (biz / marketing) ──────────────────────────
+// Keeps the same interface as the old leadNotes.ts so LeadNotesTab needs no changes
+
 export interface LeadNotesData {
   bizText?: string;
   marketingText?: string;
 }
 
 export async function loadLeadNotes(): Promise<LeadNotesData> {
-  try {
-    const res = await fetch(`${API_BASE}/api/config/${BRAND_ID}`, {
-      headers: authHeaders(),
-    });
-    if (!res.ok) return {};
-    const data = await res.json();
-    return {
-      bizText: data.bizText ?? '',
-      marketingText: data.marketingText ?? '',
-    };
-  } catch {
-    return {};
-  }
+  const data = await loadCurrentWeek();
+  return {
+    bizText: data.biz ?? '',
+    marketingText: data.marketing ?? '',
+  };
 }
 
 export async function saveLeadNotes(notes: LeadNotesData): Promise<void> {
-  // Merge with any existing config keys so we don't blow away task settings
-  const existing = await loadLeadNotes();
-  await fetch(`${API_BASE}/api/config/${BRAND_ID}`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({ ...existing, ...notes }),
-  });
+  if (notes.bizText !== undefined) await saveWeekTab('biz', notes.bizText);
+  if (notes.marketingText !== undefined) await saveWeekTab('marketing', notes.marketingText);
 }

@@ -17,6 +17,7 @@ import { agentxRoutes as habitawareAgentx } from './routes/habitaware/agentx';
 import { identityZeroRoutes } from './routes/identity-zero';
 import { assessmentQuestionsRoutes } from './routes/assessment-questions';
 import { talentVillageRoutes } from './routes/talent-village';
+import { crazyWeeksRoutes } from './routes/crazy-weeks';
 import * as jose from 'jose';
 import { sql, decryptKey } from './routes/identity-zero/db';
 import { AUTH_PROVIDER, verifyToken, isBetterAuth } from './auth-provider';
@@ -147,6 +148,7 @@ export const app = new Elysia()
   .use(identityZeroRoutes)
   .use(assessmentQuestionsRoutes)
   .use(talentVillageRoutes)
+  .group('/api/crazy-weeks', (app) => app.use(crazyWeeksRoutes))
 
   // Knowledge (Ragster) Proxy Group
   .group('/api/knowledge', (app) =>

@@ -7,6 +7,8 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || "",
 });
 
+import { ChatterboxClient } from "../../chatterbox-client";
+
 // Path to agentx notes - Use persistent volume in production
 const AGENTX_DIR = process.env.AGENTX_DIR || (process.env.NODE_ENV === "production" ? "/app/data/agentx" : join(process.cwd(), "agentx"));
 
@@ -65,7 +67,41 @@ function loadAgentXNotes(): AgentXNotes {
 
 export const chatRoutes = new Elysia()
   .post("/analyze", async ({ body }) => {
-    const { question, history, userContext } = body;
+    const { question, history, userContext, convoId: reqConvoId, smartMemory } = body;
+
+    let convoId = reqConvoId;
+    let assembledContext = "";
+    let smartMemoryEnabled = smartMemory === true;
+
+    // ── Chatterbox Integration ───────────────────────────────────────────
+    if (convoId) {
+      try {
+        const ctxRes = await ChatterboxClient.getContext(convoId);
+        if (ctxRes && ctxRes.success && ctxRes.context) {
+          const { latestMemory } = ctxRes.context;
+          
+          if (latestMemory?.summary) {
+            assembledContext += `\n### SMART MEMORY (Summary of previous turns):\n${latestMemory.summary}\n`;
+          }
+        }
+      } catch (err) {
+        console.warn(`[habitaware] Failed to fetch Chatterbox context for ${convoId}:`, err);
+      }
+    } else if (userContext?.email) {
+      // Start a new convo if none provided
+      try {
+        const startRes = await ChatterboxClient.startConvo({
+          appId: "habitaware-ai",
+          orgId: "habitaware",
+          userId: userContext.email,
+        });
+        if (startRes.success) {
+          convoId = startRes.convo.convoId;
+        }
+      } catch (err) {
+        console.warn("[habitaware] Failed to start Chatterbox convo:", err);
+      }
+    }
 
     // Load pre-computed agentx notes instead of calling APIs
     const notes = loadAgentXNotes();
@@ -130,13 +166,41 @@ ${dataContext}
 - Format your responses using **Markdown**.
 - Use ## and ### for sections.
 - Use tables for data comparisons.
-- Use > for important insights or summaries.`,
+- Use > for important insights or summaries.
+
+${assembledContext}
+
+### CUSTOM PERSONA
+${userContext?.email === 'ellen@habitaware.com' ? 
+  "You are talking to Ellen, the founder. Use a warm, visionary, and encouraging tone. When she asks to write blogs or posts, pull from the POST ANALYTICS below and write in HER voice: empathetic, slightly informal but deeply knowledgeable, and always focused on 'habit reversal' as a journey of awareness." : 
+  "Maintain a professional and empathetic tone appropriate for community leadership."
+}`,
       messages,
     });
 
     const assistantMessage = response.content[0].type === "text"
       ? response.content[0].text
       : "I couldn't generate a response.";
+
+    // ── Persist Turn to Chatterbox ────────────────────────────────────────
+    if (convoId && userContext?.email) {
+      try {
+        await ChatterboxClient.storeTurn({
+          convoId,
+          appId: "habitaware-ai",
+          orgId: "habitaware",
+          userId: userContext.email,
+          questionEhash: ChatterboxClient.createEhash("habitaware", userContext.email, question),
+          answerEhash:   ChatterboxClient.createEhash("habitaware", userContext.email, assistantMessage),
+          metadata: {
+            model: "claude-3-haiku-20240307",
+            isEllen: userContext.email === 'ellen@habitaware.com'
+          }
+        });
+      } catch (err) {
+        console.warn(`[habitaware] Failed to store turn in Chatterbox:`, err);
+      }
+    }
 
     // Extract quick stats from notes for snapshot
     const postsMatch = notes.posts?.match(/total_posts:\s*(\d+)/);
@@ -150,6 +214,7 @@ ${dataContext}
         totalPosts: postsMatch ? parseInt(postsMatch[1]) : 0,
         totalMembers: membersMatch ? parseInt(membersMatch[1]) : 0,
       },
+      convoId,
       notesStatus: {
         hasMembers: !!notes.members,
         hasPosts: !!notes.posts,
@@ -159,6 +224,8 @@ ${dataContext}
   }, {
     body: t.Object({
       question: t.String(),
+      convoId: t.Optional(t.String()),
+      smartMemory: t.Optional(t.Boolean()),
       history: t.Optional(t.Array(t.Object({
         role: t.String(),
         content: t.String(),
@@ -174,7 +241,25 @@ ${dataContext}
     }),
   })
   .post("/book-chat", async ({ body }) => {
-    const { question, history, collection, orgId, ragsterUrl } = body;
+    const { question, history, collection, orgId, ragsterUrl, convoId: reqConvoId, smartMemory } = body;
+
+    let convoId = reqConvoId;
+    let assembledContext = "";
+
+    // ── Chatterbox Integration ───────────────────────────────────────────
+    if (convoId) {
+      try {
+        const ctxRes = await ChatterboxClient.getContext(convoId);
+        if (ctxRes && ctxRes.success && ctxRes.context) {
+          const { latestMemory } = ctxRes.context;
+          if (latestMemory?.summary) {
+            assembledContext += `\n### SMART MEMORY (Summary of previous brainstorming):\n${latestMemory.summary}\n`;
+          }
+        }
+      } catch (err) {
+        console.warn(`[habitaware-book] Failed to fetch Chatterbox context for ${convoId}:`, err);
+      }
+    }
 
     const RAGSTER_API_URL = ragsterUrl || process.env.RAGSTER_API_URL || "https://agent-collective-ragster.fly.dev/api";
     const RAGSTER_ORG_ID = orgId || process.env.RAGSTER_DEFAULT_ORG_ID || "habitaware.ai";
@@ -246,7 +331,10 @@ ${bookContext}
 - Be supportive and encouraging — the reader is a parent seeking guidance.
 - If the excerpts don't cover the question, say so honestly and offer general advice.
 - Format responses in **Markdown** with headers, lists, and emphasis for readability.
-- Keep answers focused and actionable.`,
+- Format responses in **Markdown** with headers, lists, and emphasis for readability.
+- Keep answers focused and practical.
+
+${assembledContext}`,
       messages,
     });
 
@@ -254,10 +342,35 @@ ${bookContext}
       ? response.content[0].text
       : "I couldn't generate a response.";
 
-    return { response: assistantMessage };
+    // ── Persist Turn to Chatterbox ────────────────────────────────────────
+    const userEmail = body.userContext?.email || "anonymous-book-user";
+
+    if (convoId) {
+      try {
+        await ChatterboxClient.storeTurn({
+          convoId,
+          appId: "habitaware-ai-book",
+          orgId: "habitaware",
+          userId: userEmail,
+          questionEhash: ChatterboxClient.createEhash("habitaware", userEmail, question),
+          answerEhash:   ChatterboxClient.createEhash("habitaware", userEmail, assistantMessage),
+          metadata: {
+            model: "claude-sonnet-4-20250514",
+            type: "book-chat"
+          }
+        });
+      } catch (err) {
+        console.warn(`[habitaware-book] Failed to store turn in Chatterbox:`, err);
+      }
+    }
+
+    return { response: assistantMessage, convoId };
   }, {
     body: t.Object({
       question: t.String(),
+      convoId: t.Optional(t.String()),
+      smartMemory: t.Optional(t.Boolean()),
+      userContext: t.Optional(t.Any()),
       history: t.Optional(t.Array(t.Object({
         role: t.String(),
         content: t.String(),

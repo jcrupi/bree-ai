@@ -55,7 +55,7 @@ export function App() {
                 <Zap className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white tracking-tight">Crazy Fast Feature</h1>
+                <h1 className="text-xl font-bold text-white tracking-tight">Gelin Crazy Week</h1>
                 <p className="text-sm text-slate-400">AI Task Tracker</p>
               </div>
             </div>

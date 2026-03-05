@@ -528,8 +528,8 @@ export function AdminSettings({
                 </div>
               )}
 
-              {/* Collections Section */}
-              <section>
+              {/* Collections Section — hidden when using a single fixed collection */}
+              {!hideCreateCollection && <section>
                 <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 transition-colors ${isLightTheme ? 'text-slate-700' : 'text-slate-300'}`}>
                   <FolderPlusIcon className={`w-4 h-4 ${isLightTheme ? 'text-purple-500' : 'text-blue-400'}`} /> Ragster Collections
                 </h3>
@@ -672,38 +672,40 @@ export function AdminSettings({
                     </div>
                   )}
                 </div>
-              </section>
+              </section>}
 
               {/* Uploads Section */}
               <section>
                 <h3 className={`text-sm font-semibold mb-4 flex items-center gap-2 transition-colors ${isLightTheme ? 'text-slate-700' : 'text-slate-300'}`}>
                   <UploadIcon className={`w-4 h-4 ${isLightTheme ? 'text-teal-500' : 'text-emerald-400'}`} /> Document Management
                 </h3>
-                <div className="mb-4">
-                  <label className="text-xs text-slate-500 mb-2 block">Upload to Collection:</label>
-                  <select
-                    value={uploadCollectionId || globalCollectionId || ''}
-                    onChange={e => setUploadCollectionId(e.target.value)}
-                    className={`w-full text-sm rounded-xl px-4 py-2.5 border transition-all outline-none ${
-                      isLightTheme
-                        ? 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-500/5'
-                        : 'bg-slate-800 text-slate-200 border-slate-700'
-                    }`}
-                  >
-                    {collections.length === 0 ? (
-                      <option value="">No collections available</option>
-                    ) : (
-                      collections.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} {c.id === globalCollectionId ? '(Current)' : ''}
-                        </option>
-                      ))
+                {!hideCreateCollection && (
+                  <div className="mb-4">
+                    <label className="text-xs text-slate-500 mb-2 block">Upload to Collection:</label>
+                    <select
+                      value={uploadCollectionId || globalCollectionId || ''}
+                      onChange={e => setUploadCollectionId(e.target.value)}
+                      className={`w-full text-sm rounded-xl px-4 py-2.5 border transition-all outline-none ${
+                        isLightTheme
+                          ? 'bg-slate-50 text-slate-800 border-slate-200 focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-500/5'
+                          : 'bg-slate-800 text-slate-200 border-slate-700'
+                      }`}
+                    >
+                      {collections.length === 0 ? (
+                        <option value="">No collections available</option>
+                      ) : (
+                        collections.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} {c.id === globalCollectionId ? '(Current)' : ''}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                    {globalCollectionId && !uploadCollectionId && (
+                      <p className="text-xs text-slate-500 mt-1">Current collection will be used</p>
                     )}
-                  </select>
-                  {globalCollectionId && !uploadCollectionId && (
-                    <p className="text-xs text-slate-500 mt-1">Current collection will be used</p>
-                  )}
-                </div>
+                  </div>
+                )}
                 <div className="mb-4">
                   <label className="text-xs text-slate-500 mb-2 block">Apply Tags to Uploads:</label>
                   <div className="flex flex-wrap gap-2 mb-2">

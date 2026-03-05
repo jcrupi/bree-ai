@@ -237,6 +237,20 @@ export async function seedDatabase() {
       console.log('✅ Created admin: aneela@habitaware.com / keen2@2026');
     }
 
+    // KAT.ai users
+    const katUsers = [
+      { email: 'corby@kat.ai',  name: 'Corby',  password: 'kat2026!' },
+      { email: 'chris@kat.ai',  name: 'Chris',  password: 'kat2026!' },
+      { email: 'johnny@kat.ai', name: 'Johnny', password: 'kat2026!' },
+      { email: 'marc@kat.ai',   name: 'Marc',   password: 'kat2026!' },
+    ];
+    for (const u of katUsers) {
+      if (!userDb.findByEmail(u.email)) {
+        await authService.register(u.email, u.password, u.name, 'member');
+        console.log(`✅ Created kat.ai user: ${u.email} / ${u.password}`);
+      }
+    }
+
     console.log('✅ Database seeded successfully');
   } catch (error) {
     console.error('Error seeding database:', error);

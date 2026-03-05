@@ -1,47 +1,71 @@
-# Dependencies
+# ── Dependencies ──────────────────────────────────────────
 node_modules/
 .pnp
 .pnp.js
 
-# Testing
-coverage/
-
-# Production
-build/
+# ── Build outputs ─────────────────────────────────────────
 dist/
+build/
+.next/
+out/
+*.tsbuildinfo
 
-# Environment variables
+# ── Vite / Bun cache artifacts ────────────────────────────
+.vite/
+*.timestamp-*.mjs
+vite.config.ts.timestamp-*
+
+# ── Environment / secrets ─────────────────────────────────
 .env
 .env.local
-# AgentX runner (OPENAI_API_KEY etc.)
+.env.*.local
+.env.development
+.env.test
+.env.production
+# AgentX / service-specific .env files
 apps/genius-talent/agentx-assessments/.env
-.env.development.local
-.env.test.local
-.env.production.local
 
-# Logs
+# ── Databases & binary data ───────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+*.zip
+
+# ── Test artifacts ────────────────────────────────────────
+coverage/
+test-results/
+playwright-report/
+test-kat*.mjs
+test-kat*.ts
+
+# ── Logs ──────────────────────────────────────────────────
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
 
-# Editor directories and files
+# ── OS files ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor ────────────────────────────────────────────────
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# OS
-.DS_Store
-Thumbs.db
+# ── Feedback / download dumps ─────────────────────────────
+feedback-downloads/
+scripts/feedback-downloads/
 
-# Moved out of monorepo (talent-village is now its own repo)
+# ── Moved / deprecated apps ───────────────────────────────
 .MOVED
 *.MOVED
 apps/live-ai-talent.IGNORE
+

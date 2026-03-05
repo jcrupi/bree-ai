@@ -15,6 +15,7 @@ import { TalentVillageSetup } from './pages/TalentVillageSetup';
 import { EmailJSTestPage } from './pages/EmailJSTestPage';
 import { IdentityZeroPage } from './pages/IdentityZeroPage';
 import { AuthPlaygroundPage } from './pages/AuthPlaygroundPage';
+import { TeamSlackerPage } from './pages/TeamSlackerPage';
 import { AILensProvider, useAILens } from './hooks/useAILens';
 import { AILensMenu } from './components/AILensMenu';
 import { AILensOverlay } from './components/AILensOverlay';
@@ -79,6 +80,7 @@ export function App() {
           <Route path="/emailjs-test" element={<EmailJSTestPage />} />
           <Route path="/identity-zero" element={<IdentityZeroPage />} />
           <Route path="/auth-playground" element={<AuthPlaygroundPage />} />
+          <Route path="/team-slacker" element={<TeamSlackerPage />} />
         </Routes>
       </AILensProvider>
     </Router>);

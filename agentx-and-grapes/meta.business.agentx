@@ -1,0 +1,17 @@
+kind: meta
+apiVersion: agentx/v1
+metadata:
+  name: meta.business
+spec:
+  produces:
+    slug: business
+    pattern: "{domain}.business.agentx"
+  consumes:
+    - name: description
+      type: markdown
+      pattern: "{domain}.agentx.md"
+  runtime:
+    engine: agentx
+    action: generateBusinessNote
+  policy:
+    audit: true

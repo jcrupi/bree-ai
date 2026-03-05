@@ -1,120 +1,127 @@
 ---
-title: chatterbox — Secure Conversational Store
+title: chatterbox — Realtime Contextual Intelligence Store
 type: app
 app: chatterbox
 fly_app: bree-chatterbox
 url: https://bree-chatterbox.fly.dev
 port: 3002
 stack: Bun, Elysia, NATS, JetStream
-last_updated: 2026-02-27
+last_updated: 2026-03-03
 ai_context: true
 ---
 
-# chatterbox — Secure Conversational Store
+# chatterbox — Realtime Contextual Intelligence
 
-A privacy-first, append-only conversational store built on NATS JetStream. Chatterbox persists conversation turns without ever storing question or answer text — only encrypted hashes (`ehash`). Any service in the bree-ai platform can push a turn via NATS and retrieve it by any index field.
+A privacy-first, append-only conversational intelligence store built on NATS JetStream. Chatterbox persists **Convo Turns** without ever storing question or answer text — only salted BLAKE2b-256 hashes (`ehash`). It provides the memory backbone for AI agents, tracking context windows, smart summarization, and automatic branching.
 
 ---
 
-## Core Design Principle
+## Core Design Principles
 
-**No plaintext is ever stored.** Question and answer content is reduced to one-way salted BLAKE2b hashes before entering the system. The hash is a stable fingerprint for deduplication, auditing, and cross-service correlation — not a retrieval mechanism for the original content.
-
-```
-question: "What is my leave balance?"
-  │
-  └─► BLAKE2b( orgId + ":" + userId + ":" + questionText )
-        → question_ehash: "a3f8c2d1..."   ← only this is stored
-```
+1. **Privacy-First (eHash).** No plaintext is ever stored. Question and answer content is reduced to one-way salted BLAKE2b hashes before entering the system.
+2. **Convos have identity.** Every chat session gets a `convoId` (ULID) that persists for its lifetime.
+3. **Deterministic Context.** The `contextId` is a hash of the sorted active resource IDs. Change the resources, change the context.
+4. **AI Lenses.** Context is viewed through "Lenses" (Domain, Feature, Customer, Claims) to provide high-fidelity intelligence without PII exposure.
+5. **Smart Memory.** Automated, iterative summarization (periodic LLM triggers) to keep context windows dense and relevant.
 
 ---
 
 ## Data Model
 
-### ConversationTurn
+### ConvoTurn
+
+The atomic unit. One question → one answer exchange.
 
 ```typescript
-interface ConversationTurn {
-  // Identity
-  turnId:        string;   // ULID — globally unique, time-ordered
-  appId:         string;   // Originating application (e.g. "kat-ai", "habitaware")
-  orgId:         string;   // Organization / tenant identifier
-  userId:        string;   // User identifier (opaque — ID, not PII)
+interface ConvoTurn {
+  turnId: string; // ULID — unique per turn, time-ordered
 
-  // Security context
-  claims:        Record<string, unknown>;  // JWT or RBAC claims snapshot at time of turn
+  // Session
+  convoId: string; // ULID — assigned when convo starts
+  contextId: string; // BLAKE2b-256(sorted(resourceIds)) — the resource window
+  parentContextId?: string; // set when this turn is the first in a new branch
 
-  // Conversation content fingerprints (one-way, no recovery)
-  questionEhash: string;   // BLAKE2b-256 hex of (orgId + ":" + userId + ":" + question)
-  answerEhash:   string;   // BLAKE2b-256 hex of (orgId + ":" + userId + ":" + answer)
+  // Participant
+  appId: string; // originating app (e.g. "kat-ai", "the-vineyard")
+  orgId: string; // org / tenant identifier
+  userId: string; // user identifier (opaque — not PII)
+  claims: Record<string, unknown>; // JWT claims snapshot
 
-  // Associations
-  resourceIds:   string[]; // Related resource IDs (docs, tickets, items, etc.)
-  metadata:      Record<string, unknown>; // Flexible key-value (model, tokens, latency, etc.)
+  // Content fingerprints — ONE WAY, no recovery
+  questionEhash: string; // BLAKE2b-256(orgId:userId:questionText)
+  answerEhash: string; // BLAKE2b-256(orgId:userId:answerText)
 
-  // Timestamp
-  ts:            string;   // ISO 8601 UTC
+  // Resource context — the active set driving this turn's contextId
+  resourceIds: string[]; // UUIDs of files, images, docs, etc.
+  metadata: Record<string, unknown>;
+  ts: string; // ISO 8601 UTC
 }
 ```
 
-### Zod Schema (source of truth for validation)
+### Convo
+
+The session envelope. Created when a convo starts and updated with each turn.
 
 ```typescript
-import { z } from "zod";
-import { ulid } from "ulid";
-
-export const ConversationTurnSchema = z.object({
-  turnId:        z.string().default(() => ulid()),
-  appId:         z.string().min(1),
-  orgId:         z.string().min(1),
-  userId:        z.string().min(1),
-  claims:        z.record(z.unknown()).default({}),
-  questionEhash: z.string().regex(/^[0-9a-f]{64}$/, "must be 64-char hex (BLAKE2b-256)"),
-  answerEhash:   z.string().regex(/^[0-9a-f]{64}$/, "must be 64-char hex (BLAKE2b-256)"),
-  resourceIds:   z.array(z.string()).default([]),
-  metadata:      z.record(z.unknown()).default({}),
-  ts:            z.string().datetime().default(() => new Date().toISOString()),
-});
-
-export type ConversationTurn = z.infer<typeof ConversationTurnSchema>;
+interface Convo {
+  convoId: string; // ULID
+  appId: string;
+  orgId: string;
+  userId: string;
+  currentContextId: string; // most recent contextId
+  contextHistory: string[]; // ordered list of all contextIds seen (branches)
+  turnCount: number;
+  metadata?: Record<string, unknown>;
+  turns?: ConvoTurn[]; // optional embedded turns for retrieval
+  createdAt: string;
+  updatedAt: string;
+}
 ```
 
 ---
 
-## Ehash Design
+## Contexts & Branching
 
-### Algorithm
+### What is a contextId?
 
-`BLAKE2b-256` (built into Bun's `crypto` module — no extra dependency).
+A `contextId` is a deterministic 64-char hex (BLAKE2b-256) of the **sorted** active resource IDs. It defines the "Lens" through which the conversation is currently viewed.
 
 ```typescript
-// apps/chatterbox/src/hash.ts
-import { createHash } from "crypto";
-
-/**
- * Produces a stable, salted one-way fingerprint of conversational content.
- * The salt (orgId + userId) ensures the same question from different tenants
- * produces a different hash — privacy isolation by design.
- *
- * IMPORTANT: This is NOT reversible. The original text cannot be recovered.
- */
-export function ehash(orgId: string, userId: string, content: string): string {
-  return createHash("blake2b256")
-    .update(`${orgId}:${userId}:${content}`)
-    .digest("hex");
+// hash.ts
+export function contextId(resourceIds: string[]): string {
+  if (!resourceIds || resourceIds.length === 0) return "0".repeat(64);
+  const sorted = [...resourceIds].sort().join(":");
+  return createHash("blake2b256").update(sorted).digest("hex");
 }
 ```
 
-### Properties
+### Branching Example
 
-| Property | Behavior |
-|---|---|
-| **Deterministic** | Same inputs always produce the same hash |
-| **Tenant-isolated** | Same question from different orgs → different hash |
-| **User-isolated** | Same question from different users in same org → different hash |
-| **Non-reversible** | No way to recover original text from hash |
-| **Deduplication** | Identical turns from same user/org are detectable |
-| **Correlation** | Services can cross-reference turns without sharing text |
+```
+convoId = convo_01JNPX
+
+  Context A — resourceIds: [doc-001, doc-002]
+  Turn 1: convoId=convo_01JNPX, contextId=a3f8...
+
+  ── User adds doc-003 ──
+
+  Context B — resourceIds: [doc-001, doc-002, doc-003]
+  Turn 2: convoId=convo_01JNPX, contextId=b7e9..., parentContextId=a3f8...
+
+Convo.contextHistory = ["a3f8...", "b7e9..."]
+```
+
+---
+
+## Smart Memory
+
+Smart Memory prevents the AI context window from growing unbounded. Every `N` turns (default `10`), Chatterbox triggers an AI summarization (`SmartMemory`).
+
+1. **Compression:** AI generates a semantic, dense summary from new turns + previous memory.
+2. **Summary Storage:** Summaries are stored in plaintext (as they are AI-generated metadata, not user PII).
+3. **Context Assembly:** Calling `/api/convos/:id/context` returns:
+   - Latest `SmartMemory` summary
+   - `recentTurns` (ehash placeholders)
 
 ---
 
@@ -122,96 +129,69 @@ export function ehash(orgId: string, userId: string, content: string): string {
 
 ```
 chatterbox.
-├── turns.store              ← publish a turn to persist (pub/sub)
-├── turns.ack.{turnId}       ← chatterbox emits on successful store
-├── query.app.{appId}        ← request/reply: turns for an appId
-├── query.org.{orgId}        ← request/reply: turns for an orgId
-├── query.user.{userId}      ← request/reply: turns for a userId
-├── query.turn.{turnId}      ← request/reply: single turn by ID
-└── query.ehash.{ehash}      ← request/reply: turns matching a hash
-```
-
-### Subject Details
-
-| Subject | Pattern | Publisher | Handler | Description |
-|---|---|---|---|---|
-| `chatterbox.turns.store` | pub/sub | Any bree-ai service | Chatterbox store worker | Persist a ConversationTurn |
-| `chatterbox.turns.ack.{turnId}` | pub/sub | Chatterbox | Original publisher | Storage confirmed |
-| `chatterbox.query.app.{appId}` | request/reply | Any service | Chatterbox | All turns for an app |
-| `chatterbox.query.org.{orgId}` | request/reply | Any service | Chatterbox | All turns for an org |
-| `chatterbox.query.user.{userId}` | request/reply | Any service | Chatterbox | All turns for a user |
-| `chatterbox.query.turn.{turnId}` | request/reply | Any service | Chatterbox | Single turn by ID |
-| `chatterbox.query.ehash.{ehash}` | request/reply | Any service | Chatterbox | Turns matching question or answer hash |
-
-### Push a Turn (Fire-and-forget)
-
-```typescript
-// Any service — publish and optionally await ack
-await nats.publish("chatterbox.turns.store", {
-  appId:         "kat-ai",
-  orgId:         "acme-corp",
-  userId:        "usr_01HZ...",
-  claims:        { role: "candidate", sub: "usr_01HZ..." },
-  questionEhash: ehash("acme-corp", "usr_01HZ...", questionText),
-  answerEhash:   ehash("acme-corp", "usr_01HZ...", answerText),
-  resourceIds:   ["job_4821", "assessment_99"],
-  metadata:      { model: "claude-sonnet-4-6", tokens: 412, latencyMs: 830 },
-});
-```
-
-### Query Turns (Request/Reply)
-
-```typescript
-// Query all turns for a user — 5s timeout
-const result = await nats.request(
-  `chatterbox.query.user.${userId}`,
-  { limit: 50, cursor: null },
-  5000
-);
-// result: { turns: ConversationTurn[], nextCursor: string | null }
-
-// Look up by question hash (dedup / audit)
-const result = await nats.request(
-  `chatterbox.query.ehash.${questionEhash}`,
-  {},
-  5000
-);
+├── convo.start                     ← req/reply: start a convo, get convoId
+├── turns.store                      ← pub/sub: publish a turn to persist
+├── turns.ack.{turnId}               ← pub/sub: emitted on successful store
+├── query.app.{appId}                ← req/reply: turns for an app
+├── query.org.{orgId}                ← req/reply: turns for an org
+├── query.user.{userId}              ← req/reply: turns for a user
+├── query.turn.{turnId}              ← req/reply: single turn by ID
+├── query.ehash.{ehash}              ← req/reply: turns matching a hash
+├── query.convo.envelope.{convoId}   ← req/reply: convo envelope (metadata)
+├── query.convo.turns.{convoId}      ← req/reply: all turns in a convo
+├── query.context.{contextId}        ← req/reply: turns in a specific context branch
+├── query.resource.{resourceId}      ← req/reply: turns that used a resource
+├── memory.trigger.{convoId}         ← pub/sub: emitted when N turns reached
+├── memory.create                    ← req/reply: create a smart memory
+├── memory.latest.{convoId}          ← req/reply: get latest SmartMemory
+├── context.{convoId}                ← req/reply: assembled context for next AI call
+└── memory.created.{convoId}         ← pub/sub: emitted when memory is ready
 ```
 
 ---
 
-## JetStream Stream
+## Usage Patterns
 
-### Stream: `CHATTERBOX_STORE`
+### 1. Start a convo
 
 ```typescript
-// apps/chatterbox/src/store.ts
-await jsm.streams.add({
-  name:        "CHATTERBOX_STORE",
-  subjects:    ["chatterbox.turns.store"],
-  storage:     StorageType.File,          // durable, survives restarts
-  retention:   RetentionPolicy.Limits,
-  max_age:     90 * 24 * 60 * 60 * 1_000_000_000, // 90 days in nanoseconds
-  max_msgs:    5_000_000,
-  max_bytes:   512 * 1024 * 1024,         // 512 MB
-  num_replicas: 1,
-  discard:     DiscardPolicy.Old,
-  duplicate_window: 2 * 60 * 1_000_000_000, // 2-min dedup window by turnId
+const res = await nats.request("chatterbox.convo.start", {
+  appId: "kat-ai",
+  orgId: "acme",
+  userId: "usr_1",
+  resourceIds: ["doc-001"],
+});
+const { convoId } = res.convo;
+```
+
+### 2. Store a turn
+
+```typescript
+await nats.publish("chatterbox.turns.store", {
+  convoId: "01JNPX...",
+  appId: "kat-ai",
+  orgId: "acme",
+  userId: "usr_1",
+  questionEhash: ehash("acme", "usr_1", qText),
+  answerEhash: ehash("acme", "usr_1", aText),
+  resourceIds: ["doc-001"],
 });
 ```
 
-### Durable Consumer: `chatterbox-store-worker`
+---
 
-```typescript
-await jsm.consumers.add("CHATTERBOX_STORE", {
-  durable_name:    "chatterbox-store-worker",
-  ack_policy:      AckPolicy.Explicit,
-  deliver_policy:  DeliverPolicy.New,
-  max_deliver:     3,                     // retry up to 3x on failure
-  ack_wait:        30 * 1_000_000_000,    // 30s ack window
-  filter_subject:  "chatterbox.turns.store",
-});
-```
+## REST API
+
+| Method | Path                      | Description                                   |
+| ------ | ------------------------- | --------------------------------------------- |
+| `GET`  | `/health`                 | Health + turn/convo counts                    |
+| `POST` | `/api/convos`             | Start a convo → `{ convoId, contextId }`      |
+| `GET`  | `/api/convos`             | List convos — via `userId`, `orgId`, `cursor` |
+| `GET`  | `/api/convos/:id`         | Get convo envelope (+ `turns=true` param)     |
+| `GET`  | `/api/convos/:id/context` | **Smart Memory:** Assembled AI context        |
+| `GET`  | `/api/convos/:id/memory`  | **Smart Memory:** List all memories           |
+| `GET`  | `/api/turns`              | Query turns (app, org, user, convo, ehash)    |
+| `POST` | `/api/turns`              | Store a turn                                  |
 
 ---
 
@@ -220,260 +200,43 @@ await jsm.consumers.add("CHATTERBOX_STORE", {
 ```
 apps/chatterbox/
 ├── src/
-│   ├── index.ts        ← Elysia app entry; mounts routes + boots NATS worker
-│   ├── store.ts        ← JetStream stream init, publish, query, get-by-id
-│   ├── hash.ts         ← ehash() utility — BLAKE2b-256 salted hashing
-│   ├── routes.ts       ← REST API (health, admin query endpoints)
-│   ├── worker.ts       ← NATS consumer loop: store turns, emit acks, handle queries
-│   └── types.ts        ← Zod schemas + TypeScript types (ConversationTurn, QueryRequest, etc.)
-├── package.json
-├── tsconfig.json
-├── Dockerfile
-├── fly.toml
-└── .env.example
+│   ├── index.ts        ← Elysia entry; boots NATS + workers
+│   ├── hash.ts         ← ehash() + contextId()
+│   ├── types.ts        ← Zod schemas: ConvoTurn, Convo, SmartMemory
+│   ├── memory-store.ts ← Pure in-memory index: turns + convos
+│   ├── smart-memory.ts ← Pure in-memory index: smart memories
+│   ├── context.ts      ← Context assembly logic
+│   ├── summarizer.ts   ← AI summarization wrapper
+│   ├── memory-handler.ts ← Coordinates AI summary triggers
+│   ├── store.ts        ← NATS wiring
+│   ├── routes.ts       ← REST API
+│   └── worker.ts       ← NATS consumer loop
 ```
 
 ---
 
-## Route Summary
+## AI Lenses (Future)
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/health` | Health check + NATS connection status |
-| `GET` | `/api/turns` | Query turns (REST fallback) — params: `appId`, `orgId`, `userId`, `ehash`, `limit`, `cursor` |
-| `GET` | `/api/turns/:turnId` | Fetch single turn by ID |
-| `POST` | `/api/turns` | Store a turn directly via REST (calls same path as NATS worker) |
+Chatterbox is designed to support **Contextual Lenses**:
 
-> **Primary interface is NATS.** REST routes are for admin tooling and local development.
-
----
-
-## Worker Architecture
-
-```
-Boot
- └─ ensureChatterboxStream()          ← create CHATTERBOX_STORE if missing
- └─ subscribe: chatterbox.query.*     ← request/reply query handler
- └─ consume: CHATTERBOX_STORE (durable)
-
-NATS Store Worker (durable consumer):
-  chatterbox.turns.store
-    → validate(ConversationTurnSchema)
-    → assign turnId (ULID) if missing
-    → writeToJetStream(turn)
-    → publish ack: chatterbox.turns.ack.{turnId}
-    → msg.ack()
-
-NATS Query Handler (plain subscribe, request/reply):
-  chatterbox.query.app.{appId}   → readByAppId(appId, opts)   → msg.respond(result)
-  chatterbox.query.org.{orgId}   → readByOrgId(orgId, opts)   → msg.respond(result)
-  chatterbox.query.user.{userId} → readByUserId(userId, opts)  → msg.respond(result)
-  chatterbox.query.turn.{turnId} → readById(turnId)            → msg.respond(result)
-  chatterbox.query.ehash.{hash}  → readByEhash(hash, opts)     → msg.respond(result)
-```
-
----
-
-## package.json
-
-```json
-{
-  "name": "chatterbox",
-  "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "dev":   "bun --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir ./dist --target bun",
-    "start": "bun dist/index.js"
-  },
-  "dependencies": {
-    "elysia":           "^1.4.0",
-    "@elysiajs/cors":   "^1.2.0",
-    "@elysiajs/swagger":"^1.2.0",
-    "nats":             "^2.28.2",
-    "ulid":             "^2.3.0",
-    "zod":              "^3.25.0"
-  },
-  "devDependencies": {
-    "typescript":       "^5.2.0",
-    "@types/bun":       "latest"
-  }
-}
-```
-
----
-
-## Dockerfile
-
-```dockerfile
-FROM oven/bun:1 AS base
-WORKDIR /app
-
-# Copy workspace root + shared packages + this app
-COPY package.json bun.lock ./
-COPY packages/ ./packages/
-COPY apps/chatterbox/ ./apps/chatterbox/
-# Shared NATS service from bree-api
-COPY apps/api/src/nats.ts ./apps/api/src/nats.ts
-COPY apps/api/package.json ./apps/api/package.json
-
-RUN bun install
-WORKDIR /app/apps/chatterbox
-RUN bun run build
-
-# Runtime — minimal alpine image
-FROM oven/bun:1-alpine
-WORKDIR /app
-COPY --from=base /app/apps/chatterbox/dist ./dist
-COPY --from=base /app/node_modules ./node_modules
-EXPOSE 3002
-CMD ["bun", "dist/index.js"]
-```
-
----
-
-## fly.toml
-
-```toml
-app            = 'bree-chatterbox'
-primary_region = 'iad'
-
-[build]
-
-[http_service]
-  internal_port        = 3002
-  force_https          = true
-  auto_stop_machines   = false   # always running — event-driven worker
-  min_machines_running = 1
-
-[env]
-  PORT     = "3002"
-  NODE_ENV = "production"
-
-[[vm]]
-  memory   = '512mb'
-  cpu_kind = 'shared'
-  cpus     = 1
-```
-
-> No volume mount required — all state lives in NATS JetStream.
+- **Domain Lens:** (e.g. Claims, Policies) - Narrows context to specific business domains.
+- **Feature Lens:** (e.g. Dashboard, Billing) - Focuses on UX/UI context.
+- **Customer Lens:** (e.g. High Value, Tier 1) - Adjusts response tone and depth.
+- **Claims Lens:** (e.g. Admin, Editor) - Filters context based on permissions.
 
 ---
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `NATS_URL` | ✅ | NATS server URL e.g. `nats://nats.internal:4222` |
-| `NATS_USER` | optional | NATS username |
-| `NATS_PASSWORD` | optional | NATS password |
-| `NATS_TOKEN` | optional | NATS auth token (alternative to user/pass) |
-| `PORT` | optional | HTTP port (default: `3002`) |
-| `NODE_ENV` | optional | `production` or `development` |
-| `CHATTERBOX_RETENTION_DAYS` | optional | JetStream max age in days (default: `90`) |
-| `CHATTERBOX_MAX_MSGS` | optional | JetStream max message count (default: `5000000`) |
-
----
-
-## .env.example
-
-```bash
-# NATS
-NATS_URL=nats://localhost:4222
-NATS_USER=
-NATS_PASSWORD=
-NATS_TOKEN=
-
-# Chatterbox
-PORT=3002
-CHATTERBOX_RETENTION_DAYS=90
-CHATTERBOX_MAX_MSGS=5000000
-```
-
----
-
-## Local Dev
-
-```bash
-cd apps/chatterbox && bun run dev
-# → http://localhost:3002
-# NATS must be running: docker compose up nats
-```
-
-Publish a test turn:
-```bash
-nats pub chatterbox.turns.store '{
-  "appId": "kat-ai",
-  "orgId": "acme",
-  "userId": "usr_test",
-  "claims": {},
-  "questionEhash": "a3f8c2d1e4b56789...",
-  "answerEhash":   "b7e2a1f0c3d45678...",
-  "resourceIds":   ["job_001"],
-  "metadata":      { "model": "claude-sonnet-4-6" }
-}'
-```
-
-Query by user:
-```bash
-nats req chatterbox.query.user.usr_test '{"limit":10}'
-```
-
----
-
-## Root package.json — Add Scripts
-
-```json
-{
-  "scripts": {
-    "dev:chatterbox":   "bun --filter chatterbox dev",
-    "build:chatterbox": "bun --filter chatterbox build"
-  }
-}
-```
-
----
-
-## Integration with Existing Apps
-
-Any bree-ai service that uses `nats.ts` can push and query chatterbox with zero additional dependencies:
-
-```typescript
-// Example: bree-api stores a turn after an AI response
-import { getNatsService } from "./nats";
-import { ehash } from "../../chatterbox/src/hash"; // or inline the function
-
-const nats = await getNatsService();
-
-await nats.publish("chatterbox.turns.store", {
-  appId:         "kat-ai",
-  orgId:         ctx.orgId,
-  userId:        ctx.userId,
-  claims:        ctx.claims,
-  questionEhash: ehash(ctx.orgId, ctx.userId, userMessage),
-  answerEhash:   ehash(ctx.orgId, ctx.userId, assistantReply),
-  resourceIds:   ctx.resourceIds ?? [],
-  metadata: {
-    model:     "claude-sonnet-4-6",
-    tokens:    usage.total_tokens,
-    latencyMs: Date.now() - startTime,
-  },
-});
-```
-
----
-
-## Security Notes
-
-- **ehash is irreversible** — BLAKE2b-256 with orgId+userId salt cannot be brute-forced without knowing the salt composition and original content.
-- **Claims are opaque** — stored as-is from the JWT; no claims processing occurs in chatterbox.
-- **No auth on NATS subjects** — chatterbox trusts the internal NATS network. External access is only via the REST API which should be protected by the standard bree-api JWT middleware.
-- **resourceIds are opaque strings** — chatterbox stores them without validation; semantics are defined by the publishing app.
+| Variable                 | Default                 | Description                   |
+| ------------------------ | ----------------------- | ----------------------------- |
+| `NATS_URL`               | `nats://localhost:4222` | NATS server                   |
+| `ANTHROPIC_API_KEY`      | —                       | Required for Smart Memory     |
+| `SMART_MEMORY_THRESHOLD` | `10`                    | Turns before AI summarization |
 
 ---
 
 ## See Also
 
-- [`agentx/nats.agentx.md`](../nats.agentx.md) — NATS backbone, subject patterns, NatsService API
-- [`agentx/apps/bree-api-realtime.agentx.md`](bree-api-realtime.agentx.md) — JetStream stream setup reference
-- [`agentx/fly.agentx.md`](../fly.agentx.md) — fly.toml patterns and deployment
+- [`agentx/apps/chatterbox-ui.agentx.md`](chatterbox-ui.agentx.md) — Admin UI
+- [`agentx/nats.agentx.md`](../nats.agentx.md) — NATS backbone

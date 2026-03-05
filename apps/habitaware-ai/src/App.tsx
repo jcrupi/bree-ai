@@ -347,11 +347,13 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(localStorage.getItem("habitaware_conversation_id"));
 
   // Book Chat state
   const [bookMessages, setBookMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [bookInput, setBookInput] = useState("");
   const [bookLoading, setBookLoading] = useState(false);
+  const [bookConversationId, setBookConversationId] = useState<string | null>(localStorage.getItem("habitaware_book_conversation_id"));
 
   // Book Admin Config state
   const [showBookConfig, setShowBookConfig] = useState(false);
@@ -1479,6 +1481,8 @@ export default function App() {
       const res = (await api.api.habitaware.chat.analyze.post({
         question: question,
         history: chatMessages,
+        conversationId: conversationId || undefined,
+        smartMemory: true, // Enable Smart Memory for brainstorming
         userContext: (meData && meData.id) ? {
           id: meData.id,
           email: meData.email || "",
@@ -1495,9 +1499,14 @@ export default function App() {
           { role: "assistant", content: "Sorry, I encountered an error analyzing your data." },
         ]);
       } else {
+        const data = res.data as { response: string; conversationId?: string };
+        if (data.conversationId && data.conversationId !== conversationId) {
+          setConversationId(data.conversationId);
+          localStorage.setItem("habitaware_conversation_id", data.conversationId);
+        }
         setChatMessages((prev) => [
           ...prev,
-          { role: "assistant", content: (res.data as { response: string }).response },
+          { role: "assistant", content: data.response },
         ]);
       }
     } catch (err) {
@@ -1508,6 +1517,12 @@ export default function App() {
     } finally {
       setChatLoading(false);
     }
+  }
+
+  function startNewChat() {
+    setChatMessages([]);
+    setConversationId(null);
+    localStorage.removeItem("habitaware_conversation_id");
   }
 
   const renderAgentxNotes = () => {
@@ -1557,9 +1572,16 @@ export default function App() {
       const res = (await api.api.habitaware.chat["book-chat"].post({
         question: question,
         history: bookMessages,
+        conversationId: bookConversationId || undefined,
+        smartMemory: true,
         collection: bookCollection,
         orgId: bookOrgId,
         ragsterUrl: bookRagsterUrl,
+        userContext: (meData && meData.id) ? {
+          id: meData.id,
+          email: meData.email || "",
+          name: meData.name || "User"
+        } : undefined
       })) as ApiResponse;
 
       if (res.error) {
@@ -1570,6 +1592,10 @@ export default function App() {
       } else {
         const data = res.data as any;
         const answer = data?.response || "I couldn't generate a response.";
+        if (data.conversationId && data.conversationId !== bookConversationId) {
+          setBookConversationId(data.conversationId);
+          localStorage.setItem("habitaware_book_conversation_id", data.conversationId);
+        }
         setBookMessages((prev) => [
           ...prev,
           { role: "assistant", content: answer },
@@ -1585,8 +1611,21 @@ export default function App() {
     }
   }
 
+  function startNewBookChat() {
+    setBookMessages([]);
+    setBookConversationId(null);
+    localStorage.removeItem("habitaware_book_conversation_id");
+  }
+
   const renderBookChat = () => (
     <div className="chat-container book-chat">
+      <div className="chat-header">
+        <div className="chat-info">
+          <h3>Parenting Book Chat</h3>
+          {bookConversationId && <span className="conv-id">ID: {bookConversationId.slice(0, 8)}</span>}
+        </div>
+        <button className="new-chat-btn" onClick={startNewBookChat}>New Chat</button>
+      </div>
       <div className="chat-messages">
         {bookMessages.length === 0 && (
           <div className="chat-welcome book-welcome">
@@ -1760,6 +1799,13 @@ export default function App() {
 
   const renderAIChat = () => (
     <div className="chat-container">
+      <div className="chat-header">
+        <div className="chat-info">
+          <h3>Community Insights</h3>
+          {conversationId && <span className="conv-id">ID: {conversationId.slice(0, 8)}</span>}
+        </div>
+        <button className="new-chat-btn" onClick={startNewChat}>New Chat</button>
+      </div>
       <div className="chat-messages">
         {chatMessages.length === 0 && (
           <div className="chat-welcome">

@@ -663,180 +663,239 @@ export function TalentVillageBoard() {
           `Explain the trade-offs between microservices and a monolith for ${seed || "this project"}.`,
           `How do you ensure data consistency across ${seed || "multiple databases"}?`,
         ],
+        Go: [
+          `How does Go handle concurrency differently from Node.js or Python?`,
+          `Explain goroutines and channels — when would you use a buffered vs unbuffered channel?`,
+          `What is the difference between value receivers and pointer receivers on Go structs?`,
+        ],
+        SQL: [
+          `Explain the difference between a LEFT JOIN and an INNER JOIN with an example.`,
+          `When would you use a CTE instead of a subquery in a complex query?`,
+          `How do database indexes work and what's the downside of having too many?`,
+        ],
+        TypeScript: [
+          `What is the difference between \`interface\` and \`type\` in TypeScript?`,
+          `Can you explain what a discriminated union is and when you'd use one?`,
+          `How do TypeScript generics improve reusability compared to using \`any\`?`,
+        ],
       };
 
-      // ── Code-snippet templates ───────────────────────────────────────────
-      type SnippetKey = "React" | "Node" | "Python" | "Architecture";
+      // ── Code-snippet templates (each snippet paired with its own question) ─
+      // Snippets are intentionally short (10-15 lines) so the candidate can
+      // focus on one concept at a time, not read a whole file.
+      type SnippetKey = "React" | "Node" | "Python" | "Architecture" | "Go" | "SQL" | "TypeScript";
       const snippetTemplates: Record<
         SnippetKey,
-        { lang: string; code: string }[]
+        { lang: string; code: string; question: string }[]
       > = {
         React: [
           {
             lang: "typescript",
-            code: `// ${difficulty} level — ${seed || "Custom Hook"}
-import { useState, useEffect } from 'react';
-
-function useFetchData<T>(url: string) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+            code: `// [${difficulty}] ${seed || "Debounce hook"}
+function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState<T>(value);
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch(url);
-        const json = await res.json();
-        if (!cancelled) setData(json);
-      } catch (e) {
-        if (!cancelled) setError(e as Error);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [url]);
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
 
-  return { data, loading, error };
+  return debounced;
 }`,
+            question: `This hook returns a debounced value. Can you explain what the cleanup function inside \`useEffect\` does here, and what would happen if you removed it?`,
           },
           {
             lang: "typescript",
-            code: `// ${difficulty} level — Context API + Reducer
-import React, { createContext, useContext, useReducer } from 'react';
+            code: `// [${difficulty}] ${seed || "Reducer pattern"}
+type Action = { type: 'ADD'; item: string } | { type: 'REMOVE'; index: number };
 
-type Action = { type: 'INCREMENT' } | { type: 'DECREMENT' } | { type: 'RESET' };
-type State = { count: number };
-
-function reducer(state: State, action: Action): State {
+function listReducer(state: string[], action: Action): string[] {
   switch (action.type) {
-    case 'INCREMENT': return { count: state.count + 1 };
-    case 'DECREMENT': return { count: state.count - 1 };
-    case 'RESET':     return { count: 0 };
-    default: return state;
+    case 'ADD':    return [...state, action.item];
+    case 'REMOVE': return state.filter((_, i) => i !== action.index);
+    default:       return state;
   }
-}
-
-const CounterCtx = createContext<{ state: State; dispatch: React.Dispatch<Action> } | undefined>(undefined);
-
-export function CounterProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, { count: 0 });
-  return <CounterCtx.Provider value={{ state, dispatch }}>{children}</CounterCtx.Provider>;
-}
-
-export function useCounter() {
-  const ctx = useContext(CounterCtx);
-  if (!ctx) throw new Error('useCounter must be inside CounterProvider');
-  return ctx;
 }`,
+            question: `Looking at this reducer, why does \`ADD\` use spread (\`...state\`) instead of \`push\`? What problem does immutability solve here?`,
+          },
+          {
+            lang: "typescript",
+            code: `// [${difficulty}] ${seed || "Memoization"}
+const ExpensiveList = React.memo(({ items }: { items: string[] }) => (
+  <ul>{items.map((item, i) => <li key={i}>{item}</li>)}</ul>
+));
+
+// In parent:
+const items = useMemo(() => ['a', 'b', 'c'], []);`,
+            question: `Why is \`useMemo\` used on the \`items\` array in the parent? What would happen to \`ExpensiveList\` re-renders without it, even with \`React.memo\`?`,
           },
         ],
         Node: [
           {
             lang: "typescript",
-            code: `// ${difficulty} level — Express middleware & error handling
-import express, { Request, Response, NextFunction } from 'express';
+            code: `// [${difficulty}] ${seed || "Auth middleware"}
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const token = req.headers['authorization']?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
-const app = express();
-
-// Rate limiter middleware
-const requestCounts = new Map<string, number>();
-function rateLimit(max: number) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const ip = req.ip ?? 'unknown';
-    const count = (requestCounts.get(ip) ?? 0) + 1;
-    requestCounts.set(ip, count);
-    if (count > max) {
-      return res.status(429).json({ error: 'Too many requests' });
-    }
-    next();
-  };
-}
-
-app.use(rateLimit(100));
-
-app.get('/api/${seed || "resource"}', async (req, res, next) => {
   try {
-    // TODO: implement logic
-    res.json({ data: [] });
-  } catch (err) {
-    next(err);
+    req.user = jwt.verify(token, process.env.JWT_SECRET!);
+    next();
+  } catch {
+    res.status(403).json({ error: 'Invalid token' });
   }
-});
-
-// Global error handler
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ error: err.message });
-});
-
-export default app;`,
+}`,
+            question: `What's the difference between returning \`401\` vs \`403\` here? Is this distinction correct? What could go wrong if \`JWT_SECRET\` is undefined at runtime?`,
+          },
+          {
+            lang: "typescript",
+            code: `// [${difficulty}] ${seed || "Async error propagation"}
+app.get('/users/:id', async (req, res, next) => {
+  try {
+    const user = await db.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'Not found' });
+    res.json(user);
+  } catch (err) {
+    next(err); // passes to global error handler
+  }
+});`,
+            question: `Why does this route call \`next(err)\` instead of directly sending \`res.status(500)\`? What's the benefit of delegating to a global error handler?`,
           },
         ],
         Python: [
           {
             lang: "python",
-            code: `# ${difficulty} level — async FastAPI endpoint with ${seed || "pagination"}
-from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
-from typing import List
+            code: `# [${difficulty}] ${seed || "Generator"}
+def paginate(data: list, page_size: int):
+    for i in range(0, len(data), page_size):
+        yield data[i : i + page_size]
 
-app = FastAPI()
+for page in paginate(records, 100):
+    process(page)`,
+            question: `This function uses \`yield\` instead of returning a list. What's the memory advantage when \`records\` has millions of rows? What would break if you replaced \`yield\` with \`return\`?`,
+          },
+          {
+            lang: "python",
+            code: `# [${difficulty}] ${seed || "Context manager"}
+class DatabaseConn:
+    def __enter__(self):
+        self.conn = connect_db()
+        return self.conn
 
-class Item(BaseModel):
-    id: int
-    name: str
-    value: float
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.conn.close()
+        return False  # don't suppress exceptions
 
-_items: List[Item] = [Item(id=i, name=f"item_{i}", value=i * 1.5) for i in range(1, 101)]
-
-@app.get("/items", response_model=List[Item])
-async def list_items(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(10, ge=1, le=100),
-):
-    return _items[skip : skip + limit]
-
-@app.get("/items/{item_id}", response_model=Item)
-async def get_item(item_id: int):
-    if item_id < 1 or item_id > len(_items):
-        raise HTTPException(status_code=404, detail="Item not found")
-    return _items[item_id - 1]`,
+with DatabaseConn() as conn:
+    conn.execute("SELECT 1")`,
+            question: `What does \`__exit__\` returning \`False\` mean? If a query raises an exception inside the \`with\` block, is the connection still closed?`,
           },
         ],
         Architecture: [
           {
             lang: "typescript",
-            code: `// ${difficulty} level — Event-driven pub/sub for ${seed || "microservices"}
-type Handler<T> = (payload: T) => void | Promise<void>;
+            code: `// [${difficulty}] ${seed || "In-process event bus"}
+type Handler = (payload: unknown) => void;
+const handlers = new Map<string, Handler[]>();
 
-class EventBus {
-  private handlers = new Map<string, Handler<unknown>[]>();
-
-  subscribe<T>(event: string, handler: Handler<T>) {
-    const list = (this.handlers.get(event) ?? []) as Handler<T>[];
-    list.push(handler);
-    this.handlers.set(event, list as Handler<unknown>[]);
-    return () => this.unsubscribe(event, handler);
-  }
-
-  unsubscribe<T>(event: string, handler: Handler<T>) {
-    const list = (this.handlers.get(event) ?? []).filter(h => h !== handler);
-    this.handlers.set(event, list);
-  }
-
-  async publish<T>(event: string, payload: T) {
-    const handlers = (this.handlers.get(event) ?? []) as Handler<T>[];
-    await Promise.all(handlers.map(h => h(payload)));
-  }
+function on(event: string, fn: Handler) {
+  handlers.set(event, [...(handlers.get(event) ?? []), fn]);
 }
+function emit(event: string, payload: unknown) {
+  handlers.get(event)?.forEach(fn => fn(payload));
+}`,
+            question: `This is a basic in-process event bus. What are its limitations in a ${seed || "distributed microservices"} system? What would you replace this with and why?`,
+          },
+          {
+            lang: "typescript",
+            code: `// [${difficulty}] ${seed || "Exponential backoff"}
+async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try { return await fn(); }
+    catch (err) {
+      if (attempt === retries - 1) throw err;
+      await new Promise(r => setTimeout(r, 2 ** attempt * 100));
+    }
+  }
+  throw new Error('unreachable');
+}`,
+            question: `Can you explain why \`2 ** attempt * 100\` grows the delay on each attempt? Describe a real scenario where retrying like this would make things worse rather than better.`,
+          },
+        ],
+        Go: [
+          {
+            lang: "go",
+            code: `// [${difficulty}] ${seed || "Buffered channel"}
+func fetchAll(urls []string) []string {
+    ch := make(chan string, len(urls))
+    for _, url := range urls {
+        go func(u string) {
+            resp, _ := http.Get(u)
+            ch <- resp.Status
+        }(url)
+    }
+    results := make([]string, 0, len(urls))
+    for range urls {
+        results = append(results, <-ch)
+    }
+    return results
+}`,
+            question: `This function uses goroutines and a buffered channel. Why is the channel buffered to \`len(urls)\`? What would happen if you used an unbuffered channel instead?`,
+          },
+        ],
+        SQL: [
+          {
+            lang: "sql",
+            code: `-- [${difficulty}] ${seed || "Window function"}
+SELECT
+  employee_id,
+  department,
+  salary,
+  RANK() OVER (
+    PARTITION BY department
+    ORDER BY salary DESC
+  ) AS dept_rank
+FROM employees;`,
+            question: `What does \`PARTITION BY department\` do here? How is \`RANK()\` different from \`ROW_NUMBER()\` when two employees in the same department share the same salary?`,
+          },
+          {
+            lang: "sql",
+            code: `-- [${difficulty}] ${seed || "CTE"}
+WITH recent_orders AS (
+  SELECT customer_id, COUNT(*) AS order_count
+  FROM orders
+  WHERE created_at > NOW() - INTERVAL '30 days'
+  GROUP BY customer_id
+)
+SELECT c.name, r.order_count
+FROM customers c
+JOIN recent_orders r ON c.id = r.customer_id;`,
+            question: `This query uses a CTE (Common Table Expression). What's the difference between this and an inline subquery? When would you prefer one over the other?`,
+          },
+        ],
+        TypeScript: [
+          {
+            lang: "typescript",
+            code: `// [${difficulty}] ${seed || "Conditional types with infer"}
+type Flatten<T> = T extends Array<infer Item> ? Item : T;
 
-export const bus = new EventBus();
-// Usage:
-// const off = bus.subscribe<{userId: string}>('user.created', async e => { /* ... */ });
-// await bus.publish('user.created', { userId: '42' });`,
+type A = Flatten<string[]>;    // string
+type B = Flatten<number[][]>;  // number[]
+type C = Flatten<boolean>;     // boolean`,
+            question: `Can you explain what the \`infer\` keyword does in the \`Flatten\` type? Why does \`Flatten<boolean>\` return \`boolean\` instead of \`never\`?`,
+          },
+          {
+            lang: "typescript",
+            code: `// [${difficulty}] ${seed || "Discriminated union"}
+type Shape =
+  | { kind: 'circle'; radius: number }
+  | { kind: 'rect'; width: number; height: number };
+
+function area(s: Shape): number {
+  if (s.kind === 'circle') return Math.PI * s.radius ** 2;
+  return s.width * s.height;
+}`,
+            question: `TypeScript narrows the type in each branch using the \`kind\` field. What is a discriminated union? What happens at compile time if you add a new \`triangle\` variant to \`Shape\` but forget to handle it in \`area\`?`,
           },
         ],
       };
@@ -854,19 +913,8 @@ export const bus = new EventBus();
         const chosen = sOptions[Math.floor(Math.random() * sOptions.length)];
         setGeneratedSnippet(chosen.code);
         setCodeLanguage(chosen.lang);
-
-        // Question must be about the code snippet above
-        const codeQuestions = [
-          `Looking at the code above, can you walk me through what this ${chosen.lang} implementation does step by step?`,
-          `Take a look at the snippet above. What potential issues or edge cases do you see in this implementation?`,
-          `Review the code above — how would you improve or refactor this to be more production-ready?`,
-          `Based on the snippet above, what does this pattern accomplish and where would you use it in a real project?`,
-          `Looking at this ${chosen.lang} code — what happens if ${seed || "an unexpected input is passed"}? How does it handle that?`,
-          `Can you explain the trade-offs of this approach shown above, and describe an alternative implementation?`,
-        ];
-        const snippetQuestion =
-          codeQuestions[Math.floor(Math.random() * codeQuestions.length)];
-        setGeneratedQuestion(snippetQuestion);
+        // Use the question co-authored with this specific snippet
+        setGeneratedQuestion(chosen.question);
       } else {
         setGeneratedSnippet("");
         setGeneratedQuestion(question);
@@ -1297,7 +1345,7 @@ export const bus = new EventBus();
                   </div>
                 </div>
 
-                <div className="h-[30rem] max-h-[30rem] overflow-y-auto p-8 space-y-6 bg-[#FDFDFD]">
+                <div className="h-64 overflow-y-auto p-8 space-y-6 bg-[#FDFDFD]">
                   {assessmentMessages.length === 0 && (
                     <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40">
                       <Sparkles size={48} className="text-amber-400 mb-4" />
@@ -1403,7 +1451,7 @@ export const bus = new EventBus();
                         </p>
                       </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-[#FDFDFD]">
+                    <div className="h-64 overflow-y-auto p-8 space-y-6 bg-[#FDFDFD]">
                       {assessmentMessages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40">
                           <Sparkles size={48} className="text-amber-400 mb-4" />
@@ -1512,7 +1560,7 @@ export const bus = new EventBus();
                         </button>
                       )}
                     </div>
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-indigo-50/10">
+                    <div className="h-64 overflow-y-auto p-6 space-y-4 bg-indigo-50/10">
                       {privateExpertMessages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40">
                           <Users size={40} className="text-indigo-300 mb-3" />
@@ -1611,7 +1659,7 @@ export const bus = new EventBus();
                         )}
                       </div>
 
-                      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                      <div className="h-64 overflow-y-auto p-6 space-y-4">
                         {assessmentMessages.length === 0 && (
                           <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
                             <Eye size={32} className="text-indigo-300 mb-2" />
@@ -1839,7 +1887,7 @@ export const bus = new EventBus();
 
                       {!isExpertChatCollapsed && (
                         <>
-                          <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-indigo-50/10">
+                          <div className="h-64 overflow-y-auto p-5 space-y-4 bg-indigo-50/10">
                             {privateExpertMessages.length === 0 && (
                               <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
                                 <Users
@@ -2399,6 +2447,9 @@ export const bus = new EventBus();
                                     <option>Node</option>
                                     <option>Python</option>
                                     <option>Architecture</option>
+                                    <option>Go</option>
+                                    <option>SQL</option>
+                                    <option>TypeScript</option>
                                   </select>
                                 </div>
                                 <div>

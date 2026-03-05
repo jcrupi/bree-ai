@@ -36,7 +36,14 @@
     "dev:fatapps": "bun --filter fatapps-ai dev",
     "build:fatapps": "bun --filter fatapps-ai build",
     "dev:talent-village-ai": "bun --filter talent-village-ai dev",
-    "build:talent-village-ai": "bun --filter talent-village-ai build"
+    "build:talent-village-ai": "bun --filter talent-village-ai build",
+    "dev:chatterbox": "bun --filter chatterbox dev",
+    "build:chatterbox": "bun --filter chatterbox build",
+    "test:chatterbox": "bun --filter chatterbox test",
+    "dev:chatterbox-ui": "bun --filter chatterbox-ui dev",
+    "build:chatterbox-ui": "bun --filter chatterbox-ui build",
+    "dev:crazy-fast-feature": "bun --filter crazy-fast-feature dev",
+    "build:crazy-fast-feature": "bun --filter crazy-fast-feature build"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

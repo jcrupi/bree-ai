@@ -14,7 +14,7 @@ import {
 import { FeedbackButton } from './FeedbackButton';
 import { useTextToSpeech } from '../hooks/useTextToSpeech';
 import { useSpeechToText } from '../hooks/useSpeakToText';
-import { api, API_URL } from '../utils/api-client';
+import { api, API_URL, REALTIME_URL } from '../utils/api-client';
 
 
 interface Message {
@@ -578,18 +578,42 @@ export function DocumentQA({
         };
 
         const token = localStorage.getItem('bree_jwt');
-        const response = await fetch(`${API_URL}/api/collective/chat`, {
+        const streamingUrl = REALTIME_URL ? `${REALTIME_URL}/api/ai/stream` : `${API_URL}/api/collective/chat`;
+        
+        // Convert chatPayload to what REALTIME_URL expects if using it
+        const finalPayload = REALTIME_URL ? {
+          provider: 'openai-chat',
+          messages: chatMessages,
+          options: chatPayload.options
+        } : chatPayload;
+
+        const response = await fetch(streamingUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(token ? { authorization: `Bearer ${token}` } : {})
           },
-          body: JSON.stringify(chatPayload)
+          body: JSON.stringify(finalPayload)
         });
 
         if (!response.ok) throw new Error(`Streaming failed: ${response.statusText}`);
         
-        const reader = response.body?.getReader();
+        let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+        
+        // Handle SSE GET from REALTIME_URL if it returns a streamId
+        if (REALTIME_URL && response.headers.get('Content-Type')?.includes('application/json')) {
+           const { streamId } = await response.json();
+           if (streamId) {
+             const sseRes = await fetch(`${REALTIME_URL}/api/ai/stream/${streamId}`, {
+               headers: {
+                 ...(token ? { authorization: `Bearer ${token}` } : {})
+               }
+             });
+             reader = sseRes.body?.getReader();
+           }
+        } else {
+           reader = response.body?.getReader();
+        }
         const decoder = new TextDecoder();
         
         let fullContent = '';
@@ -613,7 +637,7 @@ export function DocumentQA({
         const processRawData = (dataStr: string) => {
           try {
             const json = JSON.parse(dataStr);
-            const delta = json.choices?.[0]?.delta?.content || json.choices?.[0]?.text || json.content || '';
+            const delta = json.choices?.[0]?.delta?.content || json.choices?.[0]?.text || json.content || json.token || '';
             
             if (delta) {
               // Handle full-content overwrite vs delta

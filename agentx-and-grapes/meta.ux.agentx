@@ -1,0 +1,20 @@
+kind: meta
+apiVersion: agentx/v1
+metadata:
+  name: meta.ux
+spec:
+  produces:
+    slug: ux
+    pattern: "{domain}.ux.agentx"
+  consumes:
+    - name: business
+      type: agentx
+      pattern: "{domain}.business.agentx"
+    - name: description
+      type: markdown
+      pattern: "{domain}.agentx.md"
+  runtime:
+    engine: agentx
+    action: generateUXNote
+  policy:
+    audit: true

@@ -28,7 +28,7 @@ interface TaskSpreadsheetProps {
 const defaultColumns: Column[] = [
   { key: 'productName', label: 'Product Name', visible: true, width: '120px' },
   { key: 'taskId', label: 'Task ID', visible: true, width: '100px' },
-  { key: 'description', label: 'Description', visible: true, width: '400px' },
+  { key: 'description', label: 'Description', visible: true, width: '180px' },
   { key: 'link', label: 'Link', visible: true, width: '48px' },
   { key: 'createdDate', label: 'Task Created Date', visible: true, width: '130px' },
   { key: 'status', label: 'Status', visible: true, width: '100px' },
@@ -78,15 +78,25 @@ export function TaskSpreadsheet({
         return <span className="text-slate-200">{task.productName}</span>;
       case 'taskId':
         return <span className="text-slate-300">{task.taskId}</span>;
-      case 'description':
+      case 'description': {
+        const full = task.description;
+        const short = full.length > 25 ? full.slice(0, 25) + '…' : full;
         return (
-          <span 
-            className="text-slate-300 cursor-pointer hover:text-white"
-            onClick={() => onEdit(task)}
-          >
-            {task.description}
-          </span>
+          <div className="relative group">
+            <span
+              className="text-slate-300 cursor-pointer hover:text-white"
+              onClick={() => onEdit(task)}
+            >
+              {short}
+            </span>
+            {full.length > 25 && (
+              <div className="absolute z-50 left-0 top-full mt-1.5 w-72 p-3 rounded-lg bg-slate-800 border border-slate-600 shadow-xl text-xs text-slate-200 leading-relaxed pointer-events-none hidden group-hover:block">
+                {full}
+              </div>
+            )}
+          </div>
         );
+      }
       case 'link':
         return task.link ? (
           <a

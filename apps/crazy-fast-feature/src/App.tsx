@@ -8,6 +8,7 @@ import { AddTaskModal } from './components/AddTaskModal';
 import { LeadNotesTab } from './components/LeadNotesTab';
 import { Task } from './types/task';
 import { Plus, Zap, RefreshCw, Code2, Briefcase, Megaphone, Calendar } from 'lucide-react';
+import { TabChat } from './components/TabChat';
 
 type Tab = 'tech' | 'biz' | 'marketing';
 
@@ -52,6 +53,8 @@ export function App() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [bizContext, setBizContext] = useState('');
+  const [marketingContext, setMarketingContext] = useState('');
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -149,24 +152,38 @@ export function App() {
                 onDeleteComment={deleteComment}
               />
             </div>
+            <TabChat
+              tab="tech"
+              context={tasks.map(t =>
+                `[${t.taskId}] ${t.description} | status: ${t.status} | product: ${t.productName}`
+              ).join('\n')}
+            />
           </div>
         )}
 
         {activeTab === 'biz' && (
-          <LeadNotesTab
-            field="bizText"
-            label="Business Notes"
-            placeholder="Enter business context, goals, stakeholder notes, ROI considerations, budget, timelines…"
-            defaultText={BIZ_DEFAULT}
-          />
+          <>
+            <LeadNotesTab
+              field="bizText"
+              label="Business Notes"
+              placeholder="Enter business context, goals, stakeholder notes, ROI considerations, budget, timelines…"
+              defaultText={BIZ_DEFAULT}
+              onContextChange={setBizContext}
+            />
+            <TabChat tab="biz" context={bizContext} />
+          </>
         )}
 
         {activeTab === 'marketing' && (
-          <LeadNotesTab
-            field="marketingText"
-            label="Marketing Notes"
-            placeholder="Enter marketing angles, messaging, target audience, campaigns, launch ideas…"
-          />
+          <>
+            <LeadNotesTab
+              field="marketingText"
+              label="Marketing Notes"
+              placeholder="Enter marketing angles, messaging, target audience, campaigns, launch ideas…"
+              onContextChange={setMarketingContext}
+            />
+            <TabChat tab="marketing" context={marketingContext} />
+          </>
         )}
       </main>
 

@@ -10,6 +10,7 @@ interface LeadNotesTabProps {
   label: string;
   placeholder: string;
   defaultText?: string;
+  onContextChange?: (text: string) => void;
 }
 
 /** Simple PIN gate — unlocked state lives in sessionStorage for the session */
@@ -73,7 +74,7 @@ function PinGate({ onUnlock }: { onUnlock: () => void }) {
   );
 }
 
-export function LeadNotesTab({ field, label, placeholder, defaultText = '' }: LeadNotesTabProps) {
+export function LeadNotesTab({ field, label, placeholder, defaultText = '', onContextChange }: LeadNotesTabProps) {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem(SESSION_KEY) === '1');
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'saving' | 'saved'>('loading');
@@ -82,7 +83,9 @@ export function LeadNotesTab({ field, label, placeholder, defaultText = '' }: Le
     if (!unlocked) return;
     loadLeadNotes().then((data) => {
       const saved = data[field];
-      setText(saved && saved.trim() ? saved : defaultText);
+      const val = saved && saved.trim() ? saved : defaultText;
+      setText(val);
+      onContextChange?.(val);
       setStatus('idle');
     });
   }, [field, unlocked, defaultText]);
@@ -94,7 +97,10 @@ export function LeadNotesTab({ field, label, placeholder, defaultText = '' }: Le
     setTimeout(() => setStatus('idle'), 2000);
   }, [field]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value);
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(e.target.value);
+    onContextChange?.(e.target.value);
+  };
   const handleSave = () => save(text);
 
   if (!unlocked) {

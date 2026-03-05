@@ -148,7 +148,7 @@ export const app = new Elysia()
   .use(identityZeroRoutes)
   .use(assessmentQuestionsRoutes)
   .use(talentVillageRoutes)
-  .group('/api/crazy-weeks', (app) => app.use(crazyWeeksRoutes))
+  .use(crazyWeeksRoutes)
 
   // Knowledge (Ragster) Proxy Group
   .group('/api/knowledge', (app) =>

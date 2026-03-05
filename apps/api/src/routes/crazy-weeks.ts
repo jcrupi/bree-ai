@@ -30,7 +30,7 @@ async function writeEntry(path: string, content: string, frontMatter: Record<str
   });
 }
 
-export const crazyWeeksRoutes = new Elysia()
+export const crazyWeeksRoutes = new Elysia({ prefix: '/api/crazy-weeks' })
   // GET /api/crazy-weeks/current — returns { week, tech, biz, marketing }
   .get('/current', async () => {
     const week = weekKey();

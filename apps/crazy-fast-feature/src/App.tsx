@@ -7,7 +7,7 @@ import { EditTaskModal } from './components/EditTaskModal';
 import { AddTaskModal } from './components/AddTaskModal';
 import { LeadNotesTab } from './components/LeadNotesTab';
 import { Task } from './types/task';
-import { Plus, Zap, RefreshCw, Code2, Briefcase, Megaphone } from 'lucide-react';
+import { Plus, Zap, RefreshCw, Code2, Briefcase, Megaphone, Calendar } from 'lucide-react';
 
 type Tab = 'tech' | 'biz' | 'marketing';
 
@@ -24,6 +24,21 @@ const BIZ_DEFAULT = `1) We are having a preliminary call with an Interventional 
 5) Meeting with Wasson Enterprises on Thursday. Will keep you all posted if they have anything aligned
 6) Still awaiting response from DxTx and Pain care Florida, so slow, its painful.
 7) Will likely learn from Rod about a potential collaboration with Diabetic and wound care center of America, a possible implementation of our woundai in their flagship GA location.`;
+
+/** Returns the Mon–Fri date range for the current week, e.g. "Mar 3 – Mar 7, 2026" */
+function currentWeekLabel(): string {
+  const d = new Date();
+  const day = d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  const friday = new Date(monday);
+  friday.setDate(monday.getDate() + 4);
+
+  const fmt = (dt: Date) =>
+    dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  return `${fmt(monday)} – ${fmt(friday)}, ${friday.getFullYear()}`;
+}
 
 export function App() {
   const {
@@ -48,15 +63,27 @@ export function App() {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Header */}
       <header className="border-b border-slate-800/50 bg-slate-950/80 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-6 py-5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
-                <Zap className="w-6 h-6 text-white" />
+
+            {/* Brand */}
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg shadow-indigo-500/30">
+                <Zap className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white tracking-tight">Grelin AI</h1>
-                <p className="text-sm text-slate-400">Crazy Week</p>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs font-semibold text-indigo-400 uppercase tracking-widest">Grelin AI</span>
+                </div>
+                <h1 className="text-3xl font-black text-white tracking-tight leading-none">
+                  Crazy Week ⚡
+                </h1>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="text-sm font-semibold text-indigo-300 tracking-wide">
+                    {currentWeekLabel()}
+                  </span>
+                </div>
               </div>
             </div>
 

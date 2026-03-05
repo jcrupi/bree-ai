@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react({ jsxRuntime: 'automatic', babel: false })],
   resolve: {
     alias: {
       'react': path.resolve(__dirname, 'node_modules/react'),

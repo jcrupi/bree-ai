@@ -17,6 +17,10 @@ COPY apps/crazy-fast-feature/ ./apps/crazy-fast-feature/
 # Install dependencies
 RUN bun install
 
+# Accept build args from fly.toml [build.args]
+ARG VITE_API_URL=https://bree-api.fly.dev
+ENV VITE_API_URL=$VITE_API_URL
+
 # Build the app
 WORKDIR /app/apps/crazy-fast-feature
 RUN bun run build

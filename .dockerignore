@@ -12,3 +12,6 @@ tmp
 demos
 screenshots
 recording
+*.pdf
+apps/habitaware-ai/book
+apps/habitaware-ai/demos

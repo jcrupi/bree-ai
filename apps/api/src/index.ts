@@ -109,6 +109,15 @@ const AGENTX_URL = process.env.AGENTX_URL || 'https://agent-collective-agentx.fl
 const ANTIMATTER_URL = process.env.ANTIMATTER_URL || 'https://agent-collective-antimatter.fly.dev';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const FEEDBACK_DIR = process.env.FEEDBACK_DIR || 'data/feedback';
+const OBSERVATIONS_DIR = process.env.OBSERVATIONS_DIR || 'data/observations';
+
+// Category map for converting legacy feedback types → observable categories
+const FEEDBACK_CATEGORY_MAP: Record<string, string> = {
+  bug: 'challenge',
+  feature: 'insight',
+  ai_feedback: 'insight',
+  general: 'general',
+};
 
 async function ensureFeedbackDir() {
   try {
@@ -118,8 +127,17 @@ async function ensureFeedbackDir() {
   }
 }
 
+async function ensureObservationsDir() {
+  try {
+    await mkdir(OBSERVATIONS_DIR, { recursive: true });
+  } catch (err) {
+    console.error('Failed to create observations directory:', err);
+  }
+}
+
 export const app = new Elysia()
   .use(cors())
+  .use(jwt({ name: 'jwt', secret: process.env.JWT_SECRET || 'bree-secret-key' }))
   
   .use(swagger({
     documentation: {
@@ -799,7 +817,99 @@ export const app = new Elysia()
       })
   )
   
+  // Observations Group (TheObserver feature)
+  .group('/api/observations', (app) =>
+    app
+      .get('/', async ({ headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+
+        await ensureObservationsDir();
+        await ensureFeedbackDir();
+
+        const results: any[] = [];
+
+        // 1. Load native observation files
+        try {
+          const obsFiles = (await readdir(OBSERVATIONS_DIR)).filter(f => f.endsWith('.json'));
+          const obsItems = await Promise.all(
+            obsFiles.map(async (file) => {
+              const content = await readFile(join(OBSERVATIONS_DIR, file), 'utf-8');
+              return { filename: file, ...JSON.parse(content) };
+            })
+          );
+          results.push(...obsItems);
+        } catch (err) {
+          console.warn('[observations] Failed to read observations dir:', err);
+        }
+
+        // 2. Load legacy feedback files and convert to observable format
+        try {
+          const fbFiles = (await readdir(FEEDBACK_DIR)).filter(f => f.endsWith('.json'));
+          const fbItems = await Promise.all(
+            fbFiles.map(async (file) => {
+              const content = await readFile(join(FEEDBACK_DIR, file), 'utf-8');
+              const fb = JSON.parse(content);
+              return {
+                id: `fb-${file.replace('.json','')}`,
+                text: fb.description ?? '(no description)',
+                category: FEEDBACK_CATEGORY_MAP[fb.type] ?? 'general',
+                tags: [fb.type ?? 'feedback', ...(fb.name ? [`from:${fb.name.toLowerCase().replace(/\s+/g,'-')}`] : [])],
+                createdAt: fb.receivedAt ?? new Date().toISOString(),
+                source: 'feedback',
+                metadata: { name: fb.name, email: fb.email, originalType: fb.type },
+                filename: file,
+              };
+            })
+          );
+          results.push(...fbItems);
+        } catch (err) {
+          console.warn('[observations] Failed to read feedback dir:', err);
+        }
+
+        // Sort by createdAt descending
+        return results.sort((a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      })
+      .post('/', async ({ body, headers, jwt, set }) => {
+        const payload = await requireAuth(headers, jwt, set);
+        if (!payload) return { error: 'Unauthorized' };
+
+        try {
+          await ensureObservationsDir();
+          const id = `obs-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const filename = `observation-${timestamp}.json`;
+          const filepath = join(OBSERVATIONS_DIR, filename);
+
+          const observation = {
+            id,
+            ...(body as any),
+            source: 'observer',
+            createdAt: new Date().toISOString(),
+            savedBy: (payload as any).email ?? 'unknown',
+          };
+
+          await writeFile(filepath, JSON.stringify(observation, null, 2));
+          console.log(`🔍 Observation saved to ${filepath}`);
+          return { success: true, observation };
+        } catch (error: any) {
+          console.error('Failed to save observation:', error);
+          set.status = 500;
+          return { success: false, error: error.message || 'Failed to save observation' };
+        }
+      }, {
+        body: t.Object({
+          text: t.String(),
+          category: t.Optional(t.String()),
+          tags: t.Optional(t.Array(t.String())),
+        })
+      })
+  )
+
   // Bubbles Management Group
+
   .group('/api/bubbles', (app) =>
     app
       .onBeforeHandle(async ({ headers, jwt, set }) => {

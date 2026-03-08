@@ -30,6 +30,11 @@ apps/genius-talent/agentx-assessments/.env
 *.sqlite
 *.sqlite3
 *.zip
+*.pdf
+
+# ── Large asset folders (not needed in git/docker) ────────
+apps/habitaware-ai/book/
+apps/habitaware-ai/demos/
 
 # ── Test artifacts ────────────────────────────────────────
 coverage/

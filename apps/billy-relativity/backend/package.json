@@ -1,0 +1,19 @@
+{
+  "name": "relativity-api-backend",
+  "version": "1.0.0",
+  "description": "Relativity Workspace API Explorer - Backend (Elysia + Bun)",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "clean": "rm -rf dist node_modules"
+  },
+  "dependencies": {
+    "elysia": "^1.0.0",
+    "@elysiajs/cors": "^1.0.0",
+    "@elysiajs/swagger": "^1.0.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}

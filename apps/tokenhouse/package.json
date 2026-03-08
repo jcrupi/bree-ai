@@ -1,0 +1,14 @@
+{
+  "name": "tokenhouse",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["server", "client"],
+  "scripts": {
+    "dev": "concurrently \"bun run --cwd server dev\" \"bun run --cwd client dev\"",
+    "build": "bun run --cwd server build && bun run --cwd client build",
+    "setup": "bun install && bun run --cwd server db:migrate"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

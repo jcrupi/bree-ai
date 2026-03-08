@@ -1,0 +1,11 @@
+{
+  "name": "billy-relativity",
+  "version": "1.0.0",
+  "description": "Relativity Workspace API Explorer — BREE stack (Bun + React + Elysia + Eden)",
+  "scripts": {
+    "dev:backend": "cd backend && bun run dev",
+    "dev:frontend": "cd frontend && bun run dev",
+    "build": "cd frontend && bun install && bunx vite build",
+    "start": "cd backend && bun run src/index.ts"
+  }
+}

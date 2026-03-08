@@ -1,0 +1,183 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #0f0f1a;
+  --bg-card: #13131f;
+  --bg-elevated: #1a1a2e;
+  --border: #ffffff0f;
+  --border-accent: #ffffff1a;
+  --text-primary: #f0f0ff;
+  --text-secondary: #8888aa;
+  --text-muted: #4a4a6a;
+  --accent: #6c63ff;
+  --accent-glow: #6c63ff40;
+  --accent-secondary: #00d4aa;
+  --accent-warn: #ff6b6b;
+  --accent-gold: #ffd700;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Syne', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+code, pre, .font-mono {
+  font-family: 'DM Mono', monospace;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-accent); border-radius: 2px; }
+
+/* Glassmorphism card */
+.glass {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.glass-elevated {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-accent);
+  border-radius: 12px;
+}
+
+/* Glow effects */
+.glow-accent {
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #6c63ff, #00d4aa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Input styles */
+.th-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-accent);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 10px 14px;
+  font-family: 'Syne', sans-serif;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+.th-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.th-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Button styles */
+.th-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  outline: none;
+}
+
+.th-btn-primary {
+  background: var(--accent);
+  color: white;
+}
+
+.th-btn-primary:hover {
+  background: #7d75ff;
+  box-shadow: 0 0 20px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.th-btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border-accent);
+  color: var(--text-primary);
+}
+
+.th-btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.th-btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.th-btn-ghost:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+/* Token counter animation */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.token-count {
+  animation: countUp 0.3s ease-out;
+}
+
+/* Status indicators */
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.online {
+  background: var(--accent-secondary);
+  box-shadow: 0 0 6px var(--accent-secondary);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Chat message styles */
+.message-user {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-accent);
+}
+
+.message-assistant {
+  background: linear-gradient(135deg, #13131f, #1a1a2e);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+}
+
+/* Plan tier badges */
+.badge-free { color: var(--text-secondary); background: var(--bg-elevated); }
+.badge-pro { color: var(--accent); background: var(--accent-glow); }
+.badge-enterprise { color: var(--accent-gold); background: #ffd70015; }

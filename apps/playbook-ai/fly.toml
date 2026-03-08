@@ -1,0 +1,20 @@
+# Playbook.ai - Deploy to Fly.io
+# Build from repo root. Run: cd apps/playbook-ai && fly deploy
+# First time: fly apps create playbook-ai (or use --config fly.toml)
+
+app = "playbook-ai"
+
+[build]
+  dockerfile = "Dockerfile"
+  # Run from repo root: fly deploy -c apps/playbook-ai/fly.toml
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  max_machines_running = 1

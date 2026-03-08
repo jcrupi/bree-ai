@@ -15,6 +15,7 @@ import { FeedbackButton } from './FeedbackButton';
 import { useTextToSpeech } from '../hooks/useTextToSpeech';
 import { useSpeechToText } from '../hooks/useSpeakToText';
 import { api, API_URL, REALTIME_URL } from '../utils/api-client';
+import type { RagsterSearchResponse } from '../utils/ragster';
 
 
 interface Message {
@@ -350,7 +351,7 @@ export function DocumentQA({
     }
   }, [mode, globalCollectionId, defaultDocumentIds]);
 
-  const { speak, stop: stopSpeaking, isSpeaking: isActuallySpeaking } = useTextToSpeech();
+  const { speak, stop: stopSpeaking, isSpeaking: isActuallySpeaking, enqueue } = useTextToSpeech();
   const { startListening, stopListening, isRecording, isTranscribing, isSupported: micSupported } = useSpeechToText();
   
   const selectedDocument = documents.find(d => d.id === selectedDoc);

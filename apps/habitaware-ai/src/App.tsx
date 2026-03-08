@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { api } from "./api/client";
 import { marked } from "marked";
 import { IdentityZeroConsole } from "@bree-ai/core/components";
+import TheObserver from "./components/TheObserver";
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -35,7 +36,7 @@ type Tab =
   | "raw"
   | "identity_zero";
 
-type MainTab = "habitaware" | "advanced" | "book";
+type MainTab = "habitaware" | "advanced" | "book" | "observer";
 
 type ViewMode = "table" | "json";
 
@@ -319,6 +320,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("network");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [timeframeCollapsed, setTimeframeCollapsed] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [status, setStatus] = useState<"checking" | "connected" | "error">("checking");
   const [data, setData] = useState<unknown>(null);
@@ -363,11 +365,136 @@ export default function App() {
   const [bookCollections, setBookCollections] = useState<Array<{ id: string; short_id: string; name: string; chunk_count: number }>>([]);
   const [bookCollectionsLoading, setBookCollectionsLoading] = useState(false);
 
-  // Feedback state
+  // Feedback modal state (submit form)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
+
+  // Feedback viewer state (admin tab)
+  const [feedbackFiles, setFeedbackFiles] = useState<any[]>([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null);
+
+  async function loadFeedbackFiles() {
+    setFeedbackLoading(true);
+    setFeedbackError(null);
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || "https://bree-api.fly.dev";
+      const token = localStorage.getItem("bree_jwt");
+      const res = await fetch(`${API_URL}/api/feedback`, {
+        headers: token ? { authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const data = await res.json();
+      setFeedbackFiles(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setFeedbackError(e instanceof Error ? e.message : "Failed to load feedback");
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }
+
+  function renderFeedbackPanel() {
+    return (
+      <div style={{ padding: "24px", maxWidth: 900, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>📋 Feedback Files</h2>
+            <p style={{ margin: "4px 0 0", color: "#888", fontSize: 13 }}>
+              Stored at <code>/app/data/feedback/</code> on bree-api
+            </p>
+          </div>
+          <button
+            className="btn-secondary"
+            onClick={loadFeedbackFiles}
+            disabled={feedbackLoading}
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+          >
+            {feedbackLoading ? "Loading..." : "🔄 Refresh"}
+          </button>
+        </div>
+
+        {feedbackError && (
+          <div style={{ padding: "12px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, color: "#dc2626", marginBottom: 16 }}>
+            ❌ {feedbackError}
+          </div>
+        )}
+
+        {!feedbackLoading && feedbackFiles.length === 0 && !feedbackError && (
+          <div style={{ textAlign: "center", padding: "48px 0", color: "#aaa" }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📭</div>
+            <p>No feedback files found. Click Refresh to load.</p>
+          </div>
+        )}
+
+        <div style={{ display: "grid", gap: 12 }}>
+          {feedbackFiles.map((fb, i) => (
+            <div
+              key={i}
+              style={{
+                background: selectedFeedback === fb ? "#f0f9ff" : "#fff",
+                border: selectedFeedback === fb ? "1.5px solid #38bdf8" : "1px solid #e5e7eb",
+                borderRadius: 10,
+                overflow: "hidden",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+              onClick={() => setSelectedFeedback(selectedFeedback === fb ? null : fb)}
+            >
+              <div style={{ padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", align: "center", gap: 12, flex: 1 }}>
+                  <span style={{
+                    display: "inline-block",
+                    padding: "2px 8px",
+                    borderRadius: 99,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    background: fb.type === "bug" ? "#fee2e2" : fb.type === "feature" ? "#dbeafe" : "#f3f4f6",
+                    color: fb.type === "bug" ? "#dc2626" : fb.type === "feature" ? "#2563eb" : "#6b7280",
+                    marginRight: 10,
+                    flexShrink: 0,
+                  }}>
+                    {fb.type || "general"}
+                  </span>
+                  <div style={{ flexShrink: 0, marginRight: 10 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{fb.name || "Anonymous"}</div>
+                    {fb.email && <div style={{ fontSize: 12, color: "#888" }}>{fb.email}</div>}
+                  </div>
+                  <div style={{ flex: 1, fontSize: 13, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {fb.description}
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: "#9ca3af", flexShrink: 0, marginLeft: 12 }}>
+                  {fb.receivedAt ? new Date(fb.receivedAt).toLocaleString() : fb.filename}
+                </div>
+              </div>
+
+              {selectedFeedback === fb && (
+                <div style={{ borderTop: "1px solid #e0f2fe", padding: "16px 18px", background: "#f8fbff" }}>
+                  <p style={{ margin: "0 0 8px", fontWeight: 600, fontSize: 12, color: "#0284c7" }}>FULL DETAILS</p>
+                  <pre style={{
+                    margin: 0,
+                    fontSize: 12,
+                    background: "#1e293b",
+                    color: "#94a3b8",
+                    padding: 14,
+                    borderRadius: 8,
+                    overflowX: "auto",
+                    lineHeight: 1.6,
+                  }}>
+                    {JSON.stringify(fb, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // AgentX notes state
   const [agentxContent, setAgentxContent] = useState<string | null>(null);
@@ -2028,9 +2155,19 @@ export default function App() {
         >
           2. Advanced
         </button>
+        <button
+          className={`main-tab-btn ${mainTab === "observer" ? "active" : ""}`}
+          onClick={() => { setMainTab("observer"); loadFeedbackFiles(); }}
+        >
+          🔭 TheObserver
+        </button>
       </div>
 
-      {mainTab === "book" ? (
+      {mainTab === "observer" ? (
+        <div className="panel">
+          <TheObserver panelMode />
+        </div>
+      ) : mainTab === "book" ? (
         <div className="panel book-panel">
           {renderBookChat()}
         </div>
@@ -2038,36 +2175,64 @@ export default function App() {
         <div className="dashboard-layout">
           <aside className="sidebar">
             <div className="sidebar-section">
-              <span className="sidebar-title">Timeframe Filtering</span>
-              <div className="timeframe-selector">
-                <div className="timeframe-group">
-                  <label>Start Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
+              <button
+                onClick={() => setTimeframeCollapsed((c) => !c)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                  margin: 0,
+                }}
+              >
+                <span className="sidebar-title">
+                  Timeframe Filtering
+                  {(startDate || endDate) && (
+                    <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99, background: "rgba(99,102,241,0.2)", color: "#a5b4fc" }}>
+                      active
+                    </span>
+                  )}
+                </span>
+                <span style={{ fontSize: 11, color: "var(--text-secondary, #94a3b8)", fontWeight: 400 }}>
+                  {timeframeCollapsed ? "▶" : "▼"}
+                </span>
+              </button>
+
+              {!timeframeCollapsed && (
+                <div className="timeframe-selector">
+                  <div className="timeframe-group">
+                    <label>Start Date</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="timeframe-group">
+                    <label>End Date</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
+                  </div>
+                  {(startDate || endDate) && (
+                    <button
+                      className="btn-secondary"
+                      onClick={() => {
+                        setStartDate("");
+                        setEndDate("");
+                      }}
+                    >
+                      Clear Dates
+                    </button>
+                  )}
                 </div>
-                <div className="timeframe-group">
-                  <label>End Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-                </div>
-                {(startDate || endDate) && (
-                  <button
-                    className="btn-secondary"
-                    onClick={() => {
-                      setStartDate("");
-                      setEndDate("");
-                    }}
-                  >
-                    Clear Dates
-                  </button>
-                )}
-              </div>
+              )}
             </div>
 
             {ANALYTICS_CATEGORIES.map((category) => (
@@ -2236,6 +2401,9 @@ export default function App() {
       {renderPostDetailModal()}
       {renderMemberDetailModal()}
       {renderEventDetailModal()}
+
+      {/* TheObserver floating button — always visible on every tab */}
+      {mainTab !== "observer" && <TheObserver />}
     </div>
   );
 }

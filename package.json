@@ -5,7 +5,9 @@
   "description": "BREE AI - Multi-tenant document intelligence platform",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "apps/playbook-ai/server",
+    "apps/playbook-ai/client"
   ],
   "scripts": {
     "dev:kat": "bun --filter kat-ai dev",
@@ -43,7 +45,9 @@
     "dev:chatterbox-ui": "bun --filter chatterbox-ui dev",
     "build:chatterbox-ui": "bun --filter chatterbox-ui build",
     "dev:crazy-fast-feature": "bun --filter crazy-fast-feature dev",
-    "build:crazy-fast-feature": "bun --filter crazy-fast-feature build"
+    "build:crazy-fast-feature": "bun --filter crazy-fast-feature build",
+    "dev:playbook": "bun --filter playbook-ai dev",
+    "build:playbook": "bun --filter playbook-ai build"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

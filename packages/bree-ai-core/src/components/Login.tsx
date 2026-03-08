@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import breeAPI from '../utils/breeAPI';
+import { currentBrand } from '../config/branding';
 
 interface LoginProps {
   onLoginSuccess: (user: any, token: string) => void;
@@ -36,10 +37,10 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         // Registration Flow
         // Optional: Shared key check
         if (registerKey !== 'bree-beta') {
-             // setError('Invalid registration key');
-             // setIsLoading(false);
-             // return;
-             // Skipping for now to be easier
+          // setError('Invalid registration key');
+          // setIsLoading(false);
+          // return;
+          // Skipping for now to be easier
         }
 
         const { success, user, accessToken, error: regError } = await breeAPI.auth.register(email, password, name);
@@ -63,14 +64,22 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-8 transform transition-all">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-block p-3 rounded-full bg-indigo-500/20 mb-4">
-            <svg className="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/10 mb-4 overflow-hidden">
+            <img
+              src={currentBrand.logo}
+              alt={currentBrand.displayName}
+              className="w-12 h-12 object-contain"
+              onError={(e) => {
+                const parent = e.currentTarget.parentElement;
+                if (parent) {
+                  parent.innerHTML = `<svg class="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>`;
+                }
+              }}
+            />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">BREE AI</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight">{currentBrand.displayName}</h1>
           <p className="text-indigo-200 mt-2">
-            {isLogin ? 'Welcome back, explorer' : 'Join the collective'}
+            {isLogin ? `Welcome back to ${currentBrand.displayName}` : currentBrand.tagline}
           </p>
         </div>
 
@@ -127,7 +136,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-indigo-500/25 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed mt-2"
+            className="w-full text-white font-semibold py-3.5 rounded-xl shadow-lg transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed mt-2"
+            style={{ backgroundColor: currentBrand.colors.primary }}
           >
             {isLoading ? (
               <span className="flex items-center justify-center">
@@ -152,7 +162,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 setIsLogin(!isLogin);
                 setError(null);
               }}
-              className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+              className="font-medium transition-colors hover:opacity-80"
+              style={{ color: currentBrand.colors.accent }}
             >
               {isLogin ? 'Sign up' : 'Sign in'}
             </button>

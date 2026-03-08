@@ -1,17 +1,10 @@
-# Billy Relativity — Docker Compose
-# Usage:
-#   First time / update to latest:  docker compose up --pull always -d
-#   Start (no pull):                docker compose up -d
-#   Stop:                           docker compose down
-#   Logs:                           docker compose logs -f
-
 services:
   billy-relativity:
     image: jcrupi/billy-relativity:latest
-    pull_policy: always          # always check Docker Hub for a newer image on 'up'
+    pull_policy: always
     container_name: billy-relativity
     ports:
       - "8080:8080"
-    restart: unless-stopped      # auto-restart if it crashes or Docker restarts
+    restart: unless-stopped
     environment:
       - PORT=8080

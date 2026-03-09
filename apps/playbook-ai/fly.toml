@@ -2,7 +2,7 @@
 # Build from repo root. Run: cd apps/playbook-ai && fly deploy
 # First time: fly apps create playbook-ai (or use --config fly.toml)
 
-app = "playbook-ai"
+app = "playbook-ai-bree"
 
 [build]
   dockerfile = "Dockerfile"

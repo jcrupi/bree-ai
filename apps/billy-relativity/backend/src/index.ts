@@ -209,28 +209,159 @@ const app = new Elysia()
   })
 
 
+  // ===== ARM (Archive / Restore / Move) APIs =====
+  // Mirrors: <host>/Relativity.REST/api/relativity-arm/v1/
+
+  // GET  /api/arm/archive-locations
+  .get('/api/arm/archive-locations', () => {
+    const locs = db.getArchiveLocations();
+    return { success: true, data: locs, count: locs.length, timestamp: new Date().toISOString() };
+  }, { detail: { tags: ['arm'], summary: 'Get archive locations', description: 'List all available ARM archive storage locations with free space info.' } })
+
+  // GET  /api/arm/jobs
+  .get('/api/arm/jobs', ({ query }) => {
+    let jobs = db.getArmJobs();
+    if (query?.type)   jobs = jobs.filter(j => j.JobType   === query.type);
+    if (query?.status) jobs = jobs.filter(j => j.JobStatus === query.status);
+    return { success: true, data: jobs.sort((a, b) => b.JobID - a.JobID), count: jobs.length, timestamp: new Date().toISOString() };
+  }, {
+    detail: { tags: ['arm'], summary: 'List ARM jobs', description: 'Returns all ARM jobs, optionally filtered by type (Archive|Restore) or status.' },
+    query: t.Object({ type: t.Optional(t.String()), status: t.Optional(t.String()) })
+  })
+
+  // GET  /api/arm/jobs/:id
+  .get('/api/arm/jobs/:id', ({ params, set }) => {
+    const job = db.getArmJob(parseInt(params.id));
+    if (!job) { set.status = 404; return { success: false, error: 'ARM job not found', JobID: parseInt(params.id) }; }
+    return { success: true, data: job, timestamp: new Date().toISOString() };
+  }, { detail: { tags: ['arm'], summary: 'Get ARM job', description: 'Read a single ARM job by ID.' }, params: t.Object({ id: t.String() }) })
+
+  // POST /api/arm/archive-jobs  — create an archive job
+  // Mirrors: POST /Relativity.REST/api/relativity-arm/v1/archive-jobs
+  .post('/api/arm/archive-jobs', ({ body, set }) => {
+    if (!body.SourceWorkspaceID && body.SourceWorkspaceID !== 0) {
+      set.status = 400;
+      return { success: false, error: 'Missing required field: SourceWorkspaceID' };
+    }
+    if (!body.ArchivePath && !body.UseDefaultArchiveDirectory) {
+      set.status = 400;
+      return { success: false, error: 'Must supply ArchivePath OR set UseDefaultArchiveDirectory: true' };
+    }
+    const job = db.createArchiveJob(body as any);
+    set.status = 201;
+    return { success: true, data: job, message: `Archive job "${job.JobName}" created (JobID ${job.JobID})`, timestamp: new Date().toISOString() };
+  }, {
+    detail: { tags: ['arm'], summary: 'Create archive job', description: 'Submit a new workspace archive job. Full Relativity ARM v1 schema.' },
+    body: t.Object({
+      // ── Required ──────────────────────────────────────────────────────
+      SourceWorkspaceID:             t.Number({ description: 'Artifact ID of the workspace to archive' }),
+      // ── Archive destination (one of the two required) ──────────────────
+      ArchivePath:                   t.Optional(t.String({ description: 'UNC path for the archive file. Required if UseDefaultArchiveDirectory is false.' })),
+      UseDefaultArchiveDirectory:    t.Optional(t.Boolean({ description: 'Use the server-configured default archive directory. If true, ArchivePath must be omitted.' })),
+      // ── Job metadata ──────────────────────────────────────────────────
+      JobName:                       t.Optional(t.String()),
+      JobPriority:                   t.Optional(t.String({ description: 'Low | Medium | High' })),
+      ScheduledStartTime:            t.Optional(t.String({ description: 'ISO 8601 datetime' })),
+      CreatedBy:                     t.Optional(t.String()),
+      // ── Extended data ─────────────────────────────────────────────────
+      IncludeExtendedWorkspaceData:  t.Optional(t.Boolean({ description: 'Include installed apps, linked scripts, event handlers. Required for aiR for Review.' })),
+      ApplicationErrorExportBehavior: t.Optional(t.String({ description: 'SkipApplication | StopJob — behavior when an app export fails.' })),
+      // ── MigratorOptions ───────────────────────────────────────────────
+      MigratorOptions: t.Optional(t.Object({
+        IncludeDatabaseBackup:      t.Optional(t.Boolean({ description: 'Include .bak database backup. If false, manual DB restore required.' })),
+        IncludeDtSearch:            t.Optional(t.Boolean({ description: 'Include dtSearch indexes' })),
+        IncludeConceptualAnalytics: t.Optional(t.Boolean({ description: 'Include Conceptual Analytics indices' })),
+        IncludeStructuredAnalytics: t.Optional(t.Boolean({ description: 'Include Structured Analytics sets' })),
+        IncludeDataGrid:            t.Optional(t.Boolean({ description: 'Include Data Grid application data' })),
+      })),
+      // ── FileOptions ───────────────────────────────────────────────────
+      FileOptions: t.Optional(t.Object({
+        IncludeRepositoryFiles: t.Optional(t.Boolean({ description: 'Archive all files in the workspace file repository' })),
+        IncludeLinkedFiles:     t.Optional(t.Boolean({ description: 'Archive linked files outside the repository (moved to repo on restore)' })),
+        MissingFileBehavior:    t.Optional(t.String({ description: 'SkipFile | StopJob — behavior when a file is missing' })),
+        PerformValidation:      t.Optional(t.Boolean({ description: 'Validate copied files and databases after transfer' })),
+      })),
+      // ── NotificationOptions ────────────────────────────────────────────
+      NotificationOptions: t.Optional(t.Object({
+        NotifyJobCreator:   t.Optional(t.Boolean({ description: 'Email the job creator on completion' })),
+        NotifyJobExecutor:  t.Optional(t.Boolean({ description: 'Email the job executor on completion' })),
+        UiJobActionsLocked: t.Optional(t.Boolean({ description: 'Prevent UI-level cancel/pause during execution' })),
+      })),
+    })
+  })
+
+  // POST /api/arm/restore-jobs  — create a restore job
+  // Mirrors: POST /Relativity.REST/api/relativity-arm/v1/restore-jobs
+  .post('/api/arm/restore-jobs', ({ body, set }) => {
+    if (!body.ArchivePath || !body.MatterID || !body.ResourcePoolID) {
+      set.status = 400;
+      return { success: false, error: 'Missing required fields: ArchivePath, MatterID, ResourcePoolID' };
+    }
+    const job = db.createRestoreJob(body as any);
+    set.status = 201;
+    return { success: true, data: job, message: `Restore job "${job.JobName}" created (JobID ${job.JobID})`, timestamp: new Date().toISOString() };
+  }, {
+    detail: { tags: ['arm'], summary: 'Create restore job', description: 'Submit a new workspace restore job. Full Relativity ARM v1 schema.' },
+    body: t.Object({
+      // ── Required ──────────────────────────────────────────────────────
+      ArchivePath:                   t.String({ description: 'UNC path of the .arm archive to restore' }),
+      MatterID:                      t.Number({ description: 'Artifact ID of the target matter' }),
+      ResourcePoolID:                t.Number({ description: 'Artifact ID of the target resource pool' }),
+      // ── Target environment (optional but strongly recommended) ─────────
+      DatabaseServerID:              t.Optional(t.Number({ description: 'Artifact ID of the target SQL Server instance' })),
+      CacheLocationID:               t.Optional(t.Number({ description: 'Artifact ID of the target cache location (file share)' })),
+      FileRepositoryID:              t.Optional(t.Number({ description: 'Artifact ID of the target file repository' })),
+      StructuredAnalyticsServerID:   t.Optional(t.Number({ description: 'Required if archive contains Structured Analytics data' })),
+      ConceptualAnalyticsServerID:   t.Optional(t.Number({ description: 'Required if archive contains Conceptual Analytics data' })),
+      DtSearchLocationID:            t.Optional(t.Number({ description: 'Required if archive contains dtSearch indexes' })),
+      // ── Bakless restore ────────────────────────────────────────────────
+      ExistingTargetDatabase:        t.Optional(t.String({ description: 'For bakless archives: pre-restored DB name in EDDSxxxxxxx format' })),
+      // ── Job metadata ──────────────────────────────────────────────────
+      JobName:                       t.Optional(t.String()),
+      JobPriority:                   t.Optional(t.String({ description: 'Low | Medium | High' })),
+      ScheduledStartTime:            t.Optional(t.String({ description: 'ISO 8601 datetime' })),
+      CreatedBy:                     t.Optional(t.String()),
+      // ── NotificationOptions ────────────────────────────────────────────
+      NotificationOptions: t.Optional(t.Object({
+        NotifyJobCreator:   t.Optional(t.Boolean()),
+        NotifyJobExecutor:  t.Optional(t.Boolean()),
+        UiJobActionsLocked: t.Optional(t.Boolean()),
+      })),
+    })
+  })
+
+
+  // DELETE /api/arm/jobs/:id  — cancel a job
+  .delete('/api/arm/jobs/:id', ({ params, set }) => {
+    const job = db.cancelArmJob(parseInt(params.id));
+    if (!job) {
+      const existing = db.getArmJob(parseInt(params.id));
+      if (!existing) { set.status = 404; return { success: false, error: 'ARM job not found' }; }
+      set.status = 409; return { success: false, error: `Cannot cancel job in status: ${existing.JobStatus}` };
+    }
+    return { success: true, data: job, message: `Job ${job.JobID} cancelled`, timestamp: new Date().toISOString() };
+  }, { detail: { tags: ['arm'], summary: 'Cancel ARM job', description: 'Cancel a Pending or Processing ARM job.' }, params: t.Object({ id: t.String() }) })
+
   // Create workspace from template
   // Uses /api/workspace/from-template/:id (static prefix) to avoid Elysia router
   // collision with /api/workspace/:id — Elysia doesn't allow two different param names
   // at the same dynamic segment position.
+
   .post('/api/workspace/from-template/:id', ({ params, body, set }) => {
     if (!body.name) {
       set.status = 400;
-      return {
-        success: false,
-        error: 'Missing required field: name'
-      };
+      return { success: false, error: 'Missing required field: name' };
     }
 
-    const result = db.createWorkspaceFromTemplate(parseInt(params.id), body);
+    // Merge projectType into keywords
+    const extraKeywords = body.projectType ? `project-type:${body.projectType}` : '';
+    const keywords = [body.keywords, extraKeywords].filter(Boolean).join(', ');
+
+    const result = db.createWorkspaceFromTemplate(parseInt(params.id), { ...body, keywords });
 
     if (!result) {
       set.status = 404;
-      return {
-        success: false,
-        error: 'Template workspace not found',
-        templateId: parseInt(params.id)
-      };
+      return { success: false, error: 'Template workspace not found', templateId: parseInt(params.id) };
     }
 
     set.status = 201;
@@ -239,6 +370,7 @@ const app = new Elysia()
       data: result.workspace,
       templateId: parseInt(params.id),
       templateName: result.templateName,
+      projectType: body.projectType ?? null,
       message: `Workspace "${result.workspace.name}" created from template "${result.templateName}"`,
       timestamp: new Date().toISOString()
     };
@@ -246,24 +378,32 @@ const app = new Elysia()
     detail: {
       tags: ['workspace'],
       summary: 'Create workspace from template',
-      description: 'Clone an existing workspace as a template, inheriting its resource pool, matter, client, SQL server, and data grid settings. Override any field by providing it in the request body.'
+      description: 'Clone a template workspace. Supply projectType to tag the workspace by case type.'
     },
-    params: t.Object({
-      id: t.String()
-    }),
+    params: t.Object({ id: t.String() }),
     body: t.Object({
-      name: t.String(),
-      matterArtifactID: t.Optional(t.Number()),
-      clientArtifactID: t.Optional(t.Number()),
+      name:                   t.String(),
+      projectType:            t.Optional(t.String()),
+      matterArtifactID:       t.Optional(t.Number()),
+      clientArtifactID:       t.Optional(t.Number()),
       resourcePoolArtifactID: t.Optional(t.Number()),
-      enableDataGrid: t.Optional(t.Boolean()),
-      keywords: t.Optional(t.String()),
-      notes: t.Optional(t.String())
+      enableDataGrid:         t.Optional(t.Boolean()),
+      keywords:               t.Optional(t.String()),
+      notes:                  t.Optional(t.String()),
     })
   })
 
 
+  // Get workspace templates (workspaces with 'template' in their name, alphabetical)
+  .get('/api/workspace/templates', () => {
+    const templates = db.getWorkspaces()
+      .filter(ws => ws.name.toLowerCase().includes('template'))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return { success: true, data: templates, count: templates.length, timestamp: new Date().toISOString() };
+  }, { detail: { tags: ['workspace'], summary: 'Get workspace templates', description: 'All workspaces containing "template" in their name, sorted alphabetically' } })
+
   // ===== RESOURCE POOL ENDPOINTS =====
+
 
   // Get all resource pools
   .get('/api/workspace/eligible-resource-pools', () => {
@@ -525,12 +665,12 @@ const app = new Elysia()
     return { success: true, data: logs, count: logs.length, timestamp: new Date().toISOString() };
   }, { detail: { tags: ['lookup'], summary: 'Email logs', description: 'Get all sent compliance email logs' } })
 
-  // ===== OBSERVATIONS (theObserver — app-scoped) =====
+  // ===== OBSERVATIONS (Observer — app-scoped) =====
 
   .get('/api/observations', () => {
     const obs = db.getObservables();
     return { success: true, data: obs, count: obs.length, app: 'billy-relativity', timestamp: new Date().toISOString() };
-  }, { detail: { tags: ['lookup'], summary: 'Get all observations', description: 'Retrieve all theObserver observations saved for billy-relativity' } })
+  }, { detail: { tags: ['lookup'], summary: 'Get all observations', description: 'Retrieve all Observer observations saved for billy-relativity' } })
 
   .post('/api/observations', ({ body, set }) => {
     if (!body.text?.trim()) {
@@ -541,7 +681,7 @@ const app = new Elysia()
     set.status = 201;
     return { success: true, observation: obs, timestamp: new Date().toISOString() };
   }, {
-    detail: { tags: ['lookup'], summary: 'Add observation', description: 'Save a new theObserver observation to the billy-relativity server store' },
+    detail: { tags: ['lookup'], summary: 'Add observation', description: 'Save a new Observer observation to the billy-relativity server store' },
     body: t.Object({
       text: t.String(),
       category: t.Optional(t.String()),

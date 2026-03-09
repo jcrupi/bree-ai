@@ -4,10 +4,12 @@
  */
 
 import React, { useState } from 'react';
-import { Play, Loader, Database, Folder, Users, Tag, Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, Copy, CheckCircle2 } from 'lucide-react';
+import { Play, Loader, Database, Folder, Users, Tag, Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight, Copy, CheckCircle2, Activity, AlertTriangle } from 'lucide-react';
+
 import { api, captureAPICall, type APICallDetails } from '../services/api';
 import { DataTable } from './DataTable';
 import { AdvancedView } from './AdvancedView';
+import { useAppMode } from '../context/AppModeContext';
 
 interface APIQuestion {
   id: string;
@@ -246,7 +248,124 @@ const apiQuestions: APIQuestion[] = [
     needsInput: true,
     inputFields: [{ name: 'id', label: 'Client ID', type: 'number', required: true }],
   },
+
+  // ── ARM (Archive / Restore / Move) ───────────────────────────────────────
+  {
+    id: 'arm-archive-locations',
+    category: 'ARM',
+    question: 'List all ARM archive storage locations',
+    method: 'GET',
+    endpoint: '/api/arm/archive-locations',
+    icon: Database,
+  },
+  {
+    id: 'arm-list-jobs',
+    category: 'ARM',
+    question: 'List all ARM jobs (archive & restore)',
+    method: 'GET',
+    endpoint: '/api/arm/jobs',
+    icon: Activity,
+    needsInput: true,
+    inputFields: [
+      { name: 'type',   label: 'Filter by type (Archive | Restore)', type: 'text', required: false },
+      { name: 'status', label: 'Filter by status (Pending | Processing | Complete | Error | Cancelled)', type: 'text', required: false },
+    ],
+  },
+  {
+    id: 'arm-get-job',
+    category: 'ARM',
+    question: 'Get an ARM job by ID',
+    method: 'GET',
+    endpoint: '/api/arm/jobs/{id}',
+    icon: Activity,
+    needsInput: true,
+    inputFields: [{ name: 'id', label: 'Job ID', type: 'number', required: true }],
+  },
+  {
+    id: 'arm-create-archive',
+    category: 'ARM',
+    question: 'Create an archive job for a workspace',
+    method: 'POST',
+    endpoint: '/api/arm/archive-jobs',
+    icon: Database,
+    needsInput: true,
+    inputFields: [
+      // ── Required ──────────────────────────────────────────────────────────
+      { name: 'SourceWorkspaceID', label: 'Source Workspace ID ★', type: 'number' as const, required: true },
+      // ── Archive destination ────────────────────────────────────────────────
+      { name: 'ArchivePath', label: 'Archive Path (UNC)', type: 'text' as const, required: false },
+      { name: 'UseDefaultArchiveDirectory', label: 'Use Default Archive Directory', type: 'checkbox' as const, required: false },
+      // ── Job metadata ───────────────────────────────────────────────────────
+      { name: 'JobName', label: 'Job Name', type: 'text' as const, required: false },
+      { name: 'JobPriority', label: 'Job Priority', type: 'select' as const, required: false,
+        options: [{ value: 'Low', label: 'Low' }, { value: 'Medium', label: 'Medium' }, { value: 'High', label: 'High' }] },
+      { name: 'ScheduledStartTime', label: 'Scheduled Start (ISO 8601)', type: 'text' as const, required: false },
+      // ── Extended workspace data ────────────────────────────────────────────
+      { name: 'IncludeExtendedWorkspaceData', label: 'Include Extended Workspace Data (apps, scripts, event handlers)', type: 'checkbox' as const, required: false },
+      { name: 'ApplicationErrorExportBehavior', label: 'App Export Error Behavior', type: 'select' as const, required: false,
+        options: [{ value: 'SkipApplication', label: 'Skip Application' }, { value: 'StopJob', label: 'Stop Job' }] },
+      // ── MigratorOptions ────────────────────────────────────────────────────
+      { name: 'MigratorOptions.IncludeDatabaseBackup',      label: 'MigratorOptions → Include Database Backup (.bak)',  type: 'checkbox' as const, required: false },
+      { name: 'MigratorOptions.IncludeDtSearch',            label: 'MigratorOptions → Include dtSearch Indexes',       type: 'checkbox' as const, required: false },
+      { name: 'MigratorOptions.IncludeConceptualAnalytics', label: 'MigratorOptions → Include Conceptual Analytics',   type: 'checkbox' as const, required: false },
+      { name: 'MigratorOptions.IncludeStructuredAnalytics', label: 'MigratorOptions → Include Structured Analytics',   type: 'checkbox' as const, required: false },
+      { name: 'MigratorOptions.IncludeDataGrid',            label: 'MigratorOptions → Include Data Grid Data',         type: 'checkbox' as const, required: false },
+      // ── FileOptions ────────────────────────────────────────────────────────
+      { name: 'FileOptions.IncludeRepositoryFiles', label: 'FileOptions → Include Repository Files',          type: 'checkbox' as const, required: false },
+      { name: 'FileOptions.IncludeLinkedFiles',     label: 'FileOptions → Include Linked Files',               type: 'checkbox' as const, required: false },
+      { name: 'FileOptions.MissingFileBehavior',    label: 'FileOptions → Missing File Behavior',              type: 'select' as const, required: false,
+        options: [{ value: 'SkipFile', label: 'Skip File' }, { value: 'StopJob', label: 'Stop Job' }] },
+      { name: 'FileOptions.PerformValidation',      label: 'FileOptions → Perform Post-Transfer Validation',   type: 'checkbox' as const, required: false },
+      // ── NotificationOptions ────────────────────────────────────────────────
+      { name: 'NotificationOptions.NotifyJobCreator',   label: 'NotificationOptions → Notify Job Creator',   type: 'checkbox' as const, required: false },
+      { name: 'NotificationOptions.NotifyJobExecutor',  label: 'NotificationOptions → Notify Job Executor',  type: 'checkbox' as const, required: false },
+      { name: 'NotificationOptions.UiJobActionsLocked', label: 'NotificationOptions → Lock UI Job Actions',  type: 'checkbox' as const, required: false },
+    ],
+  },
+  {
+    id: 'arm-create-restore',
+    category: 'ARM',
+    question: 'Create a restore job from an archive',
+    method: 'POST',
+    endpoint: '/api/arm/restore-jobs',
+    icon: Database,
+    needsInput: true,
+    inputFields: [
+      // ── Required ──────────────────────────────────────────────────────────
+      { name: 'ArchivePath',    label: 'Archive Path (UNC) ★',       type: 'text'   as const, required: true },
+      { name: 'MatterID',       label: 'Target Matter ID ★',          type: 'number' as const, required: true },
+      { name: 'ResourcePoolID', label: 'Target Resource Pool ID ★',   type: 'number' as const, required: true },
+      // ── Target environment ─────────────────────────────────────────────────
+      { name: 'DatabaseServerID',            label: 'Target Database Server ID',                          type: 'number' as const, required: false },
+      { name: 'CacheLocationID',             label: 'Target Cache Location ID',                           type: 'number' as const, required: false },
+      { name: 'FileRepositoryID',            label: 'Target File Repository ID',                          type: 'number' as const, required: false },
+      { name: 'StructuredAnalyticsServerID', label: 'Structured Analytics Server ID (if SA in archive)', type: 'number' as const, required: false },
+      { name: 'ConceptualAnalyticsServerID', label: 'Conceptual Analytics Server ID (if CA in archive)', type: 'number' as const, required: false },
+      { name: 'DtSearchLocationID',          label: 'dtSearch Location ID (if dtSearch in archive)',      type: 'number' as const, required: false },
+      // ── Bakless restore ────────────────────────────────────────────────────
+      { name: 'ExistingTargetDatabase', label: 'Existing Target Database (bakless — EDDSxxxxxxx format)', type: 'text' as const, required: false },
+      // ── Job metadata ───────────────────────────────────────────────────────
+      { name: 'JobName',            label: 'Job Name',                  type: 'text'   as const, required: false },
+      { name: 'JobPriority',        label: 'Job Priority',              type: 'select' as const, required: false,
+        options: [{ value: 'Low', label: 'Low' }, { value: 'Medium', label: 'Medium' }, { value: 'High', label: 'High' }] },
+      { name: 'ScheduledStartTime', label: 'Scheduled Start (ISO 8601)', type: 'text' as const, required: false },
+      // ── Notifications ──────────────────────────────────────────────────────
+      { name: 'NotificationOptions.NotifyJobCreator',  label: 'NotificationOptions → Notify Job Creator',  type: 'checkbox' as const, required: false },
+      { name: 'NotificationOptions.NotifyJobExecutor', label: 'NotificationOptions → Notify Job Executor', type: 'checkbox' as const, required: false },
+    ],
+  },
+  {
+    id: 'arm-cancel-job',
+    category: 'ARM',
+    question: 'Cancel an ARM job',
+    method: 'DELETE',
+    endpoint: '/api/arm/jobs/{id}',
+    icon: AlertTriangle,
+    needsInput: true,
+    inputFields: [{ name: 'id', label: 'Job ID to cancel', type: 'number', required: true }],
+  },
 ];
+
 
 // Quick reference data for workspace IDs
 const workspaceQuickRef = [
@@ -271,6 +390,7 @@ const clientQuickRef = [
 ];
 
 export const APIExplorer: React.FC = () => {
+  const { isLive, auth } = useAppMode();
   const [selectedQuestion, setSelectedQuestion] = useState<APIQuestion | null>(null);
   const [loading, setLoading] = useState(false);
   const [responseData, setResponseData] = useState<any>(null);
@@ -324,11 +444,31 @@ export const APIExplorer: React.FC = () => {
       // Make API call based on question ID
       switch (question.id) {
         case 'get-all-workspaces':
-          result = await captureAPICall(
-            async () => await api.api.workspace.get(),
-            'GET',
-            endpoint
-          );
+          if (isLive && auth?.accessToken) {
+            // LIVE: hit the real Relativity workspace API with Bearer token
+            const wsUrl = `${auth.instanceUrl}/Relativity.REST/api/Relativity.Objects/workspace`;
+            const liveRes = await fetch(wsUrl, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${auth.accessToken}`,
+                'Content-Type':  'application/json',
+              },
+            });
+            const liveData = await liveRes.json();
+            result = {
+              data:    liveData,
+              success: liveRes.ok,
+              _live:   true,
+              _url:    wsUrl,
+            };
+          } else {
+            // MOCK: use local backend
+            result = await captureAPICall(
+              async () => await api.api.workspace.get(),
+              'GET',
+              endpoint
+            );
+          }
           break;
 
         case 'get-workspace-by-id':
@@ -487,6 +627,130 @@ export const APIExplorer: React.FC = () => {
           result = await captureAPICall(
             async () => await (api.api.clients as any)[formData.id].workspaces.get(),
             'GET', endpoint
+          );
+          break;
+
+        // ── ARM ─────────────────────────────────────────────────────────
+        case 'arm-archive-locations':
+          result = await captureAPICall(
+            async () => { const r = await fetch('/api/arm/archive-locations'); return r.json(); },
+            'GET', '/api/arm/archive-locations'
+          );
+          break;
+
+        case 'arm-list-jobs': {
+          const qs = new URLSearchParams();
+          if (formData.type)   qs.set('type',   formData.type);
+          if (formData.status) qs.set('status', formData.status);
+          const url = `/api/arm/jobs${qs.toString() ? '?' + qs.toString() : ''}`;
+          result = await captureAPICall(
+            async () => { const r = await fetch(url); return r.json(); },
+            'GET', url
+          );
+          break;
+        }
+
+        case 'arm-get-job':
+          result = await captureAPICall(
+            async () => { const r = await fetch(`/api/arm/jobs/${formData.id}`); return r.json(); },
+            'GET', `/api/arm/jobs/${formData.id}`
+          );
+          break;
+
+        case 'arm-create-archive': {
+          const fd = formData;
+          result = await captureAPICall(
+            async () => {
+              const payload: any = { SourceWorkspaceID: Number(fd.SourceWorkspaceID) };
+              if (fd.ArchivePath)                      payload.ArchivePath = fd.ArchivePath;
+              if (fd.UseDefaultArchiveDirectory)       payload.UseDefaultArchiveDirectory = fd.UseDefaultArchiveDirectory;
+              if (fd.JobName)                          payload.JobName = fd.JobName;
+              if (fd.JobPriority)                      payload.JobPriority = fd.JobPriority;
+              if (fd.ScheduledStartTime)               payload.ScheduledStartTime = fd.ScheduledStartTime;
+              if (fd.IncludeExtendedWorkspaceData)     payload.IncludeExtendedWorkspaceData = fd.IncludeExtendedWorkspaceData;
+              if (fd.ApplicationErrorExportBehavior)   payload.ApplicationErrorExportBehavior = fd.ApplicationErrorExportBehavior;
+
+              // Only include nested objects if user touched at least one field
+              // Checkboxes deliver native booleans; selects deliver strings
+              const mo: any = {};
+              if (fd['MigratorOptions.IncludeDatabaseBackup']      !== undefined) mo.IncludeDatabaseBackup      = fd['MigratorOptions.IncludeDatabaseBackup'];
+              if (fd['MigratorOptions.IncludeDtSearch']            !== undefined) mo.IncludeDtSearch            = fd['MigratorOptions.IncludeDtSearch'];
+              if (fd['MigratorOptions.IncludeConceptualAnalytics'] !== undefined) mo.IncludeConceptualAnalytics = fd['MigratorOptions.IncludeConceptualAnalytics'];
+              if (fd['MigratorOptions.IncludeStructuredAnalytics'] !== undefined) mo.IncludeStructuredAnalytics = fd['MigratorOptions.IncludeStructuredAnalytics'];
+              if (fd['MigratorOptions.IncludeDataGrid']            !== undefined) mo.IncludeDataGrid            = fd['MigratorOptions.IncludeDataGrid'];
+              if (Object.keys(mo).length) payload.MigratorOptions = mo;
+
+              const fo: any = {};
+              if (fd['FileOptions.IncludeRepositoryFiles'] !== undefined) fo.IncludeRepositoryFiles = fd['FileOptions.IncludeRepositoryFiles'];
+              if (fd['FileOptions.IncludeLinkedFiles']     !== undefined) fo.IncludeLinkedFiles     = fd['FileOptions.IncludeLinkedFiles'];
+              if (fd['FileOptions.MissingFileBehavior'])                  fo.MissingFileBehavior    = fd['FileOptions.MissingFileBehavior'];
+              if (fd['FileOptions.PerformValidation']      !== undefined) fo.PerformValidation      = fd['FileOptions.PerformValidation'];
+              if (Object.keys(fo).length) payload.FileOptions = fo;
+
+              const no: any = {};
+              if (fd['NotificationOptions.NotifyJobCreator']   !== undefined) no.NotifyJobCreator   = fd['NotificationOptions.NotifyJobCreator'];
+              if (fd['NotificationOptions.NotifyJobExecutor']  !== undefined) no.NotifyJobExecutor  = fd['NotificationOptions.NotifyJobExecutor'];
+              if (fd['NotificationOptions.UiJobActionsLocked'] !== undefined) no.UiJobActionsLocked = fd['NotificationOptions.UiJobActionsLocked'];
+              if (Object.keys(no).length) payload.NotificationOptions = no;
+
+              const r = await fetch('/api/arm/archive-jobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+              return r.json();
+            },
+            'POST', '/api/arm/archive-jobs'
+          );
+          break;
+        }
+
+        case 'arm-create-restore': {
+          const fd2 = formData;
+          const num = (v: any) => v ? Number(v) : undefined;
+          result = await captureAPICall(
+            async () => {
+              const payload: any = {
+                ArchivePath:    fd2.ArchivePath,
+                MatterID:       Number(fd2.MatterID),
+                ResourcePoolID: Number(fd2.ResourcePoolID),
+              };
+              if (num(fd2.DatabaseServerID))            payload.DatabaseServerID            = num(fd2.DatabaseServerID);
+              if (num(fd2.CacheLocationID))             payload.CacheLocationID             = num(fd2.CacheLocationID);
+              if (num(fd2.FileRepositoryID))            payload.FileRepositoryID            = num(fd2.FileRepositoryID);
+              if (num(fd2.StructuredAnalyticsServerID)) payload.StructuredAnalyticsServerID = num(fd2.StructuredAnalyticsServerID);
+              if (num(fd2.ConceptualAnalyticsServerID)) payload.ConceptualAnalyticsServerID = num(fd2.ConceptualAnalyticsServerID);
+              if (num(fd2.DtSearchLocationID))          payload.DtSearchLocationID          = num(fd2.DtSearchLocationID);
+              if (fd2.ExistingTargetDatabase)           payload.ExistingTargetDatabase      = fd2.ExistingTargetDatabase;
+              if (fd2.JobName)                          payload.JobName                     = fd2.JobName;
+              if (fd2.JobPriority)                      payload.JobPriority                 = fd2.JobPriority;
+              if (fd2.ScheduledStartTime)               payload.ScheduledStartTime          = fd2.ScheduledStartTime;
+
+              const no2: any = {};
+              if (fd2['NotificationOptions.NotifyJobCreator']  !== undefined) no2.NotifyJobCreator  = fd2['NotificationOptions.NotifyJobCreator'];
+              if (fd2['NotificationOptions.NotifyJobExecutor'] !== undefined) no2.NotifyJobExecutor = fd2['NotificationOptions.NotifyJobExecutor'];
+              if (Object.keys(no2).length) payload.NotificationOptions = no2;
+
+              const r = await fetch('/api/arm/restore-jobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+              return r.json();
+            },
+            'POST', '/api/arm/restore-jobs'
+          );
+          break;
+        }
+
+
+        case 'arm-cancel-job':
+          result = await captureAPICall(
+            async () => {
+              const r = await fetch(`/api/arm/jobs/${formData.id}`, { method: 'DELETE' });
+              return r.json();
+            },
+            'DELETE', `/api/arm/jobs/${formData.id}`
           );
           break;
 
@@ -816,44 +1080,68 @@ export const APIExplorer: React.FC = () => {
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">Input Parameters</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {selectedQuestion.inputFields.map(field => (
-                        <div key={field.name} className={field.type === 'textarea' ? 'md:col-span-2' : ''}>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            {field.label}
-                            {field.required && <span className="text-red-500 ml-1">*</span>}
-                          </label>
-                          {field.type === 'textarea' ? (
-                            <textarea
-                              value={formData[field.name] || ''}
-                              onChange={(e) => handleInputChange(field.name, e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                              rows={3}
-                            />
-                          ) : field.type === 'checkbox' ? (
-                            <label className="flex items-center space-x-2 cursor-pointer">
+                        <div
+                          key={field.name}
+                          className={
+                            field.type === 'textarea' || field.type === 'checkbox'
+                              ? 'md:col-span-2'
+                              : ''
+                          }
+                        >
+                          {field.type === 'checkbox' ? (
+                            // Styled toggle card for booleans
+                            <label className="flex items-center justify-between px-3 py-2 bg-white border border-gray-200 rounded-lg cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition-colors group">
+                              <span className="text-sm text-gray-700 group-hover:text-indigo-700">{field.label}</span>
                               <input
                                 type="checkbox"
-                                checked={formData[field.name] || false}
+                                checked={formData[field.name] === true}
                                 onChange={(e) => handleInputChange(field.name, e.target.checked)}
-                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 ml-3 shrink-0"
                               />
-                              <span className="text-sm text-gray-600">Enable</span>
                             </label>
                           ) : (
-                            <input
-                              type={field.type}
-                              value={formData[field.name] || ''}
-                              onChange={(e) => handleInputChange(field.name, field.type === 'number' ? parseInt(e.target.value) : e.target.value)}
-                              className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
-                                field.name === 'id' || field.name === 'poolId' || field.name === 'templateId' ? 'font-mono text-lg font-bold text-indigo-700' : ''
-                              }`}
-                              placeholder={field.name === 'id' || field.name === 'poolId' || field.name === 'templateId' ? 'Click a workspace above or type here' : ''}
-                            />
+                            <>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">
+                                {field.label}
+                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                              </label>
+                              {field.type === 'textarea' ? (
+                                <textarea
+                                  value={formData[field.name] || ''}
+                                  onChange={(e) => handleInputChange(field.name, e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                  rows={3}
+                                />
+                              ) : field.type === 'select' ? (
+                                <select
+                                  value={formData[field.name] ?? ''}
+                                  onChange={(e) => handleInputChange(field.name, e.target.value || undefined)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white text-sm"
+                                >
+                                  <option value="">— Select —</option>
+                                  {field.options?.map(o => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <input
+                                  type={field.type}
+                                  value={formData[field.name] || ''}
+                                  onChange={(e) => handleInputChange(field.name, field.type === 'number' ? parseInt(e.target.value) : e.target.value)}
+                                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${
+                                    field.name === 'id' || field.name === 'poolId' || field.name === 'templateId' ? 'font-mono text-lg font-bold text-indigo-700' : ''
+                                  }`}
+                                  placeholder={field.name === 'id' || field.name === 'poolId' || field.name === 'templateId' ? 'Click a workspace above or type here' : ''}
+                                />
+                              )}
+                            </>
                           )}
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
+
 
                 {/* Execute Button */}
                 <button

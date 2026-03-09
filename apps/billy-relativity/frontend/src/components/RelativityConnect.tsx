@@ -1,11 +1,18 @@
 /**
  * RelativityConnect — Authenticate via OAuth2 Client Credentials
- * POST {instanceUrl}/Relativity/Identity/connect/token
- * Proxied through the Elysia backend to avoid CORS.
+ * Mock mode: returns an instant fake token (no network call).
+ * Live mode:  direct browser → Relativity Identity SSL (no Fly proxy involved).
  */
 
 import React, { useState } from 'react';
-import { Lock, CheckCircle, XCircle, Loader2, ChevronDown, ChevronRight, Eye, EyeOff, Plug, Key, Copy, Check } from 'lucide-react';
+import { Lock, CheckCircle, XCircle, Loader2, ChevronDown, ChevronRight, Eye, EyeOff, Plug, Copy, Check, ListTree, Server, FlaskConical, Wifi } from 'lucide-react';
+import { useAppMode, isLocalhost } from '../context/AppModeContext';
+
+/** A realistic-looking but completely fake JWT for Mock mode */
+const MOCK_ACCESS_TOKEN =
+  'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9' +
+  '.eyJzdWIiOiJtb2NrLXVzZXItMTIzNDUiLCJpc3MiOiJodHRwczovL21vY2sucmVsYXRpdml0eS5vbmUvUmVsYXRpdml0eS9JZGVudGl0eSIsImF1ZCI6InJlbGF0aXZpdHktYXBpIiwiZXhwIjoxODAwMDAwMDAwLCJpYXQiOjE3MDAwMDAwMDAsInNjb3BlIjoiU3lzdGVtVXNlckluZm8iLCJjbGllbnRfaWQiOiJtb2NrLWNsaWVudC1pZCIsInJlbGF0aXZpdHkvdXNlcmlkIjo5OTk5LCJyZWxhdGl2aXR5L3VzZXJ0eXBlIjoiU3lzdGVtIiwibmFtZSI6Ik1vY2sgVXNlciIsImVtYWlsIjoibW9ja0BleGFtcGxlLmNvbSIsInByZWZlcnJlZF91c2VybmFtZSI6Im1vY2sudXNlciIsImp0aSI6Im1vY2stanRpLXRlc3QifQ' +
+  '.MOCK_SIGNATURE_NOT_VALID';
 
 interface AuthResult {
   success: boolean;
@@ -17,38 +24,169 @@ interface AuthResult {
   errorDescription?: string;
 }
 
+/** Decode a JWT payload without any library — pure base64url → JSON. */
+function decodeJwtPayload(token: string): Record<string, any> | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    // base64url → base64
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/')
+      + '=='.slice(0, (4 - part.length % 4) % 4);
+    return JSON.parse(atob(b64));
+  } catch {
+    return null;
+  }
+}
+
+/** Friendly label overrides for common Relativity / OIDC claims */
+const CLAIM_LABELS: Record<string, string> = {
+  sub:                   'Subject (sub)',
+  iss:                   'Issuer (iss)',
+  aud:                   'Audience (aud)',
+  exp:                   'Expires (exp)',
+  iat:                   'Issued At (iat)',
+  nbf:                   'Not Before (nbf)',
+  jti:                   'JWT ID (jti)',
+  azp:                   'Authorized Party (azp)',
+  scope:                 'Scopes',
+  client_id:             'Client ID',
+  name:                  'Full Name',
+  email:                 'Email',
+  given_name:            'First Name',
+  family_name:           'Last Name',
+  preferred_username:    'Username',
+  'relativity/userid':   'Relativity User ID',
+  'relativity/usertype': 'User Type',
+};
+
+function formatClaimValue(key: string, val: any): string {
+  if ((key === 'exp' || key === 'iat' || key === 'nbf') && typeof val === 'number') {
+    return `${new Date(val * 1000).toLocaleString()} (${val})`;
+  }
+  if (Array.isArray(val)) return val.join(', ');
+  return String(val);
+}
+
+/** True when running via local Docker / dev server — Live auth only works here */
+const isLocalhost = typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' ||
+   window.location.hostname === '127.0.0.1' ||
+   window.location.hostname === '0.0.0.0');
+
 export function RelativityConnect() {
+  const { isLive, setAuth } = useAppMode();
   const [open, setOpen] = useState(false);
-  const [instanceUrl, setInstanceUrl] = useState('');
-  const [clientId, setClientId] = useState('');
-  const [clientSecret, setClientSecret] = useState('');
+  const [instanceUrl, setInstanceUrl] = useState('https://ey-us.relativity.one');
+  const [clientId, setClientId] = useState('d7d0c577328f41fe878de7aa4cfbf807');
+  const [clientSecret, setClientSecret] = useState('b0d3afc024ce3d81f4c18adade9303c72e');
   const [showSecret, setShowSecret] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AuthResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [requestUrl, setRequestUrl] = useState('');
+  const [claims, setClaims] = useState<Record<string, any> | null>(null);
 
   const authenticate = async () => {
     if (!instanceUrl.trim() || !clientId.trim() || !clientSecret.trim()) return;
     setLoading(true);
     setResult(null);
-    try {
-      const res = await fetch('/api/relativity/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instanceUrl: instanceUrl.trim().replace(/\/$/, ''),
-          clientId: clientId.trim(),
-          clientSecret: clientSecret.trim(),
-        }),
+    setClaims(null);
+
+    const base = instanceUrl.trim().replace(/\/$/, '');
+    const tokenEndpoint = `${base}/Relativity/Identity/connect/token`;
+    setRequestUrl(tokenEndpoint);
+
+    // ── MOCK MODE ──────────────────────────────────────────────────────
+    if (!isLive) {
+      await new Promise(r => setTimeout(r, 600)); // simulate latency
+      const mockClaims = decodeJwtPayload(MOCK_ACCESS_TOKEN);
+      setResult({
+        success:     true,
+        message:     'Mock authentication successful',
+        tokenType:   'Bearer',
+        expiresIn:   3600,
+        accessToken: MOCK_ACCESS_TOKEN,
       });
-      const data = await res.json() as AuthResult;
-      setResult(data);
-    } catch {
-      setResult({ success: false, message: 'Network error — could not reach backend proxy.', error: 'NETWORK_ERROR' });
+      setClaims(mockClaims);
+      setLoading(false);
+      return;
+    }
+
+    // ── LIVE MODE — direct browser → Relativity (VPN/network required) ──
+    // Only works from localhost (local Docker) — CORS blocks it from hosted origins.
+    if (!isLocalhost) {
+      setResult({
+        success:          false,
+        message:          'Live mode auth requires running locally via Docker',
+        error:            'NOT_LOCALHOST',
+        errorDescription: `Direct browser-to-Relativity calls are blocked by CORS when accessed from ${window.location.hostname}. Run the Docker image on a machine connected to the EY VPN and open http://localhost:8080 — Live auth will work from there.`,
+      });
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const formBody = new URLSearchParams({
+        grant_type:    'client_credentials',
+        client_id:     clientId.trim(),
+        client_secret: clientSecret.trim(),
+        scope:         'SystemUserInfo',
+      });
+
+      const res = await fetch(tokenEndpoint, {
+        method:   'POST',
+        headers:  { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body:     formBody.toString(),
+        redirect: 'manual',   // don't follow redirects — catch login page redirects
+      });
+
+      // A redirect means the endpoint sent us to a login page instead of a token
+      if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+        setResult({
+          success:          false,
+          message:          'Redirected to SSO login — this OAuth2 client does not support Client Credentials',
+          error:            'REDIRECT_TO_SSO',
+          errorDescription: 'The client ID provided is an SSO/browser-login client (Authorization Code flow). You need a separate OAuth2 client with "Client Credentials" grant type enabled. Ask your Relativity admin to create one under Home -> OAuth2 Clients.',
+        });
+        return;
+      }
+
+      if (res.ok) {
+        const data = await res.json() as any;
+        setResult({
+          success:     true,
+          message:     'Authentication successful',
+          tokenType:   data.token_type,
+          expiresIn:   data.expires_in,
+          accessToken: data.access_token,
+        });
+        setClaims(decodeJwtPayload(data.access_token ?? ''));
+        setAuth({ accessToken: data.access_token, instanceUrl: base });
+      } else {
+        let errBody: any = {};
+        try { errBody = await res.json(); } catch { /* plain text */ }
+        setResult({
+          success:          false,
+          message:          `Auth failed — HTTP ${res.status}`,
+          error:            errBody.error            ?? String(res.status),
+          errorDescription: errBody.error_description ?? res.statusText,
+        });
+      }
+    } catch (err: any) {
+      const isCors = err instanceof TypeError && err.message.toLowerCase().includes('failed to fetch');
+      setResult({
+        success:          false,
+        message:          isCors
+          ? 'Network blocked — ensure you are on the VPN/network that can reach this Relativity instance.'
+          : 'Network error — could not reach the Relativity Identity endpoint.',
+        error:            isCors ? 'NETWORK_BLOCKED' : 'NETWORK_ERROR',
+        errorDescription: err?.message,
+      });
     } finally {
       setLoading(false);
     }
+
   };
 
   const copyToken = () => {
@@ -96,11 +234,32 @@ export function RelativityConnect() {
 
             {/* Explain the flow */}
             <div className="flex items-start gap-2 mb-4 text-xs text-gray-400 bg-gray-800/60 border border-gray-700 rounded-lg px-4 py-2.5">
-              <Key className="w-3.5 h-3.5 mt-0.5 text-indigo-400 shrink-0" />
+              {isLive
+                ? <Wifi className="w-3.5 h-3.5 mt-0.5 text-amber-400 shrink-0" />
+                : <FlaskConical className="w-3.5 h-3.5 mt-0.5 text-indigo-400 shrink-0" />
+              }
               <span>
-                Uses Relativity <strong className="text-gray-200">OAuth2 Client Credentials</strong> flow. Creates a POST to{' '}
-                <code className="text-indigo-300 font-mono">{instanceUrl || 'https://your-instance.relativity.one'}/Relativity/Identity/connect/token</code>{' '}
-                with <code className="text-indigo-300 font-mono">grant_type=client_credentials</code>. Get your Client ID &amp; Secret from <strong className="text-gray-200">Relativity → Home → OAuth2 Clients</strong>.
+                {isLive ? (
+                  <>
+                    {isLocalhost ? (
+                      <><strong className="text-amber-300">LIVE — Direct browser → Relativity SSL.</strong>{' '}
+                      Your browser must be on the VPN that can reach{' '}
+                      <code className="text-indigo-300 font-mono text-[10px] break-all">
+                        {instanceUrl ? `${instanceUrl.replace(/\/$/, '')}/Relativity/Identity/connect/token` : 'https://ey-us.relativity.one/Relativity/Identity/connect/token'}
+                      </code>. Credentials: <strong className="text-gray-200">Relativity → Home → OAuth2 Clients</strong>.</>
+                    ) : (
+                      <><strong className="text-red-400">Live auth is not available from {window.location.hostname}.</strong>{' '}
+                      CORS blocks cross-origin token requests. Run the Docker image locally on your VPN machine and open{' '}
+                      <code className="text-indigo-300 font-mono">http://localhost:8080</code> — Live mode will work from there.</>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <strong className="text-indigo-300">MOCK — No network call.</strong>{' '}
+                    Returns a fake token instantly so you can explore the UI. Switch to{' '}
+                    <strong className="text-gray-200">Live Mode</strong> to authenticate against a real Relativity instance.
+                  </>
+                )}
               </span>
             </div>
 
@@ -113,7 +272,7 @@ export function RelativityConnect() {
                   type="url"
                   value={instanceUrl}
                   onChange={e => setInstanceUrl(e.target.value)}
-                  placeholder="https://yourco.relativity.one"
+                  placeholder="https://ey-us.relativity.one"
                   className="w-full bg-gray-800 border border-gray-700 text-white text-sm rounded-lg px-3 py-2 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 />
               </div>
@@ -168,6 +327,13 @@ export function RelativityConnect() {
                 {loading ? 'Authenticating…' : 'Authenticate'}
               </button>
 
+              {/* Endpoint badge while loading or after attempt */}
+              {requestUrl && (
+                <span className="text-[10px] text-gray-600 font-mono truncate max-w-xs" title={requestUrl}>
+                  → {requestUrl}
+                </span>
+              )}
+
               {/* Result inline */}
               {result && !loading && (
                 <div className={`flex items-start gap-2.5 text-sm rounded-lg px-4 py-2 ${result.success ? 'bg-emerald-900/60 border border-emerald-700 text-emerald-200' : 'bg-red-900/60 border border-red-700 text-red-300'}`}>
@@ -213,9 +379,33 @@ export function RelativityConnect() {
                 </div>
               </div>
             )}
+
+            {/* ── JWT Claims panel ─────────────────────────────── */}
+            {claims && (
+              <div className="mt-3 rounded-lg border border-indigo-900/60 overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 bg-indigo-950/70 border-b border-indigo-900/60">
+                  <ListTree className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="text-xs font-semibold text-indigo-300">JWT Claims</span>
+                  <span className="text-xs text-indigo-600 ml-auto">{Object.keys(claims).length} claims</span>
+                </div>
+                <div className="divide-y divide-gray-800/60">
+                  {Object.entries(claims).map(([key, val]) => (
+                    <div key={key} className="flex items-start gap-3 px-3 py-1.5 hover:bg-indigo-950/30 transition-colors">
+                      <span className="text-[11px] font-mono text-indigo-400 shrink-0 w-44 pt-0.5 truncate" title={key}>
+                        {CLAIM_LABELS[key] ?? key}
+                      </span>
+                      <span className="text-[11px] text-gray-300 break-all font-mono">
+                        {formatClaimValue(key, val)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
     </div>
   );
 }
+

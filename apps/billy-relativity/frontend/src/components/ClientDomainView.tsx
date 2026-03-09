@@ -6,6 +6,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Building2, FileText, AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Users, Mail, Layers, Plus, X, Loader } from 'lucide-react';
 
+
 interface User   { artifactID: number; fullName: string; email: string; type: string; enabled: boolean; }
 interface Group  { artifactID: number; name: string; type: string; clientArtifactID?: number; }
 interface Matter { artifactID: number; name: string; matterNumber: string; status: string; created: string; }
@@ -66,7 +67,69 @@ function WorkspaceRow({ ws }: { ws: Workspace }) {
   );
 }
 
-function MatterSection({ mg, expanded, onToggle }: { mg: MatterGroup; expanded: boolean; onToggle: () => void }) {
+interface TemplateWorkspace { artifactID: number; name: string; }
+
+function MatterSection({ mg, expanded, onToggle, clientArtifactID, onWorkspaceCreated }: {
+  mg: MatterGroup;
+  expanded: boolean;
+  onToggle: () => void;
+  clientArtifactID: number;
+  onWorkspaceCreated: () => void;
+}) {
+  const [showCreate, setShowCreate]     = useState(false);
+  const [wsName, setWsName]               = useState('');
+  const [templateId, setTemplateId]       = useState<number | ''>('');
+  const [projectType, setProjectType]     = useState('');
+  const [otherDesc, setOtherDesc]         = useState('');
+  const [templates, setTemplates]         = useState<TemplateWorkspace[]>([]);
+  const [loadingTpl, setLoadingTpl]       = useState(false);
+  const [saving, setSaving]               = useState(false);
+  const [saveError, setSaveError]         = useState('');
+  const [saveSuccess, setSaveSuccess]     = useState('');
+
+  const openForm = async () => {
+    setShowCreate(true);
+    setSaveError(''); setSaveSuccess('');
+    if (templates.length > 0) return;
+    setLoadingTpl(true);
+    try {
+      const r = await fetch('/api/workspace/templates').then(x => x.json());
+      setTemplates(r.data ?? []);
+    } catch { setTemplates([]); }
+    finally { setLoadingTpl(false); }
+  };
+
+  const handleCreate = async () => {
+    if (!wsName.trim())   { setSaveError('Workspace name is required'); return; }
+    if (!templateId)      { setSaveError('Please select a template'); return; }
+    if (!projectType)     { setSaveError('Please select a project type'); return; }
+    if (projectType === 'Other' && !otherDesc.trim()) { setSaveError('Please describe the project type'); return; }
+    const finalProjectType = projectType === 'Other' ? `Other: ${otherDesc.trim()}` : projectType;
+    setSaving(true); setSaveError(''); setSaveSuccess('');
+    try {
+      const res = await fetch(`/api/workspace/from-template/${templateId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name:             wsName.trim(),
+          projectType:      finalProjectType,
+          matterArtifactID: mg.matter.artifactID,
+          clientArtifactID,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error ?? 'Failed to create workspace');
+      setSaveSuccess(`✓ Workspace "${json.data.name}" [${finalProjectType}] created (ID ${json.data.artifactID})`);
+      setWsName(''); setTemplateId(''); setProjectType(''); setOtherDesc('');
+      setShowCreate(false);
+      onWorkspaceCreated();
+    } catch (e: any) {
+      setSaveError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className={`rounded-xl border overflow-hidden mb-3 ${mg.matterNumberValid ? 'border-gray-200' : 'border-red-200 shadow-sm shadow-red-50'}`}>
       {/* Matter header */}
@@ -90,13 +153,177 @@ function MatterSection({ mg, expanded, onToggle }: { mg: MatterGroup; expanded: 
       </button>
 
       {expanded && (
-        <div className="divide-y divide-gray-100">
-          {mg.workspaces.map(ws => <WorkspaceRow key={ws.artifactID} ws={ws} />)}
+        <div>
+          {/* Workspace list */}
+          <div className="divide-y divide-gray-100">
+            {mg.workspaces.map(ws => <WorkspaceRow key={ws.artifactID} ws={ws} />)}
+          </div>
+
+          {/* New workspace row */}
+          <div className="px-4 py-2 bg-gray-50 border-t border-gray-100">
+            {!showCreate ? (
+              <button
+                onClick={openForm}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Workspace
+              </button>
+            ) : (
+              <div className="py-2 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-indigo-700 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5" /> New Workspace — {mg.matter.name}
+                  </span>
+                  <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Workspace Name */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Workspace Name <span className="text-red-400">*</span></label>
+                    <input
+                      type="text"
+                      value={wsName}
+                      onChange={e => setWsName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                      placeholder="e.g. Acme Patent Discovery - Phase 3"
+                      className="w-full px-3 py-2 border-2 border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-300 outline-none text-sm transition"
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Template picker */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Template <span className="text-red-400">*</span></label>
+                    {loadingTpl ? (
+                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                        <Loader className="w-3.5 h-3.5 animate-spin" /> Loading templates…
+                      </div>
+                    ) : (
+                      <select
+                        value={templateId}
+                        onChange={e => setTemplateId(Number(e.target.value))}
+                        className="w-full px-3 py-2 border-2 border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-300 outline-none text-sm transition"
+                      >
+                        <option value="">— Select a template —</option>
+                        {templates.map(t => (
+                          <option key={t.artifactID} value={t.artifactID}>{t.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Project Type */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Project Type <span className="text-red-400">*</span></label>
+                    <select
+                      value={projectType}
+                      onChange={e => setProjectType(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-300 outline-none text-sm transition"
+                    >
+                      <option value="">— Select a project type —</option>
+
+                      <optgroup label="── Litigation">
+                        <option>Commercial Litigation</option>
+                        <option>Civil Litigation</option>
+                        <option>Litigation Support</option>
+                        <option>Arbitration</option>
+                        <option>Class Action</option>
+                        <option>Bankruptcy / Restructuring</option>
+                        <option>Appeals</option>
+                      </optgroup>
+
+                      <optgroup label="── Document Review">
+                        <option>Document Review</option>
+                        <option>Early Case Assessment (ECA)</option>
+                        <option>First-Pass Review</option>
+                        <option>Privilege Review</option>
+                        <option>Second-Level Review</option>
+                        <option>Quality Control (QC) Review</option>
+                        <option>Large-Scale Review</option>
+                      </optgroup>
+
+                      <optgroup label="── Investigations">
+                        <option>Internal Investigation</option>
+                        <option>Government Investigation</option>
+                        <option>Regulatory Investigation</option>
+                        <option>Anti-Corruption / FCPA</option>
+                        <option>Fraud Investigation</option>
+                        <option>Whistleblower Investigation</option>
+                        <option>Cybersecurity / Data Breach</option>
+                      </optgroup>
+
+                      <optgroup label="── Regulatory & Compliance">
+                        <option>HSR Second Request</option>
+                        <option>SEC / DOJ Response</option>
+                        <option>GDPR / Privacy Compliance</option>
+                        <option>Antitrust / Competition</option>
+                        <option>Environmental Compliance</option>
+                        <option>Healthcare / HIPAA</option>
+                        <option>Financial Regulatory (FINRA / OCC)</option>
+                      </optgroup>
+
+                      <optgroup label="── Corporate Transactions">
+                        <option>Mergers & Acquisitions (M&amp;A)</option>
+                        <option>Due Diligence</option>
+                        <option>IPO / Capital Markets</option>
+                        <option>Joint Venture</option>
+                        <option>Divestiture</option>
+                      </optgroup>
+
+                      <optgroup label="── Employment & IP">
+                        <option>Employment Dispute</option>
+                        <option>Labor Relations</option>
+                        <option>Contract Review</option>
+                        <option>Intellectual Property (IP)</option>
+                        <option>Patent Litigation</option>
+                        <option>Trade Secret</option>
+                      </optgroup>
+
+                      <optgroup label="── Other">
+                        <option>Other</option>
+                      </optgroup>
+                    </select>
+
+                    {/* "Other" free-text description */}
+                    {projectType === 'Other' && (
+                      <input
+                        type="text"
+                        value={otherDesc}
+                        onChange={e => setOtherDesc(e.target.value)}
+                        placeholder="Describe the project type… (required)"
+                        className="mt-2 w-full px-3 py-2 border-2 border-amber-300 bg-amber-50 rounded-lg focus:ring-2 focus:ring-amber-300 outline-none text-sm transition"
+                        autoFocus
+                      />
+                    )}
+                  </div>
+
+                  <div className="sm:col-span-2 flex gap-2">
+                    <button
+                      onClick={handleCreate}
+                      disabled={saving}
+                      className="flex items-center gap-2 py-2 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-semibold rounded-lg text-sm transition-all shadow-sm"
+                    >
+                      {saving ? <><Loader className="w-4 h-4 animate-spin" /> Creating…</> : <><Plus className="w-4 h-4" /> Create Workspace</>}
+                    </button>
+                    <button onClick={() => setShowCreate(false)} className="py-2 px-3 text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
+                  </div>
+                </div>
+
+                {saveError   && <p className="text-xs text-red-600 font-medium">{saveError}</p>}
+                {saveSuccess && <p className="text-xs text-emerald-700 font-semibold">{saveSuccess}</p>}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
+
+
 
 function ClientCard({ domain, onMatterCreated }: { domain: ClientDomain; onMatterCreated: () => void }) {
   const [expanded, setExpanded]       = useState(false);
@@ -151,6 +378,20 @@ function ClientCard({ domain, onMatterCreated }: { domain: ClientDomain; onMatte
     }
   };
 
+  const alertAdmins = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const invalidMatters = domain.matters.filter(mg => !mg.matterNumberValid);
+    const adminEmails = domain.admins.map(u => u.email).join(';');
+    const subject = encodeURIComponent(`[Action Required] Invalid Matter Numbers - ${domain.client.name}`);
+    const lines = invalidMatters.map(
+      mg => `  - ${mg.matter.name} (Matter #: ${mg.matter.matterNumber || 'MISSING'})`
+    ).join('\n');
+    const body = encodeURIComponent(
+      `Hello,\n\nThe following matter(s) for client "${domain.client.name}" have invalid or missing matter numbers:\n\n${lines}\n\nPlease update the matter number in Relativity to the correct E-######## format.\n\nThis alert was generated by Billy Relativity.`
+    );
+    window.location.href = `mailto:${adminEmails}?subject=${subject}&body=${body}`;
+  };
+
   return (
     <div className={`rounded-2xl border-2 overflow-hidden shadow-sm mb-6 ${hasIssues ? 'border-red-200' : 'border-gray-200'}`}>
       {/* Client header */}
@@ -171,6 +412,16 @@ function ClientCard({ domain, onMatterCreated }: { domain: ClientDomain; onMatte
               <AlertTriangle className="w-3.5 h-3.5" />
               {domain.invalidMatterCount} invalid matter{domain.invalidMatterCount !== 1 ? 's' : ''}
             </span>
+          )}
+          {hasIssues && domain.admins.length > 0 && (
+            <button
+              onClick={alertAdmins}
+              className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition-colors shadow-sm"
+              title={`Email admins: ${domain.admins.map(u => u.email).join(', ')}`}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              Alert Admins
+            </button>
           )}
         </div>
         <div className="flex items-center gap-4 shrink-0">
@@ -325,6 +576,8 @@ function ClientCard({ domain, onMatterCreated }: { domain: ClientDomain; onMatte
                   mg={mg}
                   expanded={openMatters.has(mg.matter.artifactID)}
                   onToggle={() => toggleMatter(mg.matter.artifactID)}
+                  clientArtifactID={domain.client.artifactID}
+                  onWorkspaceCreated={onMatterCreated}
                 />
               ))
             }

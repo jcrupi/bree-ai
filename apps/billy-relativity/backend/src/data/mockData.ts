@@ -117,6 +117,74 @@ export interface EmailLog {
   invalidWorkspaces: string[];
 }
 
+// Nested ARM option objects (matching Relativity ARM v1 REST schema)
+export interface ArmMigratorOptions {
+  IncludeDatabaseBackup:      boolean; // Include .bak file in archive
+  IncludeDtSearch:            boolean; // Include dtSearch indexes
+  IncludeConceptualAnalytics: boolean; // Include Conceptual Analytics indices
+  IncludeStructuredAnalytics: boolean; // Include Structured Analytics sets
+  IncludeDataGrid:            boolean; // Include Data Grid application data
+}
+
+export interface ArmFileOptions {
+  IncludeRepositoryFiles: boolean;         // Archive files from the workspace file repository
+  IncludeLinkedFiles:     boolean;         // Archive linked files not in repository
+  MissingFileBehavior:    'SkipFile' | 'StopJob';  // Behavior on missing files
+  PerformValidation:      boolean;         // Validate copied files and databases
+}
+
+export interface ArmNotificationOptions {
+  NotifyJobCreator:  boolean;  // Email notification to job creator on completion
+  NotifyJobExecutor: boolean;  // Email notification to job executor on completion
+  UiJobActionsLocked: boolean; // Lock UI job actions (cancel, pause) during execution
+}
+
+export interface ArmJob {
+  JobID:             number;
+  JobName:           string;
+  JobType:           'Archive' | 'Restore' | 'DatabaseRestore';
+  JobStatus:         'Pending' | 'Processing' | 'Transferring' | 'Complete' | 'Error' | 'Cancelled';
+  JobPriority:       'Low' | 'Medium' | 'High';
+  ScheduledStartTime: string;
+  StartedAt?:        string;
+  CompletedAt?:      string;
+  CreatedBy:         string;
+  ErrorMessage?:     string;
+  JobExecutionGuid:  string;
+
+  // Archive-specific fields
+  ArchivePath?:                   string;   // UNC path to the .arm archive file or directory
+  UseDefaultArchiveDirectory?:    boolean;  // Use server-configured default archive dir
+  SourceWorkspaceID?:             number;
+  SourceWorkspace?:               string;
+  IncludeExtendedWorkspaceData?:  boolean;  // Include apps, linked scripts, event handlers
+  ApplicationErrorExportBehavior?: 'SkipApplication' | 'StopJob';
+  MigratorOptions?:               ArmMigratorOptions;
+  FileOptions?:                   ArmFileOptions;
+  NotificationOptions?:           ArmNotificationOptions;
+
+  // Restore-specific fields
+  DestinationWorkspaceID?:        number;   // Artifact ID of the restored workspace
+  MatterID?:                      number;   // Target matter for restored workspace
+  ResourcePoolID?:                number;   // Target resource pool
+  DatabaseServerID?:              number;   // Target SQL Server instance ID
+  CacheLocationID?:               number;   // Target cache location (file shares)
+  FileRepositoryID?:              number;   // Target file repository
+  StructuredAnalyticsServerID?:   number;   // Structured Analytics server (if archive includes SA)
+  ConceptualAnalyticsServerID?:   number;   // Conceptual Analytics server (if archive includes CA)
+  DtSearchLocationID?:            number;   // dtSearch index location (if archive includes dtSearch)
+  ExistingTargetDatabase?:        string;   // For bakless restores: manually pre-restored DB name (EDDSxxxxxxx)
+}
+
+export interface ArchiveLocation {
+  ArtifactID: number;
+  Name:        string;
+  Path:        string;
+  Available:   boolean;
+  FreeSpaceGB: number;
+}
+
+
 // Compliance validation
 export const MATTER_NUMBER_REGEX = /^E-\d{8}$/;
 export function isValidMatterNumber(n: string): boolean {
@@ -137,6 +205,9 @@ class MockDataStore {
   private memberships: GroupMembership[] = [];
   private emailLogs: EmailLog[] = [];
   private nextWorkspaceId = 1000010;
+  private armJobs: Map<number, ArmJob> = new Map();
+  private archiveLocations: Map<number, ArchiveLocation> = new Map();
+  private nextArmJobId = 5001;
 
   constructor() { this.initializeMockData(); }
 
@@ -184,7 +255,13 @@ class MockDataStore {
       // TechStart — 1003699 valid, 1003702 missing matterNumber
       { artifactID: 1234004, name: 'TechStart Regulatory Investigation',  matterArtifactID: 1003699, matterName: 'Regulatory Investigation',  clientArtifactID: 1003665, clientName: 'TechStart Ventures',    statusArtifactID: 1234567, statusName: 'Active',   resourcePoolArtifactID: 1003682, resourcePoolName: 'Development Pool',       sqlServerArtifactID: 1003744, enableDataGrid: false, downloadHandlerUrl: 'https://relativity.techstart.com/download', created: '2026-01-22T13:20:00Z', lastModified: '2026-03-01T16:45:00Z', keywords: 'regulatory, SEC',            notes: 'SEC investigation review' },
       { artifactID: 1234008, name: 'TechStart SEC Subpoena Review',       matterArtifactID: 1003702, matterName: 'SEC Subpoena Response',     clientArtifactID: 1003665, clientName: 'TechStart Ventures',    statusArtifactID: 1234567, statusName: 'Active',   resourcePoolArtifactID: 1003682, resourcePoolName: 'Development Pool',       sqlServerArtifactID: 1003744, enableDataGrid: true,  downloadHandlerUrl: 'https://relativity.techstart.com/download', created: '2026-03-02T10:00:00Z', lastModified: '2026-03-08T09:00:00Z', keywords: 'SEC, subpoena',              notes: 'MISSING matter number — requires fix' },
+      // ── Workspace Templates ─────────────────────────────────────────────
+      { artifactID: 9990001, name: '[Template] Document Review - Standard',   matterArtifactID: 1003697, matterName: 'Patent Litigation 2026',  clientArtifactID: 1003663, clientName: 'Acme Corporation',    statusArtifactID: 1234567, statusName: 'Active',   resourcePoolArtifactID: 1003680, resourcePoolName: 'Production Pool - East', sqlServerArtifactID: 1003742, enableDataGrid: true,  downloadHandlerUrl: '', created: '2025-01-01T00:00:00Z', lastModified: '2025-01-01T00:00:00Z', keywords: 'template, document review',  notes: 'Standard document review setup with DataGrid enabled' },
+      { artifactID: 9990002, name: '[Template] Document Review - Large Scale', matterArtifactID: 1003697, matterName: 'Patent Litigation 2026',  clientArtifactID: 1003663, clientName: 'Acme Corporation',    statusArtifactID: 1234567, statusName: 'Active',   resourcePoolArtifactID: 1003680, resourcePoolName: 'Production Pool - East', sqlServerArtifactID: 1003742, enableDataGrid: true,  downloadHandlerUrl: '', created: '2025-01-01T00:00:00Z', lastModified: '2025-01-01T00:00:00Z', keywords: 'template, large scale',      notes: 'High-volume review with East pool, DataGrid required' },
+      { artifactID: 9990003, name: '[Template] Regulatory Investigation',     matterArtifactID: 1003699, matterName: 'Regulatory Investigation', clientArtifactID: 1003665, clientName: 'TechStart Ventures',  statusArtifactID: 1234567, statusName: 'Active',   resourcePoolArtifactID: 1003682, resourcePoolName: 'Development Pool',       sqlServerArtifactID: 1003744, enableDataGrid: false, downloadHandlerUrl: '', created: '2025-01-01T00:00:00Z', lastModified: '2025-01-01T00:00:00Z', keywords: 'template, regulatory',       notes: 'Regulatory review layout, no DataGrid' },
+      { artifactID: 9990004, name: '[Template] Settlement Archive',           matterArtifactID: 1003701, matterName: 'Employment Settlement',   clientArtifactID: 1003664, clientName: 'Global Industries Inc', statusArtifactID: 1234569, statusName: 'Archived', resourcePoolArtifactID: 1003683, resourcePoolName: 'Archive Pool',           sqlServerArtifactID: 1003743, enableDataGrid: false, downloadHandlerUrl: '', created: '2025-01-01T00:00:00Z', lastModified: '2025-01-01T00:00:00Z', keywords: 'template, archive, settlement', notes: 'Closed matter archival template' },
     ] as Workspace[]).forEach(ws => this.workspaces.set(ws.artifactID, ws));
+
 
     // ── Users ─────────────────────────────────────────────────────────────
     ([
@@ -241,6 +318,190 @@ class MockDataStore {
       { artifactID: 2000002, name: 'Privileged Comms', workspaceID: 1234001, owner: 'jane.doe@acme.com',   isPublic: false, criteria: 'Privilege:Attorney-Client',  created: '2026-01-25T14:30:00Z' },
       { artifactID: 2000003, name: 'Email From CEO',   workspaceID: 1234001, owner: 'john.smith@acme.com', isPublic: true,  criteria: 'From:ceo@acme.com',         created: '2026-02-01T09:15:00Z' },
     ] as SavedSearch[]).forEach(s => this.savedSearches.set(s.artifactID, s));
+
+    // ── ARM Archive Locations ─────────────────────────────────────────────
+    ([
+      { ArtifactID: 8001, Name: 'Primary Archive Store - East',   Path: '\\\\archive01\\east\\relativity',      Available: true,  FreeSpaceGB: 4820 },
+      { ArtifactID: 8002, Name: 'Primary Archive Store - West',   Path: '\\\\archive01\\west\\relativity',      Available: true,  FreeSpaceGB: 3105 },
+      { ArtifactID: 8003, Name: 'Cold Storage Archive',           Path: '\\\\cold-store\\relativity\\archives', Available: true,  FreeSpaceGB: 18240 },
+      { ArtifactID: 8004, Name: 'DR Archive Store',               Path: '\\\\dr-site\\relativity\\backup',      Available: false, FreeSpaceGB: 0 },
+    ] as ArchiveLocation[]).forEach(l => this.archiveLocations.set(l.ArtifactID, l));
+
+    // ── ARM Job History ───────────────────────────────────────────────────
+    ([
+      {
+        JobID: 5001, JobName: 'Archive – Acme Patent Discovery Phase 1',
+        JobType: 'Archive', JobStatus: 'Complete', JobPriority: 'High',
+        ArchivePath: '\\\\archive01\\east\\relativity\\1234001_20260101.arm',
+        SourceWorkspaceID: 1234001, SourceWorkspace: 'Acme Patent Discovery - Phase 1',
+        ScheduledStartTime: '2026-01-01T02:00:00Z', StartedAt: '2026-01-01T02:00:05Z',
+        CompletedAt: '2026-01-01T04:32:11Z', CreatedBy: 'squinn@relativity.com',
+        JobExecutionGuid: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+      },
+      {
+        JobID: 5002, JobName: 'Restore – Employment Settlement Archive',
+        JobType: 'Restore', JobStatus: 'Complete', JobPriority: 'Medium',
+        ArchivePath: '\\\\archive01\\west\\relativity\\1234007_20260131.arm',
+        DestinationWorkspaceID: 1234007, MatterID: 1003701, ResourcePoolID: 1003683,
+        DatabaseServerID: 1003743,
+        ScheduledStartTime: '2026-02-15T08:00:00Z', StartedAt: '2026-02-15T08:00:09Z',
+        CompletedAt: '2026-02-15T10:17:44Z', CreatedBy: 'mreed@relativity.com',
+        JobExecutionGuid: 'b2c3d4e5-f6a7-8901-bcde-f12345678901',
+      },
+      {
+        JobID: 5003, JobName: 'Archive – Global Contract Review',
+        JobType: 'Archive', JobStatus: 'Error', JobPriority: 'Low',
+        ArchivePath: '\\\\archive01\\east\\relativity\\1234003_20260301.arm',
+        SourceWorkspaceID: 1234003, SourceWorkspace: 'Global Contract Review',
+        ScheduledStartTime: '2026-03-01T03:00:00Z', StartedAt: '2026-03-01T03:00:03Z',
+        CreatedBy: 'squinn@relativity.com',
+        ErrorMessage: 'Insufficient disk space on target archive store. Free: 0 GB required: 12 GB.',
+        JobExecutionGuid: 'c3d4e5f6-a7b8-9012-cdef-123456789012',
+      },
+      {
+        JobID: 5004, JobName: 'Archive – Acme Archived Workspace 2025',
+        JobType: 'Archive', JobStatus: 'Processing', JobPriority: 'Medium',
+        ArchivePath: '\\\\cold-store\\relativity\\archives\\1234005_20260308.arm',
+        SourceWorkspaceID: 1234005, SourceWorkspace: 'Acme Archived Workspace - 2025',
+        ScheduledStartTime: '2026-03-08T01:00:00Z', StartedAt: '2026-03-08T01:00:08Z',
+        CreatedBy: 'mreed@relativity.com',
+        JobExecutionGuid: 'd4e5f6a7-b8c9-0123-defa-234567890123',
+      },
+    ] as ArmJob[]).forEach(j => this.armJobs.set(j.JobID, j));
+  }
+
+  // ── ARM Methods ────────────────────────────────────────────────────────
+  getArmJobs()                  { return Array.from(this.armJobs.values()); }
+  getArmJob(id: number)         { return this.armJobs.get(id); }
+  getArchiveLocations()         { return Array.from(this.archiveLocations.values()); }
+  getArchiveLocation(id: number){ return this.archiveLocations.get(id); }
+
+  createArchiveJob(data: {
+    JobName?:                        string;
+    SourceWorkspaceID:               number;
+    ArchivePath?:                    string;
+    UseDefaultArchiveDirectory?:     boolean;
+    JobPriority?:                    string;
+    ScheduledStartTime?:             string;
+    CreatedBy?:                      string;
+    IncludeExtendedWorkspaceData?:   boolean;
+    ApplicationErrorExportBehavior?: string;
+    MigratorOptions?: {
+      IncludeDatabaseBackup?:       boolean;
+      IncludeDtSearch?:             boolean;
+      IncludeConceptualAnalytics?:  boolean;
+      IncludeStructuredAnalytics?:  boolean;
+      IncludeDataGrid?:             boolean;
+    };
+    FileOptions?: {
+      IncludeRepositoryFiles?: boolean;
+      IncludeLinkedFiles?:     boolean;
+      MissingFileBehavior?:    string;
+      PerformValidation?:      boolean;
+    };
+    NotificationOptions?: {
+      NotifyJobCreator?:   boolean;
+      NotifyJobExecutor?:  boolean;
+      UiJobActionsLocked?: boolean;
+    };
+  }): ArmJob {
+    const ws = this.workspaces.get(data.SourceWorkspaceID);
+    const job: ArmJob = {
+      JobID:              this.nextArmJobId++,
+      JobName:            data.JobName ?? `Archive – ${ws?.name ?? `Workspace ${data.SourceWorkspaceID}`}`,
+      JobType:            'Archive',
+      JobStatus:          'Pending',
+      JobPriority:        (data.JobPriority ?? 'Medium') as ArmJob['JobPriority'],
+      ArchivePath:        data.ArchivePath,
+      UseDefaultArchiveDirectory: data.UseDefaultArchiveDirectory ?? !data.ArchivePath,
+      SourceWorkspaceID:  data.SourceWorkspaceID,
+      SourceWorkspace:    ws?.name,
+      ScheduledStartTime: data.ScheduledStartTime ?? new Date().toISOString(),
+      CreatedBy:          data.CreatedBy ?? 'api@relativity.com',
+      JobExecutionGuid:   crypto.randomUUID(),
+      IncludeExtendedWorkspaceData:   data.IncludeExtendedWorkspaceData ?? true,
+      ApplicationErrorExportBehavior: (data.ApplicationErrorExportBehavior ?? 'SkipApplication') as ArmJob['ApplicationErrorExportBehavior'],
+      MigratorOptions: {
+        IncludeDatabaseBackup:      data.MigratorOptions?.IncludeDatabaseBackup      ?? true,
+        IncludeDtSearch:            data.MigratorOptions?.IncludeDtSearch            ?? false,
+        IncludeConceptualAnalytics: data.MigratorOptions?.IncludeConceptualAnalytics ?? false,
+        IncludeStructuredAnalytics: data.MigratorOptions?.IncludeStructuredAnalytics ?? false,
+        IncludeDataGrid:            data.MigratorOptions?.IncludeDataGrid            ?? false,
+      },
+      FileOptions: {
+        IncludeRepositoryFiles: data.FileOptions?.IncludeRepositoryFiles ?? true,
+        IncludeLinkedFiles:     data.FileOptions?.IncludeLinkedFiles     ?? false,
+        MissingFileBehavior:    (data.FileOptions?.MissingFileBehavior   ?? 'SkipFile') as 'SkipFile' | 'StopJob',
+        PerformValidation:      data.FileOptions?.PerformValidation      ?? true,
+      },
+      NotificationOptions: {
+        NotifyJobCreator:   data.NotificationOptions?.NotifyJobCreator   ?? true,
+        NotifyJobExecutor:  data.NotificationOptions?.NotifyJobExecutor  ?? false,
+        UiJobActionsLocked: data.NotificationOptions?.UiJobActionsLocked ?? false,
+      },
+    };
+    this.armJobs.set(job.JobID, job);
+    return job;
+  }
+
+  createRestoreJob(data: {
+    JobName?:                     string;
+    ArchivePath:                  string;
+    MatterID:                     number;
+    ResourcePoolID:               number;
+    DatabaseServerID?:            number;
+    CacheLocationID?:             number;
+    FileRepositoryID?:            number;
+    StructuredAnalyticsServerID?: number;
+    ConceptualAnalyticsServerID?: number;
+    DtSearchLocationID?:          number;
+    ExistingTargetDatabase?:      string;
+    JobPriority?:                 string;
+    ScheduledStartTime?:          string;
+    CreatedBy?:                   string;
+    NotificationOptions?: {
+      NotifyJobCreator?:   boolean;
+      NotifyJobExecutor?:  boolean;
+      UiJobActionsLocked?: boolean;
+    };
+  }): ArmJob {
+    const matter = this.matters.get(data.MatterID);
+    const job: ArmJob = {
+      JobID:              this.nextArmJobId++,
+      JobName:            data.JobName ?? `Restore – ${matter?.name ?? 'Unknown Matter'}`,
+      JobType:            'Restore',
+      JobStatus:          'Pending',
+      JobPriority:        (data.JobPriority ?? 'Medium') as ArmJob['JobPriority'],
+      ArchivePath:        data.ArchivePath,
+      MatterID:           data.MatterID,
+      ResourcePoolID:     data.ResourcePoolID,
+      DatabaseServerID:   data.DatabaseServerID,
+      CacheLocationID:    data.CacheLocationID,
+      FileRepositoryID:   data.FileRepositoryID,
+      StructuredAnalyticsServerID:  data.StructuredAnalyticsServerID,
+      ConceptualAnalyticsServerID:  data.ConceptualAnalyticsServerID,
+      DtSearchLocationID:           data.DtSearchLocationID,
+      ExistingTargetDatabase:       data.ExistingTargetDatabase,
+      ScheduledStartTime: data.ScheduledStartTime ?? new Date().toISOString(),
+      CreatedBy:          data.CreatedBy ?? 'api@relativity.com',
+      JobExecutionGuid:   crypto.randomUUID(),
+      NotificationOptions: {
+        NotifyJobCreator:   data.NotificationOptions?.NotifyJobCreator   ?? true,
+        NotifyJobExecutor:  data.NotificationOptions?.NotifyJobExecutor  ?? false,
+        UiJobActionsLocked: data.NotificationOptions?.UiJobActionsLocked ?? false,
+      },
+    };
+    this.armJobs.set(job.JobID, job);
+    return job;
+  }
+
+
+  cancelArmJob(id: number): ArmJob | null {
+    const job = this.armJobs.get(id);
+    if (!job || job.JobStatus === 'Complete' || job.JobStatus === 'Cancelled') return null;
+    const updated = { ...job, JobStatus: 'Cancelled' as const };
+    this.armJobs.set(id, updated);
+    return updated;
   }
 
   // ── Workspace CRUD ────────────────────────────────────────────────────

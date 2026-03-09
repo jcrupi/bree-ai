@@ -1,6 +1,6 @@
 /**
- * theObserver — Workspace Observation & AI Analysis for Billy Relativity
- * Adapted from HabitAware's TheObserver. All names lowercased to "t."
+ * Observer — Workspace Observation & AI Analysis for Billy Relativity
+ * Adapted from HabitAware's Observer. All names lowercased to "t."
  * AI context is Relativity-specific: workspaces, matters, compliance, users.
  */
 
@@ -26,7 +26,7 @@ interface ChatMessage {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CHAT_KEY = 'billyrelativity_theobserver_chat';
+const CHAT_KEY = 'billyrelativity_observer_chat';
 // Observations are stored SERVER-SIDE at /api/observations (scoped to billy-relativity)
 // localStorage is only used for the AI chat history.
 
@@ -398,9 +398,9 @@ Question: ${q}`
   );
 }
 
-// ─── theObserver Panel ────────────────────────────────────────────────────────
+// ─── Observer Panel ────────────────────────────────────────────────────────
 
-function theObserverPanel({ observables, onRefresh, loadError }: { observables: Observable[]; onRefresh: () => void; loadError?: string }) {
+function ObserverPanel({ observables, onRefresh, loadError }: { observables: Observable[]; onRefresh: () => void; loadError?: string }) {
   const [activeView, setActiveView] = useState<'list' | 'chat'>('list');
 
   const categoryStats = CATEGORIES.map(c => ({
@@ -411,7 +411,7 @@ function theObserverPanel({ observables, onRefresh, loadError }: { observables: 
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '24px 16px' }}>
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span>🔭</span> <span>the<em>Observer</em></span>
+          <span>🔭</span> <span>Observer</span>
         </h2>
         <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 14 }}>
           Record workspace issues, matter problems &amp; compliance flags — saved to server
@@ -454,11 +454,11 @@ function theObserverPanel({ observables, onRefresh, loadError }: { observables: 
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
-interface theObserverProps {
+interface ObserverProps {
   panelMode?: boolean;
 }
 
-export default function theObserver({ panelMode = false }: theObserverProps) {
+export default function Observer({ panelMode = false }: ObserverProps) {
   const [observables, setObservables] = useState<Observable[]>([]);
   const [loadError, setLoadError]     = useState('');
   const [showModal, setShowModal]     = useState(false);
@@ -488,13 +488,13 @@ export default function theObserver({ panelMode = false }: theObserverProps) {
     refresh();
   }
 
-  const Panel = theObserverPanel;
+  const Panel = ObserverPanel;
 
   return (
     <>
       {/* Floating Action Button — always visible */}
       <button
-        id="theobserver-fab"
+        id="observer-fab"
         onClick={() => setShowModal(true)}
         title="New Observation"
         style={{

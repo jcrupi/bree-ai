@@ -598,19 +598,91 @@ export const APIExplorer: React.FC = () => {
           break;
 
         case 'get-matters':
-          result = await captureAPICall(
-            async () => await api.api.matters.get(),
-            'GET',
-            endpoint
-          );
+          if (isLive && auth?.accessToken) {
+            const mUrl = `${auth.instanceUrl}/Relativity.Rest/api/Relativity.ObjectManager/v1/workspace/-1/object/queryslim`;
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+            const reqBody = {
+              request: {
+                objectType: { artifactTypeID: 6 }, // Matter = 6
+                condition: "",
+                fields: [{ name: "Name" }]
+              },
+              start: 1,
+              length: 100
+            };
+            const liveRes = await fetch(`${apiBase}/api/auth/proxy`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                endpoint: mUrl,
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${auth.accessToken}`,
+                  'Content-Type': 'application/json',
+                  'X-CSRF-Header': '-'
+                },
+                reqBody
+              })
+            });
+            const liveData = await liveRes.json();
+            result = {
+              data: liveData,
+              success: liveRes.ok,
+              _live: true,
+              _url: mUrl,
+              details: { method: 'POST', url: mUrl, status: liveRes.status, headers: { 'Proxy': 'Local Backend' }, payload: reqBody }
+            };
+          } else {
+            result = await captureAPICall(
+              async () => await api.api.matters.get(),
+              'GET',
+              endpoint
+            );
+          }
           break;
 
         case 'get-clients':
-          result = await captureAPICall(
-            async () => await api.api.clients.get(),
-            'GET',
-            endpoint
-          );
+          if (isLive && auth?.accessToken) {
+            const clUrl = `${auth.instanceUrl}/Relativity.Rest/api/Relativity.ObjectManager/v1/workspace/-1/object/queryslim`;
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+            const reqBody = {
+              request: {
+                objectType: { artifactTypeID: 5 }, // Client = 5
+                condition: "",
+                fields: [{ name: "Name" }]
+              },
+              start: 1,
+              length: 100
+            };
+            const liveRes = await fetch(`${apiBase}/api/auth/proxy`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                endpoint: clUrl,
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${auth.accessToken}`,
+                  'Content-Type': 'application/json',
+                  'X-CSRF-Header': '-'
+                },
+                reqBody
+              })
+            });
+            const liveData = await liveRes.json();
+            result = {
+              data: liveData,
+              success: liveRes.ok,
+              _live: true,
+              _url: clUrl,
+              details: { method: 'POST', url: clUrl, status: liveRes.status, headers: { 'Proxy': 'Local Backend' }, payload: reqBody }
+            };
+          } else {
+            result = await captureAPICall(
+              async () => await api.api.clients.get(),
+              'GET',
+              endpoint
+            );
+          }
           break;
 
         case 'get-statuses':
@@ -641,17 +713,89 @@ export const APIExplorer: React.FC = () => {
         }
 
         case 'cm-list-clients':
-          result = await captureAPICall(
-            async () => await api.api.clients.get(),
-            'GET', endpoint
-          );
+          if (isLive && auth?.accessToken) {
+            const clUrl = `${auth.instanceUrl}/Relativity.Rest/api/Relativity.ObjectManager/v1/workspace/-1/object/queryslim`;
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+            const reqBody = {
+              request: {
+                objectType: { artifactTypeID: 5 }, // Client = 5
+                condition: "",
+                fields: [{ name: "Name" }]
+              },
+              start: 1,
+              length: 100
+            };
+            const liveRes = await fetch(`${apiBase}/api/auth/proxy`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                endpoint: clUrl,
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${auth.accessToken}`,
+                  'Content-Type': 'application/json',
+                  'X-CSRF-Header': '-'
+                },
+                reqBody
+              })
+            });
+            const liveData = await liveRes.json();
+            result = {
+              data: liveData,
+              success: liveRes.ok,
+              _live: true,
+              _url: clUrl,
+              details: { method: 'POST', url: clUrl, status: liveRes.status, headers: { 'Proxy': 'Local Backend' }, payload: reqBody }
+            };
+          } else {
+            result = await captureAPICall(
+              async () => await api.api.clients.get(),
+              'GET', endpoint
+            );
+          }
           break;
 
         case 'cm-get-client':
-          result = await captureAPICall(
-            async () => await (api.api.clients as any)[formData.id].get(),
-            'GET', endpoint
-          );
+          if (isLive && auth?.accessToken) {
+            const clUrl = `${auth.instanceUrl}/Relativity.Rest/api/Relativity.ObjectManager/v1/workspace/-1/object/queryslim`;
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+            const reqBody = {
+              request: {
+                objectType: { artifactTypeID: 5 }, // Client = 5
+                condition: `'ArtifactID' == ${formData.id}`,
+                fields: [{ name: "Name" }]
+              },
+              start: 1,
+              length: 1
+            };
+            const liveRes = await fetch(`${apiBase}/api/auth/proxy`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                endpoint: clUrl,
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${auth.accessToken}`,
+                  'Content-Type': 'application/json',
+                  'X-CSRF-Header': '-'
+                },
+                reqBody
+              })
+            });
+            const liveData = await liveRes.json();
+            result = {
+              data: liveData,
+              success: liveRes.ok,
+              _live: true,
+              _url: clUrl,
+              details: { method: 'POST', url: clUrl, status: liveRes.status, headers: { 'Proxy': 'Local Backend' }, payload: reqBody }
+            };
+          } else {
+            result = await captureAPICall(
+              async () => await (api.api.clients as any)[formData.id].get(),
+              'GET', endpoint
+            );
+          }
           break;
 
         case 'cm-create-client':

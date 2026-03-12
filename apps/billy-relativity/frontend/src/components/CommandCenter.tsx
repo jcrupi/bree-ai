@@ -12,6 +12,7 @@ import {
   Eye, Settings, Clock, Zap, Link, Database,
   Pencil, Trash2, Plus, X,
 } from 'lucide-react';
+import { useAppMode } from '../context/AppModeContext';
 
 /* Super Org Admin — Billy Crupi */
 const BILLY_ADMIN = {
@@ -477,6 +478,7 @@ type MainView = 'grid' | 'r1instances' | 'policy' | 'audit';
 
 
 export function CommandCenter() {
+  const { isLive, auth } = useAppMode();
   const [mainView, setMainView]       = useState<MainView>('grid');
   const [selectedCC, setSelectedCC]   = useState<CommandCenterEntity | null>(null);
   const [ccs, setCCs]                 = useState<CommandCenterEntity[]>([...COMMAND_CENTERS]);
@@ -490,6 +492,72 @@ export function CommandCenter() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
   useEffect(() => {
+    if (isLive && auth?.accessToken) {
+      setR1Loading(true);
+      setR1Error('');
+      (async () => {
+        try {
+          const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+          const q = async (typeId: number) => {
+            const res = await fetch(`${apiBase}/api/auth/proxy`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                endpoint: `${auth.instanceUrl}/Relativity.Rest/api/Relativity.ObjectManager/v1/workspace/-1/object/queryslim`,
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${auth.accessToken}`, 'Content-Type': 'application/json', 'X-CSRF-Header': '-' },
+                reqBody: { request: { objectType: { artifactTypeID: typeId }, condition: "", fields: [{ name: "Name" }] }, start: 1, length: 100 }
+              })
+            });
+            const json = await res.json();
+            return json.Objects || [];
+          };
+
+          const [clientsRaw, workspacesRaw] = await Promise.all([q(5), q(8)]);
+
+          const liveClients: CCClient[] = clientsRaw.map((c: any) => ({
+            id: c.ArtifactID, name: c.Values[0], industry: 'Live Rel', workspaces: []
+          }));
+
+          const liveWorkspaces: CCWorkspace[] = workspacesRaw.map((w: any) => ({
+            id: w.ArtifactID, name: w.Values[0], matter: 'E-' + w.ArtifactID, status: 'Active', documents: 0
+          }));
+
+          if (liveClients.length === 0) {
+            liveClients.push({ id: -1, name: 'Live Environment', industry: 'Live', workspaces: [] });
+          }
+
+          liveWorkspaces.forEach((w, i) => {
+            liveClients[i % liveClients.length].workspaces.push(w);
+          });
+
+          const liveCC: CommandCenterEntity = {
+            id: 9991, 
+            name: 'Live Relativity Env', 
+            region: auth.instanceUrl.replace('https://', ''), 
+            adminEmail: 'live@relativity.com',
+            status: 'Online', 
+            userCount: 0, 
+            workspaceCount: liveWorkspaces.length,
+            r1Instance: { id: 'live-r1', name: auth.instanceUrl, url: auth.instanceUrl, region: 'Live Server', version: 'Live', status: 'Connected' },
+            clients: liveClients, 
+            users: [], 
+            roles: []
+          };
+          
+          setCCs([liveCC]);
+          setR1Instances([{ id: 'live-r1', name: auth.instanceUrl, url: auth.instanceUrl, region: 'Live Server', version: 'Live', status: 'Connected' }]);
+        } catch (e) {
+          console.error(e);
+          setR1Error('Failed to load Live Relativity instances');
+        } finally {
+          setR1Loading(false);
+        }
+      })();
+      return;
+    }
+
+    setR1Loading(true);
     fetch('/api/r1-instances')
       .then(r => r.json())
       .then(json => {
@@ -508,7 +576,7 @@ export function CommandCenter() {
       })
       .catch(() => setR1Error('Network error loading R1 instances'))
       .finally(() => setR1Loading(false));
-  }, []);
+  }, [isLive, auth, setCCs]);
 
   // CRUD handlers
   const handleOpenAdd  = () => { setEditingCC(null); setShowModal(true); };

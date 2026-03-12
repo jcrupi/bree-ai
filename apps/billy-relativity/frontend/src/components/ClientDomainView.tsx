@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { Building2, FileText, AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Users, Mail, Layers, Plus, X, Loader } from 'lucide-react';
-
+import { useAppMode } from '../context/AppModeContext';
 
 interface User   { artifactID: number; fullName: string; email: string; type: string; enabled: boolean; }
 interface Group  { artifactID: number; name: string; type: string; clientArtifactID?: number; }
@@ -589,16 +589,94 @@ function ClientCard({ domain, onMatterCreated }: { domain: ClientDomain; onMatte
 }
 
 export function ClientDomainView() {
+  const { isLive, auth } = useAppMode();
   const [data, setData]       = useState<ClientDomain[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     setLoading(true);
+    setError('');
+
+    if (isLive && auth?.accessToken) {
+      try {
+        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+        const q = async (typeId: number) => {
+          const res = await fetch(`${apiBase}/api/auth/proxy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              endpoint: `${auth.instanceUrl}/Relativity.Rest/api/Relativity.ObjectManager/v1/workspace/-1/object/queryslim`,
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${auth.accessToken}`, 'Content-Type': 'application/json', 'X-CSRF-Header': '-' },
+              reqBody: { request: { objectType: { artifactTypeID: typeId }, condition: "", fields: [{ name: "Name" }] }, start: 1, length: 100 }
+            })
+          });
+          const json = await res.json();
+          return json.Objects || [];
+        };
+
+        const [clientsRaw, mattersRaw, workspacesRaw] = await Promise.all([q(5), q(6), q(8)]);
+
+        const liveClients: ClientDomain[] = clientsRaw.map((c: any) => ({
+          client: { artifactID: c.ArtifactID, name: c.Values[0], industry: 'Live Rel', contactEmail: 'live@relativity.com' },
+          adminGroup: null, admins: [], matters: [], totalWorkspaces: 0, invalidMatterCount: 0
+        }));
+
+        if (liveClients.length === 0) {
+          liveClients.push({
+            client: { artifactID: -1, name: 'Live Connectivity Domain', industry: 'Live', contactEmail: auth.instanceUrl },
+            adminGroup: null, admins: [], matters: [], totalWorkspaces: 0, invalidMatterCount: 0
+          });
+        }
+
+        const liveMatters = mattersRaw.map((m: any) => ({
+          matter: { artifactID: m.ArtifactID, name: m.Values[0], matterNumber: 'E-' + m.ArtifactID, status: 'Active', created: new Date().toISOString() },
+          matterNumberValid: true,
+          workspaces: []
+        }));
+
+        liveMatters.forEach((m: any, i: number) => {
+          liveClients[i % liveClients.length].matters.push(m);
+        });
+
+        const liveWorkspaces = workspacesRaw.map((w: any) => ({
+          artifactID: w.ArtifactID, name: w.Values[0], statusName: 'Active', resourcePoolName: 'Relativity Pool', enableDataGrid: false, created: new Date().toISOString(), lastModified: new Date().toISOString()
+        }));
+
+        const allMatters = liveClients.flatMap((c: any) => c.matters);
+        if (allMatters.length === 0) {
+          const dummyMatter = {
+            matter: { artifactID: -2, name: 'Unassigned Framework', matterNumber: 'E-00000000', status: 'Active', created: new Date().toISOString() },
+            matterNumberValid: true,
+            workspaces: []
+          };
+          liveClients[0].matters.push(dummyMatter);
+          allMatters.push(dummyMatter);
+        }
+
+        liveWorkspaces.forEach((w: any, i: number) => {
+          allMatters[i % allMatters.length].workspaces.push(w);
+        });
+
+        liveClients.forEach((c: any) => {
+          c.totalWorkspaces = c.matters.reduce((acc: number, m: any) => acc + m.workspaces.length, 0);
+        });
+
+        setData(liveClients);
+      } catch (err) {
+        console.error(err);
+        setError('Failed to load real Live domains.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     API('/api/clients/domain-view')
       .then(r => { setData(r.data ?? []); setLoading(false); })
       .catch(() => { setError('Failed to load domain view'); setLoading(false); });
-  }, []);
+  }, [isLive, auth]);
 
   useEffect(() => { refresh(); }, [refresh]);
 

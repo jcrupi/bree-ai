@@ -37,18 +37,25 @@ const AppModeContext = createContext<AppModeContextValue>({
 });
 
 export function AppModeProvider({ children }: { children: React.ReactNode }) {
+  const isDockerProd = import.meta.env.PROD;
+
   const [mode, setModeState] = useState<AppMode>(() => {
+    if (!isDockerProd) return 'mock';
     return (sessionStorage.getItem('appMode') as AppMode) ?? 'mock';
   });
 
   const [auth, setAuthState] = useState<AuthState | null>(null);
 
   const setMode = useCallback((m: AppMode) => {
+    if (!isDockerProd) {
+      setModeState('mock');
+      return;
+    }
     sessionStorage.setItem('appMode', m);
     setModeState(m);
     // Clear auth when switching back to mock
     if (m === 'mock') setAuthState(null);
-  }, []);
+  }, [isDockerProd]);
 
   const setAuth = useCallback((a: AuthState | null) => {
     setAuthState(a);

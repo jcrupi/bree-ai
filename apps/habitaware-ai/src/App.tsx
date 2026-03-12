@@ -3,6 +3,8 @@ import { api } from "./api/client";
 import { marked } from "marked";
 import { IdentityZeroConsole } from "@bree-ai/core/components";
 import TheObserver from "./components/TheObserver";
+import AtAGlanceDashboard from "./components/AtAGlanceDashboard";
+import EngagementDashboard from "./components/EngagementDashboard";
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -33,6 +35,8 @@ type Tab =
   | "ai_chat"
   | "members_ai"
   | "posts_ai"
+  | "at_a_glance"
+  | "member_engagement"
   | "raw"
   | "identity_zero";
 
@@ -281,6 +285,8 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "purchases", label: "Purchases" },
   { key: "custom_fields", label: "Custom Fields" },
   { key: "abuse_reports", label: "Abuse Reports" },
+  { key: "at_a_glance", label: "Layer 1: Weekly At a Glance" },
+  { key: "member_engagement", label: "Layer 2: Member Engagement" },
   { key: "ai_chat", label: "AI Analytics" },
   { key: "members_ai", label: "Members AI" },
   { key: "posts_ai", label: "Posts AI" },
@@ -566,6 +572,9 @@ export default function App() {
     if (tab === "posts_ai") {
       await loadAgentxNotes("posts");
       return;
+    }
+    if (tab === "at_a_glance" || tab === "member_engagement") {
+      return; // dashboards manage their own data
     }
 
     setLoading(true);
@@ -2296,6 +2305,10 @@ export default function App() {
               {renderAgentxNotes()}
             </div>
           </>
+        ) : tab === "at_a_glance" ? (
+          <AtAGlanceDashboard />
+        ) : tab === "member_engagement" ? (
+          <EngagementDashboard />
         ) : tab === "identity_zero" ? (
           <div style={{ padding: "20px", background: "#f8fafc", borderRadius: "12px", height: "100%" }}>
             <IdentityZeroConsole />

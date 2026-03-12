@@ -1969,3 +1969,74 @@ button.link-btn:hover {
 .markdown-content.agentx-content th {
   background: var(--accent-lavender);
 }
+
+/* Weekly At a Glance Dashboard */
+.at-a-glance {
+  padding: 1rem;
+}
+
+.at-a-glance .report-meta {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-right: 0.75rem;
+}
+
+.at-a-glance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.metric-card {
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-soft);
+}
+
+.metric-card.clickable {
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.metric-card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+}
+
+.metric-card.signal-green .metric-value { color: var(--success); }
+.metric-card.signal-orange .metric-value { color: var(--warning); }
+.metric-card.signal-red .metric-value { color: var(--error); }
+.metric-card.signal-neutral .metric-value { color: var(--text-primary); }
+
+.metric-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.metric-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+}
+
+.drill-modal {
+  max-width: 800px;
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.drill-actions {
+  margin-bottom: 1rem;
+}

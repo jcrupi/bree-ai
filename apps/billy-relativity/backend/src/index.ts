@@ -85,10 +85,11 @@ const app = new Elysia()
         ...(reqBody ? { body: typeof reqBody === 'string' ? reqBody : JSON.stringify(reqBody) } : {})
       });
       set.status = res.status;
+      const text = await res.text();
       try {
-        return await res.json();
+        return text ? JSON.parse(text) : { _proxy_empty_body: true };
       } catch {
-        return { data: await res.text() }; // Sometimes it's not JSON
+        return { _proxy_text_response: text };
       }
     } catch (err: any) {
       set.status = 500;

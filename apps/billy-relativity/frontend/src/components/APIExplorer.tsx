@@ -446,18 +446,32 @@ export const APIExplorer: React.FC = () => {
         case 'get-all-workspaces':
           if (isLive && auth?.accessToken) {
             // LIVE: hit the real Relativity workspace API with Bearer token, proxied via backend
-            const wsUrl = `${auth.instanceUrl}/Relativity.REST/api/Relativity.Objects/workspace`;
+            // In Relativity, Workspace is ObjectType 8. We query the admin workspace (-1).
+            const wsUrl = `${auth.instanceUrl}/Relativity.Rest/api/Relativity.ObjectManager/v1/workspace/-1/object/queryslim`;
             const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+            
+            const reqBody = {
+              request: {
+                objectType: { artifactTypeID: 8 },
+                condition: "",
+                fields: [{ name: "Name" }]
+              },
+              start: 1,
+              length: 100
+            };
+
             const liveRes = await fetch(`${apiBase}/api/auth/proxy`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 endpoint: wsUrl,
-                method: 'GET',
+                method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${auth.accessToken}`,
                   'Content-Type': 'application/json',
-                }
+                  'X-CSRF-Header': '-'
+                },
+                reqBody
               })
             });
             const liveData = await liveRes.json();
@@ -484,11 +498,53 @@ export const APIExplorer: React.FC = () => {
           break;
 
         case 'get-workspace-by-id':
-          result = await captureAPICall(
-            async () => await api.api.workspace[formData.id].get(),
-            'GET',
-            endpoint
-          );
+          if (isLive && auth?.accessToken) {
+            const wsUrl = `${auth.instanceUrl}/Relativity.Rest/api/Relativity.ObjectManager/v1/workspace/-1/object/queryslim`;
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+            const reqBody = {
+              request: {
+                objectType: { artifactTypeID: 8 },
+                condition: `'ArtifactID' == ${formData.id}`,
+                fields: [{ name: "Name" }, { name: "ArtifactID" }]
+              },
+              start: 1,
+              length: 1
+            };
+            const liveRes = await fetch(`${apiBase}/api/auth/proxy`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                endpoint: wsUrl,
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${auth.accessToken}`,
+                  'Content-Type': 'application/json',
+                  'X-CSRF-Header': '-'
+                },
+                reqBody
+              })
+            });
+            const liveData = await liveRes.json();
+            result = {
+              data:    liveData,
+              success: liveRes.ok,
+              _live:   true,
+              _url:    wsUrl,
+              details: {
+                method: 'POST',
+                url: wsUrl,
+                status: liveRes.status,
+                headers: { 'Proxy': 'Local Backend' },
+                payload: reqBody
+              }
+            };
+          } else {
+            result = await captureAPICall(
+              async () => await api.api.workspace[formData.id].get(),
+              'GET',
+              endpoint
+            );
+          }
           break;
 
         case 'create-workspace':

@@ -621,7 +621,7 @@ export function ClientDomainView() {
         const liveClients: ClientDomain[] = clientsRaw.map((c: any) => ({
           client: { artifactID: c.ArtifactID, name: c.Values[0], industry: 'Live Rel', contactEmail: 'live@relativity.com' },
           adminGroup: null, admins: [], matters: [], totalWorkspaces: 0, invalidMatterCount: 0
-        }));
+        })).sort((a: any, b: any) => a.client.name.localeCompare(b.client.name));
 
         if (liveClients.length === 0) {
           liveClients.push({
@@ -674,7 +674,12 @@ export function ClientDomainView() {
     }
 
     API('/api/clients/domain-view')
-      .then(r => { setData(r.data ?? []); setLoading(false); })
+      .then(r => {
+        const items = r.data ?? [];
+        items.sort((a: any, b: any) => a.client.name.localeCompare(b.client.name));
+        setData(items);
+        setLoading(false);
+      })
       .catch(() => { setError('Failed to load domain view'); setLoading(false); });
   }, [isLive, auth]);
 

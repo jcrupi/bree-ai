@@ -2,20 +2,38 @@ import { useState, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "./api";
+import Observer from "./Observer";
 
-type SpecialtyId = "1040-simple" | "hipaa";
-type Tab = "playbook" | "algos" | "playback-runner" | "code-mapping" | "design" | "analysis-playbook" | "analysis-algos" | "builder";
+// ─── Catalog + Specialty config (mirrors server shared/specialty-config) ──────
+
+const CATALOG_CONFIG = [
+  { id: "grelin-ai", name: "Grelin AI", icon: "⚕", description: "Medical specialty playbooks", color: "teal" },
+  { id: "bree-ai",   name: "Bree AI",   icon: "◈", description: "Tax & compliance specialties", color: "orange" },
+] as const;
+
+type CatalogId = (typeof CATALOG_CONFIG)[number]["id"];
+
+const SPECIALTY_CONFIG = [
+  { id: "1040-simple",         name: "1040 (Simple)",    icon: "📄", catalogId: "bree-ai"   as CatalogId },
+  { id: "hipaa",               name: "HIPAA",            icon: "🛡️", catalogId: "bree-ai"   as CatalogId },
+  { id: "disability",          name: "Disability",           icon: "♿", catalogId: "bree-ai"   as CatalogId },
+  { id: "ediscovery-compliance", name: "eDiscovery Compliance", icon: "⚖️", catalogId: "bree-ai"   as CatalogId },
+  { id: "aml-kyc",               name: "AML / KYC",            icon: "🦹", catalogId: "bree-ai"   as CatalogId },
+  { id: "gdpr-breach",           name: "GDPR Breach",          icon: "🔒", catalogId: "bree-ai"   as CatalogId },
+  { id: "fmla",                  name: "FMLA",                 icon: "🏥", catalogId: "bree-ai"   as CatalogId },
+  { id: "1040-full",             name: "1040 Full (2025)",     icon: "📅", catalogId: "bree-ai"   as CatalogId },
+  { id: "wound-ai",            name: "Wound Care",       icon: "🩹", catalogId: "grelin-ai" as CatalogId },
+  { id: "behavioral-health-ai",name: "Behavioral Health",icon: "🧠", catalogId: "grelin-ai" as CatalogId },
+  { id: "pain-ai",             name: "Pain Management",  icon: "💊", catalogId: "grelin-ai" as CatalogId },
+  { id: "derm-ai",             name: "Dermatology",      icon: "🔬", catalogId: "grelin-ai" as CatalogId },
+  { id: "dme-ai",              name: "DME",              icon: "🦽", catalogId: "grelin-ai" as CatalogId },
+  { id: "enm-ai",              name: "E&M Coding",       icon: "🏥", catalogId: "grelin-ai" as CatalogId },
+  { id: "urgent-ai",           name: "Urgent Care",      icon: "🚑", catalogId: "grelin-ai" as CatalogId },
+] as const;
+
+type SpecialtyId = (typeof SPECIALTY_CONFIG)[number]["id"];
+type Tab = "playbook" | "algos" | "playback-runner" | "code-mapping" | "design" | "analysis-playbook" | "analysis-algos" | "builder" | "observer";
 type ViewMode = "preview" | "raw";
-
-const SPECIALTY_LABELS: Record<SpecialtyId, string> = {
-  "1040-simple": "1040 (Simple)",
-  hipaa: "HIPAA",
-};
-
-const SPECIALTY_ICONS: Record<SpecialtyId, string> = {
-  "1040-simple": "📄",
-  hipaa: "🛡️",
-};
 
 function errMsg(e: unknown): string {
   if (e && typeof e === "object") {
@@ -29,7 +47,39 @@ function errMsg(e: unknown): string {
 }
 
 export default function App() {
-  const [specialty, setSpecialty] = useState<SpecialtyId>("1040-simple");
+  // Default to grelin-ai catalog, wound-ai specialty
+  const [catalogId, setCatalogId] = useState<CatalogId>("grelin-ai");
+  const [specialty, setSpecialty] = useState<SpecialtyId>("wound-ai");
+  // Bree AI PIN gate
+  const [breeUnlocked, setBreeUnlocked] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState(false);
+
+  function handleCatalogClick(catId: CatalogId) {
+    if (catId === "bree-ai" && !breeUnlocked) {
+      setShowPinModal(true);
+      setPinInput("");
+      setPinError(false);
+      return;
+    }
+    setCatalogId(catId);
+    const first = SPECIALTY_CONFIG.find((s) => s.catalogId === catId);
+    if (first) setSpecialty(first.id);
+  }
+
+  function handlePinSubmit() {
+    if (pinInput === "20816") {
+      setBreeUnlocked(true);
+      setShowPinModal(false);
+      setCatalogId("bree-ai");
+      const first = SPECIALTY_CONFIG.find((s) => s.catalogId === "bree-ai");
+      if (first) setSpecialty(first.id);
+    } else {
+      setPinError(true);
+      setPinInput("");
+    }
+  }
   const [tab, setTab] = useState<Tab>("playbook");
   const [viewMode, setViewMode] = useState<ViewMode>("preview");
   const [playbook, setPlaybook] = useState("");
@@ -76,6 +126,7 @@ export default function App() {
     tab === "code-mapping" || tab === "design" || tab === "analysis-playbook" || tab === "analysis-algos";
   const showDocPanel = tab === "playbook" || tab === "algos";
   const isBuilderTab = tab === "builder";
+  const isObserverTab = tab === "observer";
   const [leftPanelWidth, setLeftPanelWidth] = useState(380);
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
 
@@ -107,16 +158,36 @@ export default function App() {
           <p className="sidebar-tagline">Specialty playbooks & algorithms</p>
         </div>
         <nav className="specialty-nav">
-          {(["1040-simple", "hipaa"] as SpecialtyId[]).map((id) => (
-            <button
-              key={id}
-              className={`specialty-btn ${specialty === id ? "active" : ""}`}
-              onClick={() => setSpecialty(id)}
-            >
-              <span className="specialty-icon">{SPECIALTY_ICONS[id]}</span>
-              <span>{SPECIALTY_LABELS[id]}</span>
-            </button>
-          ))}
+          {/* Catalog tabs */}
+          <div className="catalog-tabs">
+            {CATALOG_CONFIG.map((cat) => (
+              <button
+                key={cat.id}
+                className={`catalog-tab catalog-tab-${cat.color} ${catalogId === cat.id ? "active" : ""}`}
+                onClick={() => handleCatalogClick(cat.id)}
+              >
+                <span className="catalog-tab-icon">{cat.icon}</span>
+                <span>{cat.name}</span>
+                {cat.id === "bree-ai" && !breeUnlocked && (
+                  <span style={{ fontSize: "0.65rem", marginLeft: 2, opacity: 0.6 }}>🔒</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Specialties in the active catalog */}
+          <div className="catalog-specialties">
+            {SPECIALTY_CONFIG.filter((s) => s.catalogId === catalogId).map((s) => (
+              <button
+                key={s.id}
+                className={`specialty-btn ${specialty === s.id ? "active" : ""}`}
+                onClick={() => setSpecialty(s.id)}
+              >
+                <span className="specialty-icon">{s.icon}</span>
+                <span>{s.name}</span>
+              </button>
+            ))}
+          </div>
         </nav>
         <div className="sidebar-footer">
           <button onClick={loadDocs} className="refresh-btn">
@@ -124,6 +195,34 @@ export default function App() {
           </button>
         </div>
       </aside>
+
+      {/* Bree AI PIN gate modal */}
+      {showPinModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowPinModal(false); }}
+        >
+          <div style={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, padding: "32px 36px", width: 320, boxShadow: "0 24px 64px rgba(0,0,0,0.6)", textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🔒</div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: "#f1f5f9", marginBottom: 6 }}>Bree AI Access</div>
+            <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 24 }}>Enter your access code to continue</div>
+            <input
+              autoFocus
+              type="password"
+              value={pinInput}
+              onChange={(e) => { setPinInput(e.target.value); setPinError(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter") handlePinSubmit(); }}
+              placeholder="Access code"
+              style={{ width: "100%", padding: "12px 16px", background: "rgba(255,255,255,0.06)", border: pinError ? "1.5px solid #ef4444" : "1.5px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "#f1f5f9", fontSize: 16, textAlign: "center", letterSpacing: "0.2em", boxSizing: "border-box", marginBottom: pinError ? 8 : 16, fontFamily: "inherit" }}
+            />
+            {pinError && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 12 }}>Incorrect code — try again</div>}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setShowPinModal(false)} style={{ flex: 1, padding: "10px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, color: "#94a3b8", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>Cancel</button>
+              <button onClick={handlePinSubmit} style={{ flex: 1, padding: "10px", background: "linear-gradient(135deg, #ea580c, #c2410c)", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Unlock</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="main">
         <header className="header">
@@ -160,6 +259,13 @@ export default function App() {
               title="Code Mapping, Design, Analysis"
             >
               Expert
+            </button>
+            <button
+              className={`doc-tab ${isObserverTab ? "active" : ""}`}
+              onClick={() => setTab("observer")}
+              title="Observer — capture playbook observations & AI analysis"
+            >
+              🔭 Observer
             </button>
           </div>
           {isExpertTab && (
@@ -225,7 +331,7 @@ export default function App() {
           <div className="error-banner">{loadError}</div>
         )}
 
-        <div className={`content-row ${showDocPanel ? "content-row-doc" : ""} ${isPlaybackRunnerTab ? "content-row-playback" : ""} ${isCodeMappingTab ? "content-row-code-mapping" : ""} ${isBuilderTab ? "content-row-builder" : ""}`}>
+        <div className={`content-row ${showDocPanel ? "content-row-doc" : ""} ${isPlaybackRunnerTab ? "content-row-playback" : ""} ${isCodeMappingTab ? "content-row-code-mapping" : ""} ${isBuilderTab ? "content-row-builder" : ""} ${isObserverTab ? "content-row-observer" : ""}`}>
           {/* Left: resizable/collapsible Playbook + Algos panel (when in playbook/algos or playback-runner) */}
           {(showDocPanel || isPlaybackRunnerTab) && !isDesignTab && !isCodeMappingTab && !isBuilderTab && (
             <div
@@ -288,8 +394,8 @@ export default function App() {
             </div>
           )}
 
-          {/* Main: Playback Runner, or Analysis, or Design */}
-          <main className={`doc-panel main-panel ${isPlaybackRunnerTab ? "playback-runner-full" : ""} ${isBuilderTab ? "builder-full" : ""} ${showDocPanel ? "main-panel-hidden" : ""}`}>
+          {/* Main: Playback Runner, Analysis, Design, or Observer */}
+          <main className={`doc-panel main-panel ${isPlaybackRunnerTab ? "playback-runner-full" : ""} ${isBuilderTab ? "builder-full" : ""} ${isObserverTab ? "observer-full" : ""} ${showDocPanel ? "main-panel-hidden" : ""}`}>
             {isBuilderTab ? (
               <PlaybookBuilderPanel />
             ) : isPlaybackRunnerTab ? (
@@ -302,11 +408,16 @@ export default function App() {
               <CodeMappingPanel specialty={specialty} />
             ) : isDesignTab ? (
               <DesignPanel specialty={specialty} />
+            ) : isObserverTab ? (
+              <Observer panelMode />
             ) : null}
           </main>
 
         </div>
       </div>
+
+      {/* Observer FAB — visible on all non-observer tabs */}
+      {!isObserverTab && <Observer />}
     </div>
   );
 }
@@ -593,7 +704,7 @@ function CodeMappingPanel({ specialty }: { specialty: SpecialtyId }) {
     <div className="code-mapping-panel">
       <div className="code-mapping-header">
         <h2 className="code-mapping-title">
-          Playbook → Code Mapping — {SPECIALTY_LABELS[specialty]}
+          Playbook → Code Mapping — {SPECIALTY_CONFIG.find(s => s.id === specialty)?.name ?? specialty}
         </h2>
         <span className={`code-mapping-badge code-mapping-badge-${language.toLowerCase()}`}>
           {language}

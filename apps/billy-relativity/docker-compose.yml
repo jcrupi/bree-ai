@@ -1,7 +1,7 @@
 services:
   billy-relativity:
     image: jcrupi/billy-relativity:latest
-    pull_policy: always
+    # pull_policy: always
     container_name: billy-relativity
     ports:
       - "8080:8080"

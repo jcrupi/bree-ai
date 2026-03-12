@@ -4,6 +4,7 @@ import { TechPanel } from './components/TechPanel';
 import { AddTaskModal } from './components/AddTaskModal';
 import { EditTaskModal } from './components/EditTaskModal';
 import { LeadNotesTab } from './components/LeadNotesTab';
+import { TabbedNotesPanel } from './components/TabbedNotesPanel';
 import { WeeklyNewsTab } from './components/WeeklyNewsTab';
 import { TabChat } from './components/TabChat';
 import { Task, ProductName } from './types/task';
@@ -300,6 +301,7 @@ export function App() {
               tasks={filteredTasks}
               onDescriptionUpdate={(id, desc) => updateTask(id, { description: desc })}
               onAssigneeUpdate={(id, assignee) => updateTask(id, { assignee })}
+              onStatusUpdate={(id, status) => updateTask(id, { status })}
             />
           </div>
         )}
@@ -307,9 +309,13 @@ export function App() {
         {/* ── BIZ TAB ── */}
         {mainTab === 'biz' && (
           <>
-            <LeadNotesTab field="bizText" label="Business Notes"
+            <TabbedNotesPanel
+              mainTab="biz"
+              label="Business Notes"
               placeholder="Enter business context, goals, stakeholder notes, ROI, timelines…"
-              defaultText={BIZ_DEFAULT} onContextChange={setBizContext} />
+              defaultText={BIZ_DEFAULT}
+              onContextChange={setBizContext}
+            />
             <TabChat tab="biz" context={bizContext} />
           </>
         )}
@@ -317,9 +323,12 @@ export function App() {
         {/* ── MARKETING TAB ── */}
         {mainTab === 'marketing' && (
           <>
-            <LeadNotesTab field="marketingText" label="Marketing Notes"
+            <TabbedNotesPanel
+              mainTab="marketing"
+              label="Marketing Notes"
               placeholder="Enter marketing angles, messaging, audience, campaigns, launch ideas…"
-              onContextChange={setMarketingContext} />
+              onContextChange={setMarketingContext}
+            />
             <TabChat tab="marketing" context={marketingContext} />
           </>
         )}

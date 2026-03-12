@@ -37,6 +37,65 @@ const app = new Elysia()
     service: 'Relativity API Explorer'
   }))
 
+  // Proxy auth to dodge CORS when tested locally
+  .post('/api/auth/token', async ({ body, set }) => {
+    try {
+      const { instanceUrl, clientId, clientSecret, grantType, scope } = body as any;
+      const base = instanceUrl.replace(/\/$/, '');
+      const endpoint = `${base}/Relativity/Identity/connect/token`;
+
+      const formBody = new URLSearchParams({
+        grant_type: grantType || 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret,
+        scope: scope || 'SystemUserInfo',
+      });
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formBody.toString(),
+        redirect: 'manual'
+      });
+
+      if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+        set.status = 400;
+        return { error: 'REDIRECT_TO_SSO', error_description: 'Redirected to SSO login.' };
+      }
+
+      set.status = res.status;
+      try {
+        return await res.json();
+      } catch {
+        return { error: 'UNKNOWN', error_description: await res.text() };
+      }
+    } catch (err: any) {
+      set.status = 500;
+      return { error: 'NETWORK_ERROR', error_description: err.message };
+    }
+  })
+
+  // Proxy Relativity API calls to dodge CORS in Live Mode
+  .post('/api/auth/proxy', async ({ body, set }) => {
+    try {
+      const { endpoint, method, headers, reqBody } = body as any;
+      const res = await fetch(endpoint, {
+        method: method || 'GET',
+        headers: headers || {},
+        ...(reqBody ? { body: typeof reqBody === 'string' ? reqBody : JSON.stringify(reqBody) } : {})
+      });
+      set.status = res.status;
+      try {
+        return await res.json();
+      } catch {
+        return { data: await res.text() }; // Sometimes it's not JSON
+      }
+    } catch (err: any) {
+      set.status = 500;
+      return { error: 'PROXY_ERROR', message: err.message };
+    }
+  })
+
   // ===== WORKSPACE ENDPOINTS =====
 
   // Get all workspaces
@@ -665,9 +724,52 @@ const app = new Elysia()
     return { success: true, data: logs, count: logs.length, timestamp: new Date().toISOString() };
   }, { detail: { tags: ['lookup'], summary: 'Email logs', description: 'Get all sent compliance email logs' } })
 
+  // ===== COMMAND CENTER: R1 INSTANCES =====
+  // Returns all Relativity R1 instances visible to the Super Org Admin (Billy)
+
+  .get('/api/r1-instances', () => {
+    const instances = [
+      {
+        id: 'r1-us-east',
+        name: 'EY Relativity US-East',
+        url: 'https://ey-relativity-useast.relativity.one',
+        region: 'us-east-1',
+        version: 'Server 2024.1',
+        status: 'Connected',
+        commandCenters: ['Americas'],
+      },
+      {
+        id: 'r1-eu-west',
+        name: 'EY Relativity EU-West',
+        url: 'https://ey-relativity-euwest.relativity.one',
+        region: 'eu-west-1',
+        version: 'Server 2024.1',
+        status: 'Degraded',
+        commandCenters: ['EMEA'],
+      },
+      {
+        id: 'r1-apac',
+        name: 'EY Relativity APAC',
+        url: 'https://ey-relativity-apac.relativity.one',
+        region: 'ap-south-1',
+        version: 'Server 2023.3',
+        status: 'Connected',
+        commandCenters: ['APAC'],
+      },
+    ];
+    return {
+      success: true,
+      data: instances,
+      count: instances.length,
+      superOrgAdmin: 'billy.crupi@ey.com',
+      timestamp: new Date().toISOString(),
+    };
+  }, { detail: { tags: ['command-center'], summary: 'List R1 instances', description: 'All Relativity R1 instances accessible to the Super Org Admin' } })
+
   // ===== OBSERVATIONS (Observer — app-scoped) =====
 
   .get('/api/observations', () => {
+
     const obs = db.getObservables();
     return { success: true, data: obs, count: obs.length, app: 'billy-relativity', timestamp: new Date().toISOString() };
   }, { detail: { tags: ['lookup'], summary: 'Get all observations', description: 'Retrieve all Observer observations saved for billy-relativity' } })

@@ -60,6 +60,7 @@ export async function saveWeekTab(tab: WeekTab, content: string): Promise<void> 
 export interface LeadNotesData {
   bizText?: string;
   marketingText?: string;
+  salesText?: string;
 }
 
 export async function loadLeadNotes(): Promise<LeadNotesData> {
@@ -67,10 +68,12 @@ export async function loadLeadNotes(): Promise<LeadNotesData> {
   return {
     bizText: data.biz ?? '',
     marketingText: data.marketing ?? '',
+    salesText: '',
   };
 }
 
 export async function saveLeadNotes(notes: LeadNotesData): Promise<void> {
   if (notes.bizText !== undefined) await saveWeekTab('biz', notes.bizText);
   if (notes.marketingText !== undefined) await saveWeekTab('marketing', notes.marketingText);
+  // salesText not yet backed by a dedicated API tab — no-op for now
 }

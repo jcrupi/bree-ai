@@ -1,290 +1,411 @@
-# 🏦 Token House
+# 🏦 TokenHouse Starter SDK
 
-**AI Token Clearinghouse** — A unified gateway to Claude, GPT-4, and other LLMs through a single API with token-based billing, multi-org support, and a NATS-powered agent clearinghouse backbone.
+**Multi-tenant AI API Gateway** - Unified access to Claude, GPT-4, and other LLMs with organization-based usage tracking, transparent pricing, and auto-refresh authentication.
+
+## Features
+
+- 🔐 **Org-based Authentication** - JWT tokens with automatic refresh
+- 💰 **Transparent Pricing** - Cost calculated and returned in every API response
+- 📊 **Usage Tracking** - Per-org token counts and cost calculation
+- 🏢 **Multi-tenancy** - Isolated organizations with individual rate limits
+- 🎯 **Simple SDK** - TypeScript SDK with React hooks for easy integration
+- 🚀 **Production Ready** - Elysia gateway with CORS, rate limiting, and error handling
 
 ## Stack (BREE)
 
 | Layer | Technology |
 |-------|-----------|
-| **B**un | Runtime, package manager, test runner |
+| **B**un | Runtime and package manager |
 | **R**eact | Frontend UI with Vite |
-| **E**lysia | Bun-native HTTP framework, OpenAI-compatible gateway |
+| **E**lysia | Bun-native HTTP framework |
 | **E**den | End-to-end type-safe API client |
-
-**Plus:**
-- **Better Auth** — Auth with multi-org support and custom JWT claims
-- **NATS JetStream** — Realtime messaging backbone for agent dispatch and settlement
-- **Drizzle ORM** — Type-safe Postgres queries
-- **Stripe** — Credit purchases
-
----
 
 ## Architecture
 
 ```
-React (Bun + Vite)
-  └─ Eden (type-safe API client)
-       └─ Elysia Gateway (Bun)
-            ├─ Better Auth (JWT validation, org context, custom claims)
-            ├─ Wallet Service (balance checks, deductions)
-            ├─ NATS Publisher (dispatches tasks)
-            │
-            └─ NATS JetStream
-                 ├─ LLM Consumer → Anthropic API / OpenAI API
-                 └─ Settlement Consumer → Postgres (deduct tokens, log usage)
+┌─────────────────────────────────────────────────────────────┐
+│                    TokenHouse Platform                      │
+│                 (tokenhouse-super-org)                      │
+│                  Owner: johnny@tokenhouse.ai                 │
+└─────────────────────────────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+   [Groups]          [Companies]         [Admin UI]
+        │                   │                   │
+┌───────┴────────┐  ┌──────┴──────┐      Port: 6182
+│                │  │             │
+│ Community      │  │ HappyAI     │
+│ (free tier)    │  │ (enterprise)│
+│                │  │             │
+│ Professional   │  │ Groovy      │
+│ (pro tier)     │  │ Relativity  │
+│                │  │ (pro tier)  │
+│                │  │             │
+│                │  │ FreeHabits  │
+│                │  │ (starter)   │
+└────────────────┘  └─────────────┘
+
+
+React App (Examples)          TypeScript SDK (packages/core)
+     │                                  │
+     ├─ useTokenHouse() ───────────────┤
+     ├─ useChat()                       │
+     └─ useUsage()                      │
+                                        │
+                                        ▼
+                          Gateway (Elysia on port 8187)
+                                        │
+                    ┌───────────────────┼────────────────────┐
+                    │                   │                    │
+              JWT Auth            Proxy Layer          Usage Tracking
+                    │                   │                    │
+            Org Validation         OpenAI API         Per-org logs
+            Rate Limiting          Anthropic API      Cost calculation
+            Token refresh          Master keys        NATS publish
 ```
-
-### JWT Claims
-
-Every authenticated request carries a Token House JWT with:
-
-```json
-{
-  "sub": "user_id",
-  "email": "user@example.com",
-  "org_id": "org_id_or_null",
-  "org_role": "owner|admin|member|null",
-  "token_balance": 48250,
-  "token_budget": 100000,
-  "allowed_models": ["claude-3-5-haiku-20241022", "gpt-4o-mini"],
-  "plan_tier": "free|pro|enterprise"
-}
-```
-
-No database hit required for auth/model permission checks — all authority lives in the token.
-
----
 
 ## Quick Start
 
-### Prerequisites
-
-- [Bun](https://bun.sh) >= 1.0
-- [Docker](https://docker.com) (for Postgres + NATS)
-- Anthropic and/or OpenAI API keys
-
-### 1. Clone and install
+### 1. Start the Chat Demo
 
 ```bash
-git clone <repo>
-cd tokenhouse
-bun install
+# Start gateway + chat UI
+./start-demo.sh
 ```
 
-### 2. Start infrastructure
+- Gateway: http://localhost:8187
+- Chat UI: http://localhost:6181
+
+**Demo Credentials:**
+- Org ID: `org_demo123`
+- Org Secret: `ths_demo_secret_xyz789`
+
+### 2. Start the Admin UI
 
 ```bash
-docker compose up -d
+# Start gateway + admin UI
+./start-admin.sh
 ```
 
-This starts:
-- PostgreSQL on `localhost:5432`
-- NATS with JetStream on `localhost:4222`
-- NATS monitoring at `http://localhost:8222`
+- Gateway: http://localhost:8187
+- Admin UI: http://localhost:6182
 
-### 3. Configure environment
+**Admin Credentials:**
+- Admin Secret: `admin-secret-change-me`
+- User: johnny@tokenhouse.ai
 
-```bash
-# Server
-cp server/.env.example server/.env
-# Edit server/.env with your values:
-# - ANTHROPIC_API_KEY
-# - OPENAI_API_KEY
-# - STRIPE_SECRET_KEY (optional for local dev)
-# - BETTER_AUTH_SECRET (any 32+ char string)
+## Organizations
 
-# Client
-cp client/.env.example client/.env
+### Platform Owner
+**TokenHouse (tokenhouse-super-org)**
+- Tier: Enterprise
+- Limits: 1000 req/min, 100M tokens/day
+- Owner: johnny@tokenhouse.ai
+
+### Groups
+**TokenHouse Community (tokenhouse-community)**
+- Tier: Free
+- Limits: 60 req/min, 500K tokens/day
+
+**TokenHouse Professional (tokenhouse-professional)**
+- Tier: Pro
+- Limits: 200 req/min, 5M tokens/day
+
+### Companies
+**HappyAI (happyai)**
+- Tier: Enterprise
+- Limits: 300 req/min, 10M tokens/day
+
+**Groovy Relativity (groovy-relativity)**
+- Tier: Pro
+- Limits: 250 req/min, 8M tokens/day
+
+**FreeHabits (freehabits)**
+- Tier: Starter
+- Limits: 150 req/min, 3M tokens/day
+
+## SDK Usage
+
+### TypeScript Client
+
+```typescript
+import { TokenHouseClient } from '@tokenhouse/core'
+
+const client = new TokenHouseClient({
+  orgId: 'happyai',
+  orgSecret: 'ths_happyai_secret_xyz',
+  baseUrl: 'http://localhost:8187'
+})
+
+// SDK handles authentication automatically
+const response = await client.chat({
+  model: 'gpt-4o',
+  messages: [
+    { role: 'user', content: 'Hello from TokenHouse!' }
+  ]
+})
+
+console.log(response.content)
+console.log(`Cost: $${response.cost_usd}`)
+console.log(`Tokens: ${response.usage.total_tokens}`)
 ```
 
-### 4. Run database migrations
+### React Hooks
 
-```bash
-cd server
-bun run db:migrate
-```
+```tsx
+import { TokenHouseProvider, useChat } from '@tokenhouse/react'
 
-### 5. Start development
+function App() {
+  return (
+    <TokenHouseProvider config={{
+      orgId: 'happyai',
+      orgSecret: 'ths_happyai_secret_xyz',
+      baseUrl: 'http://localhost:8187'
+    }}>
+      <ChatInterface />
+    </TokenHouseProvider>
+  )
+}
 
-```bash
-# From root — starts both server and client
-bun run dev
+function ChatInterface() {
+  const { messages, sendMessage, usage } = useChat()
 
-# Or individually:
-cd server && bun run dev   # http://localhost:3000
-cd client && bun run dev   # http://localhost:5173
-```
-
----
-
-## API Reference
-
-### Auth (Better Auth)
-
-Better Auth handles all auth endpoints automatically:
-
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/auth/sign-up/email` | Register with email/password |
-| `POST /api/auth/sign-in/email` | Sign in, receive session |
-| `GET  /api/auth/get-session` | Get current session |
-| `POST /api/auth/sign-out` | Sign out |
-| `GET  /api/auth/jwks` | JWKS for JWT verification |
-| `GET  /api/auth/token` | Get JWT for API use |
-
-### Wallet
-
-| Endpoint | Auth | Description |
-|----------|------|-------------|
-| `GET  /api/wallet/balance` | Bearer JWT | Get token balance |
-| `GET  /api/wallet/packages` | — | List credit packages |
-| `POST /api/wallet/purchase` | Bearer JWT | Create Stripe checkout |
-| `GET  /api/wallet/usage` | Bearer JWT | Usage history |
-
-### Gateway (OpenAI-compatible)
-
-| Endpoint | Auth | Description |
-|----------|------|-------------|
-| `GET  /api/gateway/models` | Bearer JWT | List allowed models |
-| `POST /api/gateway/v1/chat/completions` | Bearer JWT | Send a chat completion |
-| `GET  /api/gateway/agents` | Bearer JWT | List registered agents |
-
-#### Example — calling the gateway
-
-```bash
-# 1. Get a JWT
-TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/token \
-  -H "Cookie: <your-session-cookie>" | jq -r '.token')
-
-# 2. Call the gateway (OpenAI-compatible format)
-curl -X POST http://localhost:3000/api/gateway/v1/chat/completions \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "claude-3-5-haiku-20241022",
-    "messages": [{"role": "user", "content": "Hello from Token House!"}]
-  }'
-```
-
-#### Response includes Token House metadata
-
-```json
-{
-  "id": "chatcmpl-...",
-  "choices": [{ "message": { "role": "assistant", "content": "..." } }],
-  "usage": { "prompt_tokens": 12, "completion_tokens": 48 },
-  "tokenhouse": {
-    "taskId": "uuid",
-    "tokensCharged": 142,
-    "latencyMs": 843,
-    "remainingBalance": 48108
-  }
+  return (
+    <div>
+      {messages.map(msg => (
+        <div key={msg.id}>{msg.content}</div>
+      ))}
+      <div>Total cost: ${usage.cost}</div>
+      <button onClick={() => sendMessage('Hello!')}>
+        Send
+      </button>
+    </div>
+  )
 }
 ```
 
----
+## Admin API
 
-## Token Pricing
+All admin endpoints require the `X-Admin-Secret` header.
 
-Token House units map to provider costs as follows (per 1M tokens):
+### Create Organization
 
-| Model | Input | Output | Provider |
-|-------|-------|--------|----------|
-| claude-3-5-haiku-20241022 | 800 TH | 4,000 TH | Anthropic |
-| claude-3-5-sonnet-20241022 | 3,000 TH | 15,000 TH | Anthropic |
-| gpt-4o-mini | 150 TH | 600 TH | OpenAI |
-| gpt-4o | 2,500 TH | 10,000 TH | OpenAI |
+```bash
+curl -X POST http://localhost:8187/admin/orgs \
+  -H "X-Admin-Secret: admin-secret-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "org_name": "Acme Corporation",
+    "initial_user_email": "admin@acme.com",
+    "billing_tier": "pro",
+    "allowed_models": ["gpt-4o", "claude-3-5-sonnet-20241022"]
+  }'
+```
 
-**$1 USD = 10,000 Token House units**
+**Response:**
+```json
+{
+  "org_id": "acme-corporation",
+  "org_name": "Acme Corporation",
+  "org_secret": "ths_abc123...",
+  "org_token": "tht_xyz789...",
+  "billing_tier": "pro"
+}
+```
 
----
+⚠️ Save the `org_secret` - it's only shown once!
+
+### Create User
+
+```bash
+curl -X POST http://localhost:8187/admin/users \
+  -H "X-Admin-Secret: admin-secret-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "name": "John Doe",
+    "org_ids": ["happyai", "groovy-relativity"]
+  }'
+```
+
+### List Organizations
+
+```bash
+curl http://localhost:8187/admin/orgs \
+  -H "X-Admin-Secret: admin-secret-change-me"
+```
+
+### List Users
+
+```bash
+curl http://localhost:8187/admin/users \
+  -H "X-Admin-Secret: admin-secret-change-me"
+```
 
 ## Project Structure
 
 ```
 tokenhouse/
-├── docker-compose.yml      # Postgres + NATS
-├── package.json            # Monorepo root
+├── packages/
+│   ├── core/              # TypeScript SDK
+│   │   ├── src/
+│   │   │   ├── client.ts  # TokenHouseClient
+│   │   │   └── types.ts   # Type definitions
+│   │   └── package.json
+│   │
+│   └── react/             # React hooks
+│       ├── src/
+│       │   ├── provider.tsx  # TokenHouseProvider
+│       │   ├── useChat.ts    # Chat hook
+│       │   └── useUsage.ts   # Usage tracking hook
+│       └── package.json
 │
-├── server/                 # Elysia + Bun API
+├── gateway/               # Elysia server (port 8187)
 │   ├── src/
-│   │   ├── index.ts        # App entry, Elysia setup
-│   │   ├── auth/           # Better Auth config + JWT claims
-│   │   ├── db/             # Drizzle schema + migrations
-│   │   ├── nats/           # NATS connection, consumers, subjects
-│   │   ├── plugins/        # Elysia auth plugin
-│   │   ├── routes/         # auth, wallet, gateway routes
-│   │   └── services/       # wallet service, LLM service
-│   └── drizzle/            # Generated migrations
+│   │   ├── index.ts       # Main server
+│   │   ├── routes/
+│   │   │   ├── auth.ts    # JWT authentication
+│   │   │   ├── chat.ts    # Proxy to OpenAI/Claude
+│   │   │   ├── usage.ts   # Usage stats
+│   │   │   └── admin.ts   # Admin endpoints
+│   │   └── db/
+│   │       ├── orgs.ts    # Organization storage
+│   │       └── usage.ts   # Usage logging
+│   └── package.json
 │
-└── client/                 # React + Vite frontend
-    └── src/
-        ├── lib/            # Better Auth client, Eden API client
-        ├── hooks/          # useJwtToken, useWallet
-        ├── components/     # Shared UI components
-        └── pages/          # AuthPage, Dashboard
+├── examples/
+│   ├── simple-chat/       # Chat demo (port 6181)
+│   │   ├── src/
+│   │   │   └── App.tsx
+│   │   └── package.json
+│   │
+│   └── admin-ui/          # Admin interface (port 6182)
+│       ├── src/
+│       │   ├── App.tsx
+│       │   └── components/
+│       │       ├── OrganizationsPanel.tsx
+│       │       ├── UsersPanel.tsx
+│       │       ├── CreateOrgPanel.tsx
+│       │       └── CreateUserPanel.tsx
+│       └── package.json
+│
+├── agentx/
+│   └── apps/
+│       └── tokenhouse-domain-model.agentx.md  # Architecture doc
+│
+├── start-demo.sh          # Start chat demo
+├── start-admin.sh         # Start admin UI
+└── package.json           # Monorepo root
 ```
 
----
+## Pricing & Billing Tiers
 
-## Extending with Agents
+### Cost Calculation
 
-To register a custom agent that processes tasks via NATS:
+Token costs are calculated in real-time using OpenAI/Anthropic pricing:
 
 ```typescript
-import { connect, JSONCodec } from 'nats'
+// OpenAI pricing (per 1M tokens)
+gpt-4o:      $2.50 input, $10.00 output
+gpt-4o-mini: $0.15 input, $0.60 output
 
-const nc = await connect({ servers: 'nats://localhost:4222' })
-const jc = JSONCodec()
-
-// Subscribe to tasks matching your capability
-const sub = nc.subscribe('tokenhouse.tasks.new')
-
-for await (const msg of sub) {
-  const task = jc.decode(msg.data)
-
-  // Process the task (call your specialized model, tool, etc.)
-  const result = await myAgent.process(task)
-
-  // Reply to the requester
-  if (task.replySubject) {
-    nc.publish(task.replySubject, jc.encode({ content: result }))
-  }
-}
+// Anthropic pricing (per 1M tokens)
+claude-3-5-sonnet: $3.00 input, $15.00 output
+claude-3-5-haiku:  $0.80 input, $4.00 output
 ```
 
----
+Every API response includes:
+- `cost_usd`: Total cost in dollars
+- `usage.total_tokens`: Token count
+- `org_id`: Organization charged
 
-## Environment Variables
+### Billing Tiers
 
-### Server (`server/.env`)
+| Tier | Monthly | Requests/Min | Tokens/Day | Best For |
+|------|---------|--------------|------------|----------|
+| **Free** | $0 | 60 | 500K | Testing & demos |
+| **Starter** | $29 | 150 | 3M | Growing startups |
+| **Pro** | $99 | 200 | 5M | Production apps |
+| **Enterprise** | Custom | 300+ | 10M+ | Large scale |
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | ✅ | PostgreSQL connection string |
-| `BETTER_AUTH_SECRET` | ✅ | Min 32 char secret for JWT signing |
-| `BETTER_AUTH_URL` | ✅ | Server base URL |
-| `NATS_URL` | ✅ | NATS connection URL |
-| `ANTHROPIC_API_KEY` | ⚠️ | Required for Claude models |
-| `OPENAI_API_KEY` | ⚠️ | Required for GPT models |
-| `STRIPE_SECRET_KEY` | Optional | For credit purchases |
-| `STRIPE_WEBHOOK_SECRET` | Optional | For Stripe webhooks |
+## Available Models
 
-### Client (`client/.env`)
+All organizations can access:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VITE_API_URL` | ✅ | Server URL |
-| `VITE_STRIPE_PUBLISHABLE_KEY` | Optional | Stripe publishable key |
+**OpenAI:**
+- gpt-4o
+- gpt-4o-mini
+- o1
+- o1-mini
 
----
+**Anthropic:**
+- claude-3-5-sonnet-20241022
+- claude-3-5-haiku-20241022
 
-## Next Steps
+Model access can be configured per organization.
 
-- [ ] Add streaming responses via NATS + SSE
-- [ ] Organization management UI (invite members, set budgets)
-- [ ] Agent registry UI with capability browser
-- [ ] Token futures/hedging market layer
-- [ ] HIPAA compliance mode (PHI audit logging, BAA flow)
-- [ ] Rate limiting per org/user
-- [ ] Model fallback routing (if Claude is down, route to GPT)
+## Development
+
+### Prerequisites
+
+- [Bun](https://bun.sh) >= 1.0
+- Anthropic and/or OpenAI API keys
+
+### Environment Setup
+
+```bash
+# Gateway
+cd gateway
+cp .env.example .env
+# Add your API keys to gateway/.env
+
+# Install dependencies
+cd ..
+bun install
+```
+
+### Start Development
+
+```bash
+# Start everything (gateway + chat UI)
+bun run dev
+
+# Or individually:
+bun run dev:gateway  # Port 8187
+bun run dev:chat     # Port 6181
+bun run dev:admin    # Port 6182
+
+# Build for production
+bun run build
+```
+
+## Documentation
+
+- [Admin UI Guide](examples/admin-ui/README.md) - Complete admin interface documentation
+- [Admin API Guide](ADMIN_GUIDE.md) - Admin API endpoints and examples
+- [SDK Documentation](packages/core/README.md) - TypeScript SDK reference
+- [Domain Model](agentx/apps/tokenhouse-domain-model.agentx.md) - Architecture and design
+- [Quick Start Guide](QUICKSTART.md) - 3-step quick start
+- [Testing Guide](TEST_UI.md) - Testing the chat UI
+
+## Security
+
+⚠️ **Production Considerations:**
+
+1. Change `admin-secret-change-me` to a secure secret
+2. Use HTTPS for all production traffic
+3. Store org secrets securely (never in code)
+4. Implement proper rate limiting per org
+5. Add request logging and monitoring
+6. Use environment variables for all secrets
+7. Enable CORS only for trusted domains
+
+## Support
+
+- Email: johnny@tokenhouse.ai
+- Organization: TokenHouse (tokenhouse-super-org)
+
+## License
+
+Proprietary - TokenHouse Platform

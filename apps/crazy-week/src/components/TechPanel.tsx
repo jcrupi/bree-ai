@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, Sparkles, Loader2, Search, X, ArrowUp, ArrowDown, ExternalLink, RotateCcw } from 'lucide-react';
-import { Task } from '../types/task';
+import { Send, Sparkles, Loader2, Search, X, ArrowUp, ArrowDown, ExternalLink, RotateCcw, Clock, Search as SearchIcon, Zap, CheckCircle2 } from 'lucide-react';
+import { Task, TaskStatus } from '../types/task';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://bree-api.fly.dev';
 
@@ -59,19 +59,153 @@ function EditableCell({ value, onSave }: { value: string; onSave: (v: string) =>
   );
 }
 
+// ─── Status badge ─────────────────────────────────────────────────────────────
+
+const statusConfig: Record<TaskStatus, { label: string; color: string; bgColor: string; borderColor: string; icon: React.ReactNode }> = {
+  pending: {
+    label: 'Pending',
+    color: '#94a3b8',
+    bgColor: '#f8fafc',
+    borderColor: '#e2e8f0',
+    icon: <Clock style={{ width: 12, height: 12 }} />,
+  },
+  investigating: {
+    label: 'Investigating',
+    color: '#f59e0b',
+    bgColor: '#fef3c7',
+    borderColor: '#fde68a',
+    icon: <SearchIcon style={{ width: 12, height: 12 }} />,
+  },
+  active: {
+    label: 'Active',
+    color: '#3b82f6',
+    bgColor: '#dbeafe',
+    borderColor: '#bfdbfe',
+    icon: <Zap style={{ width: 12, height: 12 }} />,
+  },
+  complete: {
+    label: 'Complete',
+    color: '#10b981',
+    bgColor: '#d1fae5',
+    borderColor: '#a7f3d0',
+    icon: <CheckCircle2 style={{ width: 12, height: 12 }} />,
+  },
+};
+
+function StatusBadge({ status, onClick }: { status: TaskStatus; onClick?: () => void }) {
+  const config = statusConfig[status];
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '4px 10px',
+        fontSize: 11,
+        fontWeight: 600,
+        borderRadius: 99,
+        color: config.color,
+        background: config.bgColor,
+        border: `1px solid ${config.borderColor}`,
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'all 0.12s',
+      }}
+      onMouseEnter={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.opacity = '0.8'; }}
+      onMouseLeave={e => { if (onClick) (e.currentTarget as HTMLDivElement).style.opacity = '1'; }}
+    >
+      {config.icon}
+      <span>{config.label}</span>
+    </div>
+  );
+}
+
+// ─── Status selector ──────────────────────────────────────────────────────────
+
+function StatusSelector({ status, onSelect }: { status: TaskStatus; onSelect: (s: TaskStatus) => void }) {
+  const [open, setOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const buttonRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+          dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Calculate dropdown position using fixed positioning
+  useEffect(() => {
+    if (open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: 'fixed',
+        top: rect.bottom + 4,
+        left: rect.left,
+        zIndex: 9999,
+      });
+    }
+  }, [open]);
+
+  const options: TaskStatus[] = ['pending', 'investigating', 'active', 'complete'];
+
+  return (
+    <>
+      <div ref={buttonRef} style={{ position: 'relative', display: 'inline-block' }}>
+        <StatusBadge status={status} onClick={() => setOpen(!open)} />
+      </div>
+      {open && (
+        <div ref={dropdownRef} style={{
+          ...dropdownStyle,
+          background: '#fff', border: '1.5px solid #ede9fe', borderRadius: 8,
+          boxShadow: '0 4px 12px rgba(109,40,217,0.15)', overflow: 'hidden',
+          minWidth: 140,
+        }}>
+          {options.map(opt => {
+            const cfg = statusConfig[opt];
+            return (
+              <div
+                key={opt}
+                onClick={() => { onSelect(opt); setOpen(false); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                  fontSize: 12, color: cfg.color, cursor: 'pointer',
+                  background: opt === status ? '#f5f3ff' : '#fff',
+                  transition: 'background 0.12s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#faf5ff')}
+                onMouseLeave={e => (e.currentTarget.style.background = opt === status ? '#f5f3ff' : '#fff')}
+              >
+                {cfg.icon}
+                <span>{cfg.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface TechPanelProps {
   tasks: Task[];
   onDescriptionUpdate?: (id: string, description: string) => void;
   onAssigneeUpdate?: (id: string, assignee: string) => void;
+  onStatusUpdate?: (id: string, status: TaskStatus) => void;
 }
 
-type SortCol = 'taskId' | 'description' | 'createdDate';
+type SortCol = 'taskId' | 'description' | 'createdDate' | 'status' | 'assignee';
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
-export function TechPanel({ tasks, onDescriptionUpdate }: TechPanelProps) {
+export function TechPanel({ tasks, onDescriptionUpdate, onAssigneeUpdate, onStatusUpdate }: TechPanelProps) {
   // ── AI state ──
   const [messages,    setMessages]    = useState<Message[]>([]);
   const [input,       setInput]       = useState('');
@@ -81,10 +215,11 @@ export function TechPanel({ tasks, onDescriptionUpdate }: TechPanelProps) {
   const inputRef   = useRef<HTMLInputElement>(null);
 
   // ── Table state ──
-  const [search,    setSearch]    = useState('');
-  const [sortCol,   setSortCol]   = useState<SortCol>('createdDate');
-  const [sortDir,   setSortDir]   = useState<'asc' | 'desc'>('asc');
-  const [descEdits, setDescEdits] = useState<Record<string, string>>({});
+  const [search,       setSearch]       = useState('');
+  const [sortCol,      setSortCol]      = useState<SortCol>('createdDate');
+  const [sortDir,      setSortDir]      = useState<'asc' | 'desc'>('asc');
+  const [descEdits,    setDescEdits]    = useState<Record<string, string>>({});
+  const [assigneeEdits, setAssigneeEdits] = useState<Record<string, string>>({});
 
   // Suggestion chips
   const SUGGESTIONS = [
@@ -163,13 +298,19 @@ Be concise. Use bullet points when listing multiple items.`;
   };
 
   const rows = useMemo(() => {
-    let list = tasks.map(t => ({ ...t, _desc: descEdits[t.id] ?? t.description }));
+    let list = tasks.map(t => ({
+      ...t,
+      _desc: descEdits[t.id] ?? t.description,
+      _assignee: assigneeEdits[t.id] ?? t.assignee ?? 'unassigned'
+    }));
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(r =>
         r._desc.toLowerCase().includes(q) ||
         r.taskId.toLowerCase().includes(q) ||
-        r.productName.toLowerCase().includes(q)
+        r.productName.toLowerCase().includes(q) ||
+        r._assignee.toLowerCase().includes(q) ||
+        r.status.toLowerCase().includes(q)
       );
     }
     list.sort((a, b) => {
@@ -177,10 +318,12 @@ Be concise. Use bullet points when listing multiple items.`;
       if (sortCol === 'taskId')      { va = a.taskId;      vb = b.taskId; }
       if (sortCol === 'description') { va = a._desc;       vb = b._desc; }
       if (sortCol === 'createdDate') { va = a.createdDate; vb = b.createdDate; }
+      if (sortCol === 'status')      { va = a.status;      vb = b.status; }
+      if (sortCol === 'assignee')    { va = a._assignee;   vb = b._assignee; }
       return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
     });
     return list;
-  }, [tasks, search, sortCol, sortDir, descEdits]);
+  }, [tasks, search, sortCol, sortDir, descEdits, assigneeEdits]);
 
   function fmtDate(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -379,8 +522,10 @@ Be concise. Use bullet points when listing multiple items.`;
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: 140 }} />
+              <col style={{ width: 120 }} />
               <col />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 130 }} />
               <col style={{ width: 140 }} />
               <col style={{ width: 36 }} />
             </colgroup>
@@ -391,6 +536,12 @@ Be concise. Use bullet points when listing multiple items.`;
                 </th>
                 <th style={TH} onClick={() => handleSort('description')}>
                   <span style={{ display: 'flex', alignItems: 'center' }}>NAME<Arrow col="description" /></span>
+                </th>
+                <th style={TH} onClick={() => handleSort('status')}>
+                  <span style={{ display: 'flex', alignItems: 'center' }}>STATUS<Arrow col="status" /></span>
+                </th>
+                <th style={TH} onClick={() => handleSort('assignee')}>
+                  <span style={{ display: 'flex', alignItems: 'center' }}>ASSIGNEE<Arrow col="assignee" /></span>
                 </th>
                 <th style={TH} onClick={() => handleSort('createdDate')}>
                   <span style={{ display: 'flex', alignItems: 'center' }}>CREATED<Arrow col="createdDate" /></span>
@@ -431,6 +582,26 @@ Be concise. Use bullet points when listing multiple items.`;
                       />
                     </td>
 
+                    {/* STATUS */}
+                    <td style={TD}>
+                      <StatusSelector
+                        status={task.status}
+                        onSelect={s => onStatusUpdate?.(task.id, s)}
+                      />
+                    </td>
+
+                    {/* ASSIGNEE */}
+                    <td style={{ ...TD, color: '#6b7280', fontSize: 13 }}>
+                      <EditableCell
+                        value={task._assignee}
+                        onSave={v => {
+                          const val = v.trim() || 'unassigned';
+                          setAssigneeEdits(p => ({ ...p, [task.id]: val }));
+                          onAssigneeUpdate?.(task.id, val === 'unassigned' ? '' : val);
+                        }}
+                      />
+                    </td>
+
                     {/* CREATED */}
                     <td style={TD}>
                       <span style={{ color: '#9ca3af', fontSize: 13 }}>{fmtDate(task.createdDate)}</span>
@@ -451,7 +622,7 @@ Be concise. Use bullet points when listing multiple items.`;
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ ...TD, textAlign: 'center', padding: 40, color: '#d8b4fe' }}>
+                  <td colSpan={6} style={{ ...TD, textAlign: 'center', padding: 40, color: '#d8b4fe' }}>
                     No tasks match your search.{' '}
                     {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: '#7c3aed', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' }}>Clear</button>}
                   </td>

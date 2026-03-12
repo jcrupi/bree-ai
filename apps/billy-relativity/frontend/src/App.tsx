@@ -3,8 +3,9 @@
  * BREE Stack: Bun + React + Elysia + Eden
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { APIExplorer } from './components/APIExplorer';
+import { CommandCenter } from './components/CommandCenter';
 import { ClientDomainView } from './components/ClientDomainView';
 import { RelativityConnect } from './components/RelativityConnect';
 import { LiveModeWarning } from './components/LiveModeWarning';
@@ -12,15 +13,46 @@ import Observer from './components/Observer';
 import { AppModeProvider, useAppMode, isLocalhost } from './context/AppModeContext';
 import {
   Database, Code, Zap, FlaskConical,
-  Building2, Telescope, Wifi, WifiOff, AlertTriangle,
+  Building2, Telescope, Wifi, WifiOff, AlertTriangle, Terminal, Palette,
 } from 'lucide-react';
 
-type ActiveTab = 'explorer' | 'domain' | 'observer';
+/* ── Theme definitions ──────────────────────────────────────────── */
+type Theme = 'corporate' | 'relativity';
+
+const THEMES: Record<Theme, React.CSSProperties> = {
+  corporate: {
+    '--bg-page':    '#f3f4f6',
+    '--bg-header':  '#ffffff',
+    '--bg-tab-active': '#4f46e5',
+    '--text-tab-active': '#ffffff',
+    '--accent':     '#4f46e5',
+    '--accent-soft':'#eef2ff',
+    '--border':     '#e5e7eb',
+  } as React.CSSProperties,
+  relativity: {
+    '--bg-page':    '#f0eeff',
+    '--bg-header':  '#faf8ff',
+    '--bg-tab-active': '#7c5cbf',
+    '--text-tab-active': '#ffffff',
+    '--accent':     '#7c5cbf',
+    '--accent-soft':'#ede9fe',
+    '--border':     '#ddd6fe',
+  } as React.CSSProperties,
+};
+
+function applyTheme(theme: Theme) {
+  const vars = THEMES[theme];
+  const root = document.documentElement;
+  Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v as string));
+}
+
+type ActiveTab = 'explorer' | 'domain' | 'observer' | 'commandcenter';
 
 const TABS: { id: ActiveTab; label: string; icon: React.ReactNode; badge?: string }[] = [
-  { id: 'explorer', label: 'API Explorer',   icon: <FlaskConical className="w-4 h-4" /> },
-  { id: 'domain',   label: 'Client Domains', icon: <Building2 className="w-4 h-4" /> },
-  { id: 'observer', label: 'Observer',    icon: <Telescope className="w-4 h-4" /> },
+  { id: 'explorer',       label: 'API Explorer',    icon: <FlaskConical className="w-4 h-4" /> },
+  { id: 'domain',         label: 'Client Domains',  icon: <Building2 className="w-4 h-4" /> },
+  { id: 'commandcenter',  label: 'Command Center',  icon: <Terminal className="w-4 h-4" /> },
+  { id: 'observer',       label: 'Observer',        icon: <Telescope className="w-4 h-4" /> },
 ];
 
 /** Mode toggle button + warning modal — lives inside the provider */
@@ -101,19 +133,30 @@ function LiveModeBanner() {
 
 function AppInner() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('domain');
+  const [theme, setTheme] = useState<Theme>(() => {
+    return (localStorage.getItem('br-theme') as Theme) || 'corporate';
+  });
+
+  useEffect(() => {
+    applyTheme(theme);
+    localStorage.setItem('br-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === 'corporate' ? 'relativity' : 'corporate');
+  const isRelativity = theme === 'relativity';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen" style={{ background: 'var(--bg-page, #f3f4f6)' }}>
 
       {/* ── Relativity Connection Bar (top of page) ───────────────────── */}
       <RelativityConnect />
 
       {/* ── App Header ───────────────────────────────────────────────── */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header style={{ background: 'var(--bg-header, #ffffff)', borderBottom: '1px solid var(--border, #e5e7eb)' }} className="shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="bg-indigo-600 p-2.5 rounded-xl">
+            <div style={{ background: 'var(--accent, #4f46e5)' }} className="p-2.5 rounded-xl">
                 <Database className="w-7 h-7 text-white" />
               </div>
               <div>
@@ -122,6 +165,25 @@ function AppInner() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Theme toggle */}
+              <button
+                id="theme-toggle"
+                onClick={toggleTheme}
+                title={isRelativity ? 'Switch to Corporate theme' : 'Switch to Relativity theme'}
+                className="flex items-center gap-2 px-3 py-2 rounded-full text-sm font-bold border transition-all duration-300 shadow-sm"
+                style={isRelativity ? {
+                  background: 'linear-gradient(135deg,#c4b5fd,#818cf8)',
+                  border: '1px solid #a78bfa',
+                  color: '#fff',
+                } : {
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  color: '#64748b',
+                }}
+              >
+                <Palette className="w-3.5 h-3.5" />
+                {isRelativity ? 'Relativity' : 'Corporate'}
+              </button>
               {/* Mock/Live toggle */}
               <ModeToggle />
               <div className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -145,11 +207,14 @@ function AppInner() {
                 key={tab.id}
                 id={`tab-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
-                }`}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all`}
+                style={activeTab === tab.id ? {
+                  background: 'var(--bg-tab-active, #4f46e5)',
+                  color: 'var(--text-tab-active, #fff)',
+                  boxShadow: '0 2px 8px rgba(79,70,229,0.3)',
+                } : {
+                  color: '#4b5563',
+                }}
               >
                 {tab.icon}
                 {tab.label}
@@ -169,9 +234,10 @@ function AppInner() {
 
       {/* ── Main Content ─────────────────────────────────────────────── */}
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {activeTab === 'explorer' && <APIExplorer />}
-        {activeTab === 'domain'   && <ClientDomainView />}
-        {activeTab === 'observer' && <Observer panelMode />}
+        {activeTab === 'explorer'      && <APIExplorer />}
+        {activeTab === 'domain'         && <ClientDomainView />}
+        {activeTab === 'commandcenter'  && <CommandCenter />}
+        {activeTab === 'observer'       && <Observer panelMode />}
       </main>
 
       {/* ── Observer FAB — visible on all non-observer tabs ───────── */}

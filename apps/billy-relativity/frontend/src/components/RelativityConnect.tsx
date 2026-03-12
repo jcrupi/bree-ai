@@ -76,9 +76,9 @@ const isLocalhost = typeof window !== 'undefined' &&
 export function RelativityConnect() {
   const { isLive, setAuth } = useAppMode();
   const [open, setOpen] = useState(false);
-  const [instanceUrl, setInstanceUrl] = useState('https://ey-us.relativity.one');
-  const [clientId, setClientId] = useState('d7d0c577328f41fe878de7aa4cfbf807');
-  const [clientSecret, setClientSecret] = useState('b0d3afc024ce3d81f4c18adade9303c72e');
+  const [instanceUrl, setInstanceUrl] = useState(import.meta.env.VITE_REL_INSTANCE_URL || 'https://ey-us.relativity.one');
+  const [clientId, setClientId] = useState(import.meta.env.VITE_REL_CLIENT_ID || 'd7d0c577328f41fe878de7aa4cfbf807');
+  const [clientSecret, setClientSecret] = useState(import.meta.env.VITE_REL_CLIENT_SECRET || 'b0d3afc024ce3d81f4c18adade9303c72e');
   const [showSecret, setShowSecret] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -113,32 +113,19 @@ export function RelativityConnect() {
       return;
     }
 
-    // ── LIVE MODE — direct browser → Relativity (VPN/network required) ──
-    // Only works from localhost (local Docker) — CORS blocks it from hosted origins.
-    if (!isLocalhost) {
-      setResult({
-        success:          false,
-        message:          'Live mode auth requires running locally via Docker',
-        error:            'NOT_LOCALHOST',
-        errorDescription: `Direct browser-to-Relativity calls are blocked by CORS when accessed from ${window.location.hostname}. Run the Docker image on a machine connected to the EY VPN and open http://localhost:8080 — Live auth will work from there.`,
-      });
-      setLoading(false);
-      return;
-    }
-
+    // ── LIVE MODE — Proxy to Backend to bypass CORS ──
     try {
-      const formBody = new URLSearchParams({
-        grant_type:    'client_credentials',
-        client_id:     clientId.trim(),
-        client_secret: clientSecret.trim(),
-        scope:         'SystemUserInfo',
-      });
-
-      const res = await fetch(tokenEndpoint, {
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const proxyEndpoint = `${apiBase}/api/auth/token`;
+      
+      const res = await fetch(proxyEndpoint, {
         method:   'POST',
-        headers:  { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body:     formBody.toString(),
-        redirect: 'manual',   // don't follow redirects — catch login page redirects
+        headers:  { 'Content-Type': 'application/json' },
+        body:     JSON.stringify({ 
+          instanceUrl: base, 
+          clientId: clientId.trim(), 
+          clientSecret: clientSecret.trim() 
+        }),
       });
 
       // A redirect means the endpoint sent us to a login page instead of a token
@@ -241,17 +228,9 @@ export function RelativityConnect() {
               <span>
                 {isLive ? (
                   <>
-                    {isLocalhost ? (
-                      <><strong className="text-amber-300">LIVE — Direct browser → Relativity SSL.</strong>{' '}
-                      Your browser must be on the VPN that can reach{' '}
-                      <code className="text-indigo-300 font-mono text-[10px] break-all">
-                        {instanceUrl ? `${instanceUrl.replace(/\/$/, '')}/Relativity/Identity/connect/token` : 'https://ey-us.relativity.one/Relativity/Identity/connect/token'}
-                      </code>. Credentials: <strong className="text-gray-200">Relativity → Home → OAuth2 Clients</strong>.</>
-                    ) : (
-                      <><strong className="text-red-400">Live auth is not available from {window.location.hostname}.</strong>{' '}
-                      CORS blocks cross-origin token requests. Run the Docker image locally on your VPN machine and open{' '}
-                      <code className="text-indigo-300 font-mono">http://localhost:8080</code> — Live mode will work from there.</>
-                    )}
+                    <strong className="text-amber-300">LIVE — Server Proxy to Relativity SSL.</strong>{' '}
+                    Authentication is proxied through the local backend to bypass CORS.{' '}
+                    Credentials: <strong className="text-gray-200">Relativity → Home → OAuth2 Clients</strong>.
                   </>
                 ) : (
                   <>

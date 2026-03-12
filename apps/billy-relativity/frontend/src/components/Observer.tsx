@@ -203,17 +203,17 @@ function ObservationsList({ observables, onRefresh }: { observables: Observable[
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search observations…"
-          style={{ flex: 1, minWidth: 180, padding: '9px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#f1f5f9', fontSize: 14 }}
+          style={{ flex: 1, minWidth: 180, padding: '9px 14px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, color: '#111827', fontSize: 14 }}
         />
         <button onClick={onRefresh}
-          style={{ padding: '8px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#94a3b8', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          style={{ padding: '8px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, color: '#64748b', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
         >🔄 Refresh</button>
       </div>
 
       {observables.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '64px 24px', color: '#94a3b8' }}>
+        <div style={{ textAlign: 'center', padding: '64px 24px', color: '#64748b' }}>
           <div style={{ fontSize: 56, marginBottom: 16 }}>🔭</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#f1f5f9', marginBottom: 8 }}>No observations yet</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 8 }}>No observations yet</div>
           <div style={{ fontSize: 14 }}>Tap the 🔭 button to record a workspace issue, matter number problem, or access concern.</div>
         </div>
       )}
@@ -222,16 +222,16 @@ function ObservationsList({ observables, onRefresh }: { observables: Observable[
         {filtered.map(obs => {
           const cat = getCat(obs.category);
           return (
-            <div key={obs.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderLeft: `3px solid ${cat.color}`, borderRadius: 12, padding: '16px 18px' }}>
+            <div key={obs.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderLeft: `3px solid ${cat.color}`, borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                <span style={{ padding: '3px 9px', borderRadius: 99, background: `${cat.color}22`, color: cat.color, fontSize: 11, fontWeight: 700, border: `1px solid ${cat.color}44` }}>{cat.label}</span>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginLeft: 'auto' }}>{formatDate(obs.createdAt)}</span>
+                <span style={{ padding: '3px 9px', borderRadius: 99, background: `${cat.color}18`, color: cat.color, fontSize: 11, fontWeight: 700, border: `1px solid ${cat.color}44` }}>{cat.label}</span>
+                <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 'auto' }}>{formatDate(obs.createdAt)}</span>
               </div>
-              <p style={{ margin: '0 0 10px', fontSize: 14, lineHeight: 1.65, color: '#f1f5f9', whiteSpace: 'pre-wrap' }}>{obs.text}</p>
+              <p style={{ margin: '0 0 10px', fontSize: 14, lineHeight: 1.65, color: '#111827', whiteSpace: 'pre-wrap' }}>{obs.text}</p>
               {obs.tags.length > 0 && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {obs.tags.map(t => (
-                    <span key={t} style={{ padding: '2px 8px', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 99, fontSize: 11, color: '#a5b4fc' }}>#{t}</span>
+                    <span key={t} style={{ padding: '2px 8px', background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 99, fontSize: 11, color: '#4f46e5' }}>#{t}</span>
                   ))}
                 </div>
               )}
@@ -239,7 +239,7 @@ function ObservationsList({ observables, onRefresh }: { observables: Observable[
           );
         })}
         {filtered.length === 0 && search && (
-          <div style={{ textAlign: 'center', padding: '32px', color: '#94a3b8', fontSize: 14 }}>No observations match "{search}".</div>
+          <div style={{ textAlign: 'center', padding: '32px', color: '#6b7280', fontSize: 14 }}>No observations match "{search}".</div>
         )}
       </div>
     </div>
@@ -410,14 +410,14 @@ function ObserverPanel({ observables, onRefresh, loadError }: { observables: Obs
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', padding: '24px 16px' }}>
       <div style={{ marginBottom: 24 }}>
-        <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#111827', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span>🔭</span> <span>Observer</span>
         </h2>
-        <p style={{ margin: '6px 0 0', color: '#94a3b8', fontSize: 14 }}>
+        <p style={{ margin: '6px 0 0', color: '#6b7280', fontSize: 14 }}>
           Record workspace issues, matter problems &amp; compliance flags — saved to server
         </p>
         {loadError && (
-          <div style={{ marginTop: 8, padding: '6px 12px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 8, fontSize: 12, color: '#f87171' }}>
+          <div style={{ marginTop: 8, padding: '6px 12px', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, fontSize: 12, color: '#dc2626' }}>
             ⚠️ Could not load from server: {loadError}
           </div>
         )}
@@ -426,18 +426,18 @@ function ObserverPanel({ observables, onRefresh, loadError }: { observables: Obs
       {categoryStats.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 24 }}>
           {categoryStats.map(c => (
-            <div key={c.value} style={{ padding: '14px 16px', background: `${c.color}11`, border: `1px solid ${c.color}33`, borderRadius: 12, textAlign: 'center' }}>
+            <div key={c.value} style={{ padding: '14px 16px', background: `${c.color}12`, border: `1px solid ${c.color}44`, borderRadius: 12, textAlign: 'center' }}>
               <div style={{ fontSize: 22, fontWeight: 800, color: c.color }}>{c.count}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{c.label}</div>
+              <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{c.label}</div>
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'rgba(255,255,255,0.04)', padding: 4, borderRadius: 10, width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#f1f5f9', padding: 4, borderRadius: 10, width: 'fit-content' }}>
         {(['list', 'chat'] as const).map(v => (
           <button key={v} onClick={() => setActiveView(v)}
-            style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: activeView === v ? 'rgba(99,102,241,0.25)' : 'transparent', color: activeView === v ? '#a5b4fc' : '#94a3b8', fontWeight: activeView === v ? 700 : 400, fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
+            style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: activeView === v ? '#fff' : 'transparent', color: activeView === v ? '#4f46e5' : '#6b7280', fontWeight: activeView === v ? 700 : 400, fontSize: 13, cursor: 'pointer', transition: 'all 0.15s', boxShadow: activeView === v ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}
           >
             {v === 'list' ? `📋 Observations (${observables.length})` : '🧠 AI Analysis'}
           </button>

@@ -21,7 +21,8 @@
   --radius-lg: 12px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans:
+    "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
@@ -182,7 +183,7 @@ textarea {
 }
 
 .sidebar {
-  width: 220px;
+  width: 240px;
   flex-shrink: 0;
   background: var(--bg-sidebar);
   color: var(--text-sidebar);
@@ -225,8 +226,72 @@ textarea {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0;
   padding: 0 0.75rem;
+  overflow-y: auto;
+}
+
+/* Catalog toggle row */
+.catalog-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 0 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  margin-bottom: 8px;
+}
+
+.catalog-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: var(--text-sidebar-muted);
+  border-radius: var(--radius);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.catalog-tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-sidebar);
+}
+
+.catalog-tab.active {
+  background: rgba(13, 148, 136, 0.18);
+  border-color: rgba(13, 148, 136, 0.4);
+  color: #5eead4;
+  font-weight: 600;
+}
+
+.catalog-tab-icon {
+  font-size: 0.9rem;
+}
+
+/* Orange variant — Bree AI */
+.catalog-tab-orange:hover {
+  background: rgba(234, 88, 12, 0.08);
+  color: #fdba74;
+}
+
+.catalog-tab-orange.active {
+  background: rgba(234, 88, 12, 0.18);
+  border-color: rgba(234, 88, 12, 0.45);
+  color: #fb923c;
+  font-weight: 600;
+}
+
+/* Specialties list — scoped within catalog */
+.catalog-specialties {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .specialty-btn {
@@ -1209,4 +1274,23 @@ textarea {
 .code-mapping-content {
   flex: 1;
   padding: 0.5rem 0;
+}
+
+/* Observer panel */
+.content-row-observer {
+  flex: 1;
+  overflow: auto;
+}
+
+.content-row-observer .main-panel {
+  flex: 1;
+  min-width: 0;
+}
+
+.main-panel.observer-full {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  background: var(--bg);
 }

@@ -445,14 +445,20 @@ export const APIExplorer: React.FC = () => {
       switch (question.id) {
         case 'get-all-workspaces':
           if (isLive && auth?.accessToken) {
-            // LIVE: hit the real Relativity workspace API with Bearer token
+            // LIVE: hit the real Relativity workspace API with Bearer token, proxied via backend
             const wsUrl = `${auth.instanceUrl}/Relativity.REST/api/Relativity.Objects/workspace`;
-            const liveRes = await fetch(wsUrl, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${auth.accessToken}`,
-                'Content-Type':  'application/json',
-              },
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+            const liveRes = await fetch(`${apiBase}/api/auth/proxy`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                endpoint: wsUrl,
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${auth.accessToken}`,
+                  'Content-Type': 'application/json',
+                }
+              })
             });
             const liveData = await liveRes.json();
             result = {
@@ -460,6 +466,12 @@ export const APIExplorer: React.FC = () => {
               success: liveRes.ok,
               _live:   true,
               _url:    wsUrl,
+              details: {
+                method: 'GET',
+                url: wsUrl,
+                status: liveRes.status,
+                headers: { 'Proxy': 'Local Backend' },
+              }
             };
           } else {
             // MOCK: use local backend

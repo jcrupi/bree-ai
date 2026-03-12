@@ -54,8 +54,11 @@ function getVersionFromContent(content: string): number {
   return fmMatch ? parseInt(fmMatch[1], 10) : 1;
 }
 
-export function loadPlaybook(specialtyApp: string, baseName: string): DocMeta {
-  const playbookDir = join(APPS_ROOT, specialtyApp, "agentx", "playbook");
+export function loadPlaybook(specialtyApp: string, baseName: string, appRoot?: string): DocMeta {
+  // If appRoot provided (e.g. 'ai-playbooks/agentx/apps/wound-ai'), use it directly
+  const playbookDir = appRoot
+    ? join(APPS_ROOT, appRoot, "playbook")
+    : join(APPS_ROOT, specialtyApp, "agentx", "playbook");
   const prefix = baseName.replace(".playbook.agentx", "") + ".playbook.agentx";
   const found = findLatestVersionedFile(playbookDir, prefix);
   if (!found) {
@@ -72,8 +75,10 @@ export function loadPlaybook(specialtyApp: string, baseName: string): DocMeta {
   };
 }
 
-export function loadAlgos(specialtyApp: string, baseName: string): DocMeta {
-  const playbookDir = join(APPS_ROOT, specialtyApp, "agentx", "playbook");
+export function loadAlgos(specialtyApp: string, baseName: string, appRoot?: string): DocMeta {
+  const playbookDir = appRoot
+    ? join(APPS_ROOT, appRoot, "playbook")
+    : join(APPS_ROOT, specialtyApp, "agentx", "playbook");
   const base = baseName.replace(".algos.agentx", "").replace(".algo.agentx", "");
   let found = findLatestVersionedFile(playbookDir, base + ".algos.agentx");
   if (!found) {
@@ -93,7 +98,7 @@ export function loadAlgos(specialtyApp: string, baseName: string): DocMeta {
   };
 }
 
-export { SPECIALTY_CONFIG } from "../../shared/specialty-config.js";
+export { SPECIALTY_CONFIG, CATALOG_CONFIG } from "../../shared/specialty-config.js";
 
 /** Analysis files: testing team feedback. Versioned: {app}.analysis.{type}.agentx-vN.md */
 export type AnalysisType = "playbook" | "algos";

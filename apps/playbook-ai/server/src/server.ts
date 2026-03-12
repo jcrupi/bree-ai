@@ -11,6 +11,7 @@ import {
   loadDesigns,
   loadCodeMapping,
   SPECIALTY_CONFIG,
+  CATALOG_CONFIG,
   type AnalysisType,
 } from "./playbook-loader";
 
@@ -37,6 +38,59 @@ function savePlaybookAndAlgos(domain: string, playbookContent: string, algosCont
   const algosPath = join(PLAYBOOK_DIR, `${slug}.algos.agentx-v1.md`);
   writeFileSync(playbookPath, playbookContent, "utf-8");
   writeFileSync(algosPath, algosContent, "utf-8");
+}
+
+// ─── Observer observations (volume-persisted) ─────────────────────────────────
+interface Attachment {
+  name: string;
+  mime: string;   // e.g. image/png, application/pdf
+  data: string;   // base64-encoded
+  size: number;   // bytes (pre-base64)
+}
+
+interface Observable {
+  id: string;
+  text: string;
+  category: string;
+  tags: string[];
+  createdAt: string;
+  app: 'playbook-ai';
+  source: 'observer';
+  attachments?: Attachment[];
+}
+
+function getObsFilePath(): string {
+  const dir = process.env.DATA_DIR ?? '/tmp';
+  return `${dir}/playbook-ai-observations.json`;
+}
+
+function loadObservables(): Observable[] {
+  try {
+    const raw = readFileSync(getObsFilePath(), 'utf-8');
+    const arr = JSON.parse(raw) as Observable[];
+    return arr.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } catch {
+    return [];
+  }
+}
+
+function addObservable(data: { text: string; category?: string; tags?: string[]; attachments?: Attachment[] }): Observable {
+  const obs: Observable = {
+    id: `obs-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    text: data.text,
+    category: data.category ?? 'general',
+    tags: data.tags ?? [],
+    createdAt: new Date().toISOString(),
+    app: 'playbook-ai',
+    source: 'observer',
+    ...(data.attachments?.length ? { attachments: data.attachments } : {}),
+  };
+  const existing = loadObservables();
+  const updated = [obs, ...existing];
+  const dir = process.env.DATA_DIR ?? '/tmp';
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(getObsFilePath(), JSON.stringify(updated, null, 2), 'utf-8');
+  return obs;
 }
 
 async function callOpenAI(system: string, user: string, maxTokens = 2048): Promise<string> {
@@ -89,13 +143,24 @@ const app = new Elysia()
     return { service: "Playbook.ai", version: "1.0.0", status: "running" };
   })
   .get("/health", () => ({ status: "healthy", service: "playbook-ai" }))
+  .get("/api/catalogs", () => ({
+    catalogs: CATALOG_CONFIG.map((c) => ({
+      id: c.id,
+      name: c.name,
+      icon: c.icon,
+      description: c.description,
+      specialties: SPECIALTY_CONFIG
+        .filter((s) => s.catalogId === c.id)
+        .map((s) => ({ id: s.id, name: s.name, icon: s.icon })),
+    })),
+  }))
   .get("/api/specialties", () => ({
-    specialties: SPECIALTY_CONFIG.map((s) => ({ id: s.id, name: s.name })),
+    specialties: SPECIALTY_CONFIG.map((s) => ({ id: s.id, name: s.name, icon: s.icon, catalogId: s.catalogId })),
   }))
   .get("/api/documents/:specialty/playbook", ({ params }) => {
     const spec = SPECIALTY_CONFIG.find((s) => s.id === params.specialty);
     if (!spec) return { content: "", filename: "", version: 0, created_at: "" };
-    const meta = loadPlaybook(spec.app, spec.baseName);
+    const meta = loadPlaybook(spec.app, spec.baseName, spec.appRoot);
     return {
       content: meta.content,
       filename: meta.filename,
@@ -106,7 +171,7 @@ const app = new Elysia()
   .get("/api/documents/:specialty/algos", ({ params }) => {
     const spec = SPECIALTY_CONFIG.find((s) => s.id === params.specialty);
     if (!spec) return { content: "", filename: "", version: 0, created_at: "" };
-    const meta = loadAlgos(spec.app, spec.baseName);
+    const meta = loadAlgos(spec.app, spec.baseName, spec.appRoot);
     return {
       content: meta.content,
       filename: meta.filename,
@@ -160,8 +225,8 @@ const app = new Elysia()
       if (type !== "playbook" && type !== "algos") throw new Error("Invalid analysis type");
 
       const before = type === "playbook"
-        ? loadPlaybook(spec.app, spec.baseName).content
-        : loadAlgos(spec.app, spec.baseName).content;
+        ? loadPlaybook(spec.app, spec.baseName, spec.appRoot).content
+        : loadAlgos(spec.app, spec.baseName, spec.appRoot).content;
       const analysisContent = body.analysis_content ?? "";
 
       if (!analysisContent.trim()) {
@@ -209,8 +274,8 @@ Rules:
       const spec = SPECIALTY_CONFIG.find((s) => s.id === body.specialty);
       if (!spec) throw new Error("Invalid specialty");
 
-      const playbook = loadPlaybook(spec.app, spec.baseName).content;
-      const algos = loadAlgos(spec.app, spec.baseName).content;
+      const playbook = loadPlaybook(spec.app, spec.baseName, spec.appRoot).content;
+      const algos = loadAlgos(spec.app, spec.baseName, spec.appRoot).content;
 
       let doc: string;
       let docName: string;
@@ -248,8 +313,8 @@ Rules:
       if (!spec) throw new Error("Invalid specialty");
       if (!body.input_text.trim()) throw new Error("Input text is required");
 
-      const playbook = loadPlaybook(spec.app, spec.baseName).content;
-      const algos = loadAlgos(spec.app, spec.baseName).content;
+      const playbook = loadPlaybook(spec.app, spec.baseName, spec.appRoot).content;
+      const algos = loadAlgos(spec.app, spec.baseName, spec.appRoot).content;
 
       const system = `You are an expert assistant for the ${spec.name} domain. Use the Playbook and Algos below to analyze the user's input.
 
@@ -319,12 +384,15 @@ Findings: 1 concise sentence. Remediation: null if PASS, else 1 sentence.`;
   .post(
     "/api/chart-ai",
     async ({ body }) => {
-      const spec = SPECIALTY_CONFIG.find((s) => s.id === body.specialty);
-      if (!spec) throw new Error("Invalid specialty");
-      if (spec.id !== "em") throw new Error("Chart AI is only available for E/M specialty");
+      const specRaw = SPECIALTY_CONFIG.find((s) => s.id === body.specialty);
+      if (!specRaw) throw new Error("Invalid specialty");
+      // @ts-expect-error: "em" may be added to SPECIALTY_CONFIG in future
+      if (specRaw.id !== "em") throw new Error("Chart AI is only available for E/M specialty");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const spec = specRaw as any;
 
-      const playbook = loadPlaybook(spec.app, spec.baseName).content;
-      const algos = loadAlgos(spec.app, spec.baseName).content;
+      const playbook = loadPlaybook(spec.app, spec.baseName, spec.appRoot).content;
+      const algos = loadAlgos(spec.app, spec.baseName, spec.appRoot).content;
 
       const codeInfo: Record<string, string> = {
         "99233": "Subsequent hospital care, High MDM, 40–54 min. Use MDM or time.",
@@ -464,6 +532,63 @@ Output format: Use EXACTLY these delimiters. No other text before or after.
         domain: t.String(),
         playbook: t.String(),
         algos: t.String(),
+      }),
+    }
+  )
+  // ─── Observer endpoints ──────────────────────────────────────────────────────
+  .get("/api/observations", () => {
+    const obs = loadObservables();
+    return { success: true, data: obs, count: obs.length, app: 'playbook-ai', timestamp: new Date().toISOString() };
+  })
+  .post(
+    "/api/observations",
+    ({ body, set }) => {
+      if (!body.text?.trim()) {
+        set.status = 400;
+        return { success: false, error: 'text is required' };
+      }
+      const obs = addObservable({
+        text: body.text.trim(),
+        category: body.category,
+        tags: body.tags,
+        attachments: body.attachments as Attachment[] | undefined,
+      });
+      set.status = 201;
+      return { success: true, observation: obs, timestamp: new Date().toISOString() };
+    },
+    {
+      body: t.Object({
+        text: t.String(),
+        category: t.Optional(t.String()),
+        tags: t.Optional(t.Array(t.String())),
+        attachments: t.Optional(t.Array(t.Object({
+          name: t.String(),
+          mime: t.String(),
+          data: t.String(),
+          size: t.Number(),
+        }))),
+      }),
+    }
+  )
+  .post(
+    "/api/observer/chat",
+    async ({ body }) => {
+      const question = body.question ?? '';
+      if (!question.trim()) throw new Error('question is required');
+      const answer = await callOpenAI(
+        'You are a helpful expert assistant specializing in specialty playbooks, medical coding, tax regulations, and algorithm design. Be concise and specific.',
+        question,
+        2048
+      );
+      return { answer };
+    },
+    {
+      body: t.Object({
+        question: t.String(),
+        history: t.Optional(t.Array(t.Object({
+          role: t.String(),
+          content: t.String(),
+        }))),
       }),
     }
   )

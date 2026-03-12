@@ -1,4 +1,4 @@
-app = "billy-relativity-command-center"
+app = "billy-relativity"
 primary_region = "iad"
 
 [build]

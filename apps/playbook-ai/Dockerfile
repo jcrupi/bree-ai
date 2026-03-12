@@ -13,6 +13,9 @@ COPY apps/playbook-ai/shared apps/playbook-ai/shared
 COPY apps/playbook-ai/agentx apps/playbook-ai/agentx
 COPY apps/playbook-ai/playbookx apps/playbook-ai/playbookx
 
+# Grelin AI specialty playbooks (wound, pain, derm, dme, enm, urgent, behavioral-health)
+COPY apps/ai-playbooks/agentx/apps apps/ai-playbooks/agentx/apps
+
 WORKDIR /app/apps/playbook-ai
 RUN bun install
 
@@ -28,6 +31,9 @@ COPY --from=builder /app/apps/playbook-ai /app/apps/playbook-ai
 
 # Ensure client dist is in server (DIST = server/client/dist)
 COPY --from=builder /app/apps/playbook-ai/client/dist /app/apps/playbook-ai/server/client/dist
+
+# Grelin AI agentx files
+COPY --from=builder /app/apps/ai-playbooks/agentx/apps /app/apps/ai-playbooks/agentx/apps
 
 ENV PORT=8080
 

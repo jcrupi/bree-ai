@@ -28,7 +28,7 @@ export function Dashboard() {
                 FatApps.ai
               </h1>
               <p className="text-slate-400 text-sm mt-0.5">
-                Build app clones (ClickUp, Linear, Slack, Salesforce…) with AgentX
+                Get off your Fat Apps!
               </p>
             </div>
           </div>

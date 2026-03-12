@@ -2,13 +2,27 @@
   "name": "tokenhouse",
   "version": "0.1.0",
   "private": true,
-  "workspaces": ["server", "client"],
+  "workspaces": [
+    "packages/*",
+    "examples/*",
+    "gateway",
+    "server",
+    "client"
+  ],
   "scripts": {
-    "dev": "concurrently \"bun run --cwd server dev\" \"bun run --cwd client dev\"",
-    "build": "bun run --cwd server build && bun run --cwd client build",
-    "setup": "bun install && bun run --cwd server db:migrate"
+    "dev": "concurrently \"bun run --cwd gateway dev\" \"bun run --cwd examples/simple-chat dev\"",
+    "dev:gateway": "bun run --cwd gateway dev",
+    "dev:chat": "bun run --cwd examples/simple-chat dev",
+    "dev:admin": "bun run --cwd examples/admin-ui dev",
+    "dev:admin-full": "concurrently \"bun run --cwd gateway dev\" \"bun run --cwd examples/admin-ui dev\"",
+    "build": "bun run build:packages && bun run build:gateway && bun run build:examples",
+    "build:packages": "bun run --cwd packages/core build && bun run --cwd packages/react build",
+    "build:gateway": "bun run --cwd gateway build",
+    "build:examples": "bun run --cwd examples/simple-chat build && bun run --cwd examples/admin-ui build",
+    "setup": "bun install"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
   }
 }

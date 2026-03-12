@@ -866,8 +866,76 @@ enm-ai/
     └── coding_client.py    # HTTP client to coding.ai (PSEUDO-005)
 ```
 
+## 21. Expanded Algorithms
+
+### 21.1 Algorithm: Preventive Medicine (EM.PREV.090)
+**Input:** encounter (age, patient_status), chosen_code
+**Steps:**
+1. If chosen_code not in 99381–99397 → skip, RETURN PASS
+2. Get `expected_code` from PREVENTIVE_AGE_TABLE based on `age` and `patient_status`.
+3. If chosen_code != expected_code → RETURN FAIL, remediation: "Code {chosen_code} does not match patient age ({age}) or status ({status}). Expected: {expected_code}."
+4. RETURN PASS
+
+### 21.2 Algorithm: Care Management Units (EM.CARE.100)
+**Input:** encounter (care_mgmt_minutes, staff_type), chosen_code
+**Steps:**
+1. If chosen_code in [99490, 99439, 99491, 99437, 99424-99427]:
+2. Check `care_mgmt_minutes` against CPT time thresholds.
+3. If minutes < threshold → RETURN FAIL, remediation: "Documented care management time ({minutes} min) is insufficient for {chosen_code}."
+4. RETURN PASS
+
+---
+
+## 22. RuleCatalog
+
+```yaml
+# enm-ai RuleCatalog
+specialty: "enm-ai"
+version: 1
+created_at: "2025-03-06T00:00:00Z"
+flow:
+  - id: "EM.ID.001"
+    name: "Encounter Integrity"
+  - id: "EM.PAT.010"
+    name: "Patient Status"
+  - id: "EM.DOC.060"
+    name: "Documentation Completeness"
+  - id: "EM.MDM.020"
+    name: "MDM Complexity Gate"
+  - id: "EM.TIM.030"
+    name: "Time Gate"
+  - id: "EM.PREV.090"
+    name: "Preventive Medicine"
+  - id: "EM.CARE.100"
+    name: "Care Management Units"
+  - id: "EM.LVL.040"
+    name: "Level Consistency"
+  - id: "EM.POS.050"
+    name: "Place of Service"
+  - id: "EM.ICD.070"
+    name: "ICD-10 Medical Necessity"
+  - id: "EM.ADD.080"
+    name: "Add-On Code Check"
+
+rules:
+  EM.ID.001:
+    id: "EM.ID.001"
+    handler: "evaluateEncounterIntegrity"
+    inputs: ["encounter"]
+  EM.PREV.090:
+    id: "EM.PREV.090"
+    handler: "evaluatePreventiveRule"
+    inputs: ["encounter"]
+  EM.CARE.100:
+    id: "EM.CARE.100"
+    handler: "evaluateCareManagementRule"
+    inputs: ["encounter"]
+  # ... other rules mapping to TypeScript handlers
+```
+
 ---
 
 **END OF ALGO**
 
 *Deterministic validation. Same inputs → same outputs. Aligned with CMS and AMA. Real rules = implementable. Pseudo rules = AI code generation templates.*
+```

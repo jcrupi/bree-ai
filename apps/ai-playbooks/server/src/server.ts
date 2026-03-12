@@ -11,6 +11,8 @@ import {
   loadDesigns,
   loadCodeMapping,
   SPECIALTY_CONFIG,
+  APPS_ROOT,
+  getVersionFromContent,
   type AnalysisType,
 } from "./playbook-loader";
 
@@ -449,6 +451,115 @@ Output format: Use EXACTLY these delimiters. No other text before or after.
       body: t.Object({
         domain_info: t.String(),
       }),
+    }
+  )
+  .post(
+    "/api/updater/generate",
+    async ({ body }) => {
+      const spec = SPECIALTY_CONFIG.find((s) => s.id === body.specialty);
+      if (!spec) throw new Error("Invalid specialty");
+
+      const pbMeta = loadPlaybook(spec.app, spec.baseName);
+      const algMeta = loadAlgos(spec.app, spec.baseName);
+
+      const currentPlaybook = pbMeta.content;
+      const currentAlgos = algMeta.content;
+      const newInfo = body.newInfo ?? "";
+      let docText = "";
+
+      if (body.files && Array.isArray(body.files)) {
+        for (const file of body.files) {
+          docText += `\n--- File: ${file.name} ---\n${await file.text()}\n`;
+        }
+      }
+
+      const combinedNewInfo = `${newInfo}\n\n${docText}`;
+
+      const system = `You are an expert medical coding and compliance specialist. 
+You will evolve the current Playbook and Algos to include new features/requirements.
+
+Rules:
+1. Preserve existing logic.
+2. Integrate NEW rules/entities seamlessly.
+3. Use the established style and schema.
+4. IMPORTANT: Increment the version number in the frontmatter of BOTH documents.
+5. Update RuleCatalog and Flow Diagram in Algos if new rules are added.
+6. Output EXACTLY these delimiters:
+<<<PLAYBOOK>>>
+{revised playbook markdown}
+<<<ALGOS>>>
+{revised algos markdown}
+<<<END>>>`;
+
+      const user = `
+# Current Playbook (v${pbMeta.version})
+${currentPlaybook}
+
+# Current Algos (v${algMeta.version})
+${currentAlgos}
+
+# NEW REQUIREMENTS / DOCUMENTS
+${combinedNewInfo}
+
+Produce the updated v${Math.max(pbMeta.version, algMeta.version) + 1} documents:`;
+
+      const raw = await callOpenAI(system, user, 8192);
+
+      let newPlaybook = "";
+      let newAlgos = "";
+      const pbMatch = raw.match(/<<<PLAYBOOK>>>\s*([\s\S]*?)\s*<<<ALGOS>>>/);
+      const algMatch = raw.match(/<<<ALGOS>>>\s*([\s\S]*?)\s*<<<END>>>/);
+
+      if (pbMatch) newPlaybook = pbMatch[1].trim();
+      if (algMatch) newAlgos = algMatch[1].trim();
+
+      return {
+        before: { playbook: currentPlaybook, algos: currentAlgos },
+        after: { playbook: newPlaybook, algos: newAlgos },
+        pbVersion: pbMeta.version,
+        algVersion: algMeta.version
+      };
+    },
+    {
+      body: t.Object({
+        specialty: t.String(),
+        newInfo: t.Optional(t.String()),
+        files: t.Optional(t.Array(t.File()))
+      })
+    }
+  )
+  .post(
+    "/api/updater/save",
+    async ({ body }) => {
+      const spec = SPECIALTY_CONFIG.find((s) => s.id === body.specialty);
+      if (!spec) throw new Error("Invalid specialty");
+
+      const playbookDir = join(APPS_ROOT, spec.app, "agentx", "playbook");
+      if (!existsSync(playbookDir)) mkdirSync(playbookDir, { recursive: true });
+
+      const timestamp = new Date().toISOString().split('T')[0];
+      
+      // Save Playbook
+      const pbVersion = getVersionFromContent(body.playbook);
+      const pbFilename = `${spec.baseName}.playbook.agentx-v${pbVersion}.md`;
+      const pbPath = join(playbookDir, pbFilename);
+      writeFileSync(pbPath, body.playbook, "utf-8");
+
+      // Save Algos
+      const algVersion = getVersionFromContent(body.algos);
+      const algFilename = `${spec.baseName}.algos.agentx-v${algVersion}.md`;
+      const algPath = join(playbookDir, algFilename);
+      writeFileSync(algPath, body.algos, "utf-8");
+
+      return { ok: true, pbVersion, algVersion, pbPath, algPath };
+    },
+    {
+      body: t.Object({
+        specialty: t.String(),
+        playbook: t.String(),
+        algos: t.String(),
+        comments: t.Optional(t.String())
+      })
     }
   )
   .post(

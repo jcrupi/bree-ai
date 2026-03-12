@@ -47,6 +47,19 @@ export const SPECIALTY_CONFIG: SpecialtyConfig[] = [
       { id: "access-controls", name: "Access Controls" },
     ],
   },
+  {
+    id: "enm-ai",
+    name: "E/M AI",
+    app: "enm-ai",
+    baseName: "enm-ai",
+    rulesEngine: true,
+    flows: [
+      { id: "mdm-level", name: "MDM Level Selection" },
+      { id: "time-level", name: "Time-based Leveling" },
+      { id: "preventive", name: "Preventive Medicine" },
+      { id: "care-mgmt", name: "Care Management" },
+    ],
+  },
 ];
 
 export type SpecialtyId = (typeof SPECIALTY_CONFIG)[number]["id"];

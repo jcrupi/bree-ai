@@ -6,7 +6,7 @@
 import { readFileSync, writeFileSync, unlinkSync, existsSync, statSync, readdirSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-const APPS_ROOT = join(import.meta.dir, "../../../");
+export const APPS_ROOT = join(import.meta.dir, "../../../");
 
 export type DocMeta = {
   content: string;
@@ -49,7 +49,7 @@ function getCreatedAt(path: string, content: string): string {
   }
 }
 
-function getVersionFromContent(content: string): number {
+export function getVersionFromContent(content: string): number {
   const fmMatch = content.match(/^---\s*\n[\s\S]*?agentx:[\s\S]*?version:\s*(\d+)/m);
   return fmMatch ? parseInt(fmMatch[1], 10) : 1;
 }

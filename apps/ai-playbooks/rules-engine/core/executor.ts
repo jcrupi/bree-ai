@@ -17,7 +17,7 @@ import type {
 
 export interface Adapter {
   specialty: string;
-  ruleHandlers: Record<string, (inputs: Record<string, unknown>, context: RuleContext) => PassFail | unknown>;
+  ruleHandlers: Record<string, (inputs: Record<string, unknown>, context: RuleContext) => PassFail | Finding | Finding[] | unknown>;
 }
 
 function resolveInputs(
@@ -57,6 +57,8 @@ function resolveInputs(
     }
     else if (key === "prepared_size") inputs[key] = enc.product_usages?.[0]?.prepared_size_cm2;
     else if (key === "applied_size" || key === "used") inputs[key] = enc.product_usages?.[0]?.applied_size_cm2;
+    // Generic passthrough for unknown types (e.g. 1040-simple payloads)
+    else inputs[key] = (enc as unknown as Record<string, unknown>)[key];
   }
 
   return inputs;
@@ -64,6 +66,10 @@ function resolveInputs(
 
 function isPassFail(v: unknown): v is PassFail {
   return v === "PASS" || v === "FAIL";
+}
+
+function isFinding(v: unknown): v is Finding {
+  return typeof v === "object" && v !== null && "severity" in v && "ruleId" in v;
 }
 
 export function execute(
@@ -90,12 +96,19 @@ export function execute(
     const inputs = resolveInputs(rule, context, catalog);
     const result = handler(inputs, context);
 
-    if (isPassFail(result) && result === "FAIL") {
+    if (isFinding(result)) {
+      context.findings.push(result);
+      if (result.status === "FAIL" && rule.shortCircuit) break;
+    } else if (Array.isArray(result) && result.length > 0 && isFinding(result[0])) {
+      context.findings.push(...(result as Finding[]));
+      if (result.some((r) => r.status === "FAIL") && rule.shortCircuit) break;
+    } else if (isPassFail(result) && result === "FAIL") {
       context.findings.push({
         ruleId: rule.id,
         severity: "error",
         message: `${rule.name} failed`,
         remediation: rule.remediation,
+        status: "FAIL"
       });
       if (rule.shortCircuit) break;
     } else if (!isPassFail(result) && typeof result === "object" && result != null) {

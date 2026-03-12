@@ -12,7 +12,11 @@ import type {
   WoundMeasurement,
   ProcedureEvent,
   EvidenceArtifact,
+  Finding,
 } from "../../core/types.js";
+import { WastageEngine, type WastageInputs } from "./engines/wastage-engine.js";
+import { ContradictionEngine, type ContradictionInputs } from "./engines/contradiction-engine.js";
+import { UtilizationEngine, type UtilizationInputs } from "./engines/utilization-engine.js";
 
 const STAGE_PATTERNS: Array<{ pattern: RegExp; wound_type: string; severity: string }> = [
   { pattern: /stage iv pressure|stage 4 pressure|pressure ulcer stage 4|pressure injury stage 4/i, wound_type: "pressure_ulcer_stage_4", severity: "severe" },
@@ -229,35 +233,12 @@ export function serialMeasurementIntegrity(
 }
 
 // --- INF.300 (full: ≥2 infection evidence) ---
+const contradictionEngineInstance = new ContradictionEngine();
 export function contradictionEngine(
   inputs: Record<string, unknown>,
   context: RuleContext
-): PassFail {
-  const doc = ((inputs.documentation as string) || "").toLowerCase();
-  const encounter = inputs.encounter ?? context.encounter;
-  const enc = encounter as WoundEncounter;
-  const attestations = enc?.attestations ?? {};
-  const vitals = enc?.vitals ?? {};
-  const medications = enc?.current_medications ?? {};
-  const findings = enc?.findings ?? {};
-  const evidenceArtifacts = (inputs.evidence_artifacts as EvidenceArtifact[]) ?? enc?.evidence_artifacts ?? [];
-
-  const noInfectionClaimed = attestations.no_active_infection === true;
-
-  const infectionEvidence: boolean[] = [
-    evidenceArtifacts.some((a) => a.artifact_type === "CULTURE"),
-    medications.has_antibiotics === true,
-    (vitals.temperature_f ?? 0) > 101.3,
-    (findings.clinical_findings ?? "").toLowerCase().includes("cellulitis"),
-    doc.includes("purulent"),
-    doc.includes("purulent drainage"),
-    doc.includes("antibiotics started"),
-  ];
-
-  const evidenceCount = infectionEvidence.filter(Boolean).length;
-  if (noInfectionClaimed && evidenceCount >= 2) return "FAIL";
-
-  return "PASS";
+): Finding {
+  return contradictionEngineInstance.evaluate(inputs as unknown as ContradictionInputs, context);
 }
 
 // --- INF.310 (osteomyelitis for DFU) ---
@@ -292,76 +273,21 @@ export function osteomyelitisContradiction(
 }
 
 // --- UTIL.500 (full) ---
+const utilizationEngineInstance = new UtilizationEngine();
 export function utilizationEngine(
   inputs: Record<string, unknown>,
-  _context: RuleContext
-): PassFail {
-  const policy = inputs.policy as { utilization_package?: Record<string, unknown>; continued_use_threshold?: number } | undefined;
-  const applications = inputs.applications as ProcedureEvent[] | undefined;
-  const assessments = inputs.assessments as WoundMeasurement[] | undefined;
-  const encounter = inputs.encounter as WoundEncounter | undefined;
-
-  const util = policy?.utilization_package ?? {};
-  const minDays = (util.spacing_days as number) ?? 7;
-  const maxApps = (util.max_applications as number) ?? (util.max_applications_per_episode as number) ?? 12;
-  const continuedThreshold = policy?.continued_use_threshold ?? 4;
-
-  const appProcs = (applications ?? []).filter((p) => p.procedure_type === "APPLICATION");
-  const sorted = [...appProcs].sort((a, b) => {
-    const da = parseIsoDate(a.created_at)?.getTime() ?? 0;
-    const db = parseIsoDate(b.created_at)?.getTime() ?? 0;
-    return db - da;
-  });
-
-  // Spacing
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const curr = parseIsoDate(sorted[i].created_at);
-    const prev = parseIsoDate(sorted[i + 1].created_at);
-    if (curr && prev && daysBetween(curr, prev) < minDays) return "FAIL";
-  }
-
-  // Episode limit
-  if (sorted.length > maxApps) return "FAIL";
-
-  // Continued use: need improvement or rationale after threshold
-  const assess = Array.isArray(assessments) ? assessments : [];
-  if (sorted.length >= continuedThreshold && assess.length >= 2) {
-    const first = assess[assess.length - 1];
-    const current = assess[0];
-    const a1 = first.area_cm2 ?? (first.length_cm! * first.width_cm!);
-    const a2 = current.area_cm2 ?? (current.length_cm! * current.width_cm!);
-    const reduction = a1 - a2;
-    const pctReduction = a1 > 0 ? (reduction / a1) * 100 : 0;
-    const minArea = (util.min_area_improvement as number) ?? 5;
-    const minPct = (util.min_improvement_percent as number) ?? 20;
-    const improvementMet = reduction >= minArea || pctReduction >= minPct;
-    const rationalePresent = (encounter?.assessment_plan ?? "").trim().length > 0;
-    if (!improvementMet && !rationalePresent) return "FAIL";
-  }
-
-  return "PASS";
+  context: RuleContext
+): Finding {
+  return utilizationEngineInstance.evaluate(inputs as unknown as UtilizationInputs, context);
 }
 
 // --- BILL.600 (full) ---
+const wastageEngineInstance = new WastageEngine();
 export function wastageEngine(
   inputs: Record<string, unknown>,
-  _context: RuleContext
-): PassFail {
-  const woundArea = (inputs.wound_area as number) ?? (inputs.wound_area_cm2 as number);
-  const preparedSize = (inputs.prepared_size as number) ?? (inputs.prepared_size_cm2 as number);
-  const appliedSize = (inputs.applied_size as number) ?? (inputs.used as number);
-
-  if (preparedSize == null) return "PASS";
-  if (preparedSize <= 0) return "FAIL";
-  if (woundArea == null || woundArea <= 0) return "FAIL";
-
-  const used = Math.min(woundArea, preparedSize);
-  const discarded = preparedSize - used;
-
-  if (appliedSize != null && Math.abs(appliedSize - used) > 0.01) return "FAIL";
-  if (woundArea > preparedSize && !(inputs.allow_multi_unit as boolean)) return "FAIL";
-
-  return "PASS";
+  context: RuleContext
+): Finding {
+  return wastageEngineInstance.evaluate(inputs as unknown as WastageInputs, context);
 }
 
 // --- DFU.SOC.100 ---

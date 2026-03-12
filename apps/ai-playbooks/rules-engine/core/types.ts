@@ -6,6 +6,13 @@
  */
 
 export type PassFail = "PASS" | "FAIL";
+export type Severity = "error" | "warning" | "info" | "SIGN_BLOCK" | "CLAIM_BLOCK" | "RISK_FLAG";
+
+export interface MRPointer {
+  object: string;
+  field: string;
+  id?: string;
+}
 
 export interface RuleRef {
   id: string;
@@ -43,9 +50,16 @@ export interface RuleCatalog {
 
 export interface Finding {
   ruleId: string;
-  severity: "error" | "warning" | "info";
+  ruleName?: string;
+  severity: Severity;
   message: string;
+  status?: PassFail;
   remediation?: string;
+  contradictionDetail?: string;
+  missingFields?: string[];
+  evidenceRequired?: string[];
+  mrPointers?: MRPointer[];
+  findingPayload?: Record<string, unknown>;
 }
 
 export interface ValidationResult {

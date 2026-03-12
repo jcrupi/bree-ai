@@ -11,11 +11,11 @@ import { join } from "node:path";
 import { APPS_ROOT } from "../paths.js";
 import type { RuleCatalog, Rule, RuleRef } from "./types.js";
 
-const RULE_CATALOG_YAML_RE = /```yaml\s*\n# wound-ai RuleCatalog[\s\S]*?\n```/;
+const RULE_CATALOG_YAML_RE = /```yaml\s*\n# .*?RuleCatalog[\s\S]*?\n```/;
 const STAGE_LOCATION_YAML_RE = /```yaml\s*\n# STAGE\.CODE\.020 mapping[\s\S]*?\n```/;
 
 /**
- * Extract the first YAML block that contains "wound-ai RuleCatalog" from agentx content.
+ * Extract the first YAML block that contains "RuleCatalog" from agentx content.
  */
 export function extractRuleCatalogYaml(content: string): string | null {
   const match = content.match(RULE_CATALOG_YAML_RE);
@@ -110,18 +110,20 @@ export function parseRuleCatalogFromAgentx(content: string): RuleCatalog | null 
 }
 
 /**
- * Load RuleCatalog from wound-ai agentx file.
- * Path uses APPS_ROOT (apps/) so wound-ai lives at apps/wound-ai/.
+ * Load RuleCatalog from an agentx file dynamically based on app and specialty name.
  */
-export function loadWoundCatalogFromAgentx(
+export function loadCatalogFromAgentx(
+  app: string,
+  specialtyName: string,
+  fileName: string,
   agentxPath?: string
 ): { catalog: RuleCatalog; source: "agentx" } | { catalog: null; source: "agentx"; error: string } {
   const defaultPath = join(
     APPS_ROOT,
-    "wound-ai",
+    app,
     "agentx",
     "playbook",
-    "wound-ai.playbook-rules-engine.agentx.md"
+    fileName
   );
   const path = agentxPath ?? defaultPath;
 
@@ -141,4 +143,13 @@ export function loadWoundCatalogFromAgentx(
   }
 
   return { catalog, source: "agentx" };
+}
+
+/**
+ * Load RuleCatalog from wound-ai agentx file.
+ */
+export function loadWoundCatalogFromAgentx(
+  agentxPath?: string
+): { catalog: RuleCatalog; source: "agentx" } | { catalog: null; source: "agentx"; error: string } {
+  return loadCatalogFromAgentx("wound-ai", "wound-ai", "wound-ai.playbook-rules-engine.agentx.md", agentxPath);
 }

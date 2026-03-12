@@ -32,7 +32,7 @@ const SPECIALTY_CONFIG = [
 ] as const;
 
 type SpecialtyId = (typeof SPECIALTY_CONFIG)[number]["id"];
-type Tab = "playbook" | "algos" | "playback-runner" | "code-mapping" | "design" | "analysis-playbook" | "analysis-algos" | "builder" | "observer";
+type Tab = "playbook" | "algos" | "playback-runner" | "code-mapping" | "design" | "analysis-playbook" | "analysis-algos" | "builder" | "evolution" | "observer";
 type ViewMode = "preview" | "raw";
 
 function errMsg(e: unknown): string {
@@ -126,6 +126,7 @@ export default function App() {
     tab === "code-mapping" || tab === "design" || tab === "analysis-playbook" || tab === "analysis-algos";
   const showDocPanel = tab === "playbook" || tab === "algos";
   const isBuilderTab = tab === "builder";
+  const isEvolutionTab = tab === "evolution";
   const isObserverTab = tab === "observer";
   const [leftPanelWidth, setLeftPanelWidth] = useState(380);
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
@@ -254,6 +255,13 @@ export default function App() {
               Builder
             </button>
             <button
+              className={`doc-tab ${tab === "evolution" ? "active" : ""}`}
+              onClick={() => setTab("evolution")}
+              title="AI Evolution — update playbook with new documents or features"
+            >
+              Evolution
+            </button>
+            <button
               className={`doc-tab ${isExpertTab ? "active" : ""}`}
               onClick={() => setTab(isExpertTab ? tab : "code-mapping")}
               title="Code Mapping, Design, Analysis"
@@ -331,9 +339,9 @@ export default function App() {
           <div className="error-banner">{loadError}</div>
         )}
 
-        <div className={`content-row ${showDocPanel ? "content-row-doc" : ""} ${isPlaybackRunnerTab ? "content-row-playback" : ""} ${isCodeMappingTab ? "content-row-code-mapping" : ""} ${isBuilderTab ? "content-row-builder" : ""} ${isObserverTab ? "content-row-observer" : ""}`}>
+        <div className={`content-row ${showDocPanel ? "content-row-doc" : ""} ${isPlaybackRunnerTab ? "content-row-playback" : ""} ${isCodeMappingTab ? "content-row-code-mapping" : ""} ${isBuilderTab ? "content-row-builder" : ""} ${isEvolutionTab ? "content-row-evolution" : ""} ${isObserverTab ? "content-row-observer" : ""}`}>
           {/* Left: resizable/collapsible Playbook + Algos panel (when in playbook/algos or playback-runner) */}
-          {(showDocPanel || isPlaybackRunnerTab) && !isDesignTab && !isCodeMappingTab && !isBuilderTab && (
+          {(showDocPanel || isPlaybackRunnerTab) && !isDesignTab && !isCodeMappingTab && !isBuilderTab && !isEvolutionTab && (
             <div
               className={`doc-left-panel ${leftPanelCollapsed ? "collapsed" : ""}`}
               style={{ width: leftPanelCollapsed ? 32 : leftPanelWidth }}
@@ -398,6 +406,8 @@ export default function App() {
           <main className={`doc-panel main-panel ${isPlaybackRunnerTab ? "playback-runner-full" : ""} ${isBuilderTab ? "builder-full" : ""} ${isObserverTab ? "observer-full" : ""} ${showDocPanel ? "main-panel-hidden" : ""}`}>
             {isBuilderTab ? (
               <PlaybookBuilderPanel />
+            ) : isEvolutionTab ? (
+              <PlaybookEvolutionPanel specialty={specialty} />
             ) : isPlaybackRunnerTab ? (
               <PlaybackRunnerPanel specialty={specialty} />
             ) : tab === "analysis-playbook" ? (
@@ -1256,6 +1266,190 @@ function PlaybackRunnerPanel({ specialty }: { specialty: SpecialtyId }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+function PlaybookEvolutionPanel({ specialty }: { specialty: SpecialtyId }) {
+  const [newInfo, setNewInfo] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [proposed, setProposed] = useState<{ playbook: string; algos: string } | null>(null);
+  const [before, setBefore] = useState<{ playbook: string; algos: string } | null>(null);
+  const [diffView, setDiffView] = useState<"playbook" | "algos">("playbook");
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [notes, setNotes] = useState("");
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setFiles(Array.from(e.target.files));
+    }
+  };
+
+  const generate = async () => {
+    setGenerating(true);
+    setProposed(null);
+    try {
+      const formData = new FormData();
+      formData.append("specialty", specialty);
+      formData.append("newInfo", newInfo);
+      files.forEach(f => formData.append("files", f));
+
+      const res = await fetch(`${window.location.origin}/api/updater/generate`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Evolution generation failed");
+      const data = await res.json();
+      setBefore(data.before);
+      setProposed(data.after);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to generate evolution");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const save = async () => {
+    if (!proposed) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`${window.location.origin}/api/updater/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          specialty,
+          playbook: proposed.playbook,
+          algos: proposed.algos,
+          comments: notes
+        }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    } catch (e) {
+      setSaveStatus("error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="evolution-panel" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
+      <div className="evolution-header">
+        <h2 style={{ fontSize: 24, fontWeight: 700, color: "#1e293b", marginBottom: 8 }}>Evolve Playbook — {specialty}</h2>
+        <p style={{ color: "#64748b", fontSize: 14 }}>
+          Upload new documentation or describe new features. AI will produce a new version (v+) of your playbook and algos.
+        </p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: proposed ? "1fr 1fr" : "1fr", gap: 32 }}>
+        <div className="evolution-inputs" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>Feature Request / Context</label>
+            <textarea
+              value={newInfo}
+              onChange={(e) => setNewInfo(e.target.value)}
+              placeholder="Describe what changed or what features to add..."
+              style={{ padding: 12, borderRadius: 8, border: "1px solid #e2e8f0", minHeight: 120, fontSize: 14 }}
+            />
+          </div>
+          
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>New Documents (PDF, MD, TXT)</label>
+            <input type="file" multiple onChange={handleFileChange} style={{ fontSize: 14 }} />
+            {files.length > 0 && (
+              <div style={{ fontSize: 12, color: "#64748b" }}>{files.length} files selected</div>
+            )}
+          </div>
+
+          <button
+            onClick={generate}
+            disabled={generating}
+            style={{
+              padding: "12px", background: "#6366f1", color: "#fff", borderRadius: 8,
+              fontWeight: 600, border: "none", cursor: "pointer", marginTop: 8
+            }}
+          >
+            {generating ? "Evolving..." : "Generate v+ Version"}
+          </button>
+        </div>
+
+        {proposed && (
+          <div className="evolution-proposed" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => setDiffView("playbook")}
+                  style={{
+                    padding: "4px 12px", borderRadius: 4, fontSize: 12, fontWeight: 600,
+                    background: diffView === "playbook" ? "#f1f5f9" : "transparent",
+                    border: "1px solid #e2e8f0"
+                  }}
+                >
+                  Playbook Diff
+                </button>
+                <button
+                  onClick={() => setDiffView("algos")}
+                  style={{
+                    padding: "4px 12px", borderRadius: 4, fontSize: 12, fontWeight: 600,
+                    background: diffView === "algos" ? "#f1f5f9" : "transparent",
+                    border: "1px solid #e2e8f0"
+                  }}
+                >
+                  Algos Diff
+                </button>
+              </div>
+            </div>
+
+            <div style={{ 
+              borderRadius: 8, border: "1px solid #e2e8f0", overflow: "hidden", 
+              background: "#fff", display: "grid", gridTemplateColumns: "1fr 1fr", height: 500
+            }}>
+              <div style={{ borderRight: "1px solid #e2e8f0", display: "flex", flexDirection: "column" }}>
+                <div style={{ padding: "8px 12px", background: "#f8fafc", fontSize: 11, fontWeight: 700, borderBottom: "1px solid #e2e8f0" }}>CURRENT</div>
+                <div style={{ flex: 1, overflow: "auto", padding: 12, fontSize: 12, whiteSpace: "pre-wrap", fontFamily: "monospace" }}>
+                  {before?.[diffView]}
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <div style={{ padding: "8px 12px", background: "#f0fdf4", fontSize: 11, fontWeight: 700, borderBottom: "1px solid #e2e8f0", color: "#166534" }}>PROPOSED v+</div>
+                <div style={{ flex: 1, overflow: "auto", padding: 12, fontSize: 12, whiteSpace: "pre-wrap", fontFamily: "monospace", color: "#166534", background: "#f0fdf4" }}>
+                  {proposed[diffView]}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>Release Comments / Version Notes</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Final comments before release..."
+                style={{ padding: 12, borderRadius: 8, border: "1px solid #e2e8f0", minHeight: 60, fontSize: 14 }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+              <button 
+                onClick={save} 
+                className="primary" 
+                disabled={saving}
+                style={{ flex: 1, padding: "12px", borderRadius: 8, fontWeight: 600 }}
+              >
+                {saving ? "Saving..." : saveStatus === "saved" ? "Accepted ✓" : "Accept & Release v+"}
+              </button>
+              <button 
+                onClick={() => setProposed(null)} 
+                style={{ padding: "12px 24px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", fontWeight: 600 }}
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

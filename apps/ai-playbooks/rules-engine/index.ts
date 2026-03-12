@@ -17,4 +17,5 @@
 
 export * from "./core/index.js";
 export { woundAdapter, validateWound, type ValidateWoundOptions, type ValidateWoundResult } from "./specialties/wound-ai/index.js";
+export { simple1040Adapter, validate1040Simple, type Validate1040Options, type Validate1040Result } from "./specialties/1040-simple/index.js";
 export { APPS_ROOT } from "./paths.js";

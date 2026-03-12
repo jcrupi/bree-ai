@@ -96,6 +96,7 @@ rules:
     type: "interpreted"
     inputs: ["taxpayer"]
     output: "PASS_FAIL"
+    handler: "evaluateIdentificationRule"
     description: "SSN is XXX-XX-XXXX or 9 digits"
     remediation: "Provide valid SSN"
     shortCircuit: false
@@ -105,6 +106,7 @@ rules:
     type: "interpreted"
     inputs: ["form1040"]
     output: "PASS_FAIL"
+    handler: "evaluateIdentificationRule"
     description: "filing_status is Single"
     remediation: "Set filing_status to Single"
     shortCircuit: false
@@ -114,6 +116,7 @@ rules:
     type: "interpreted"
     inputs: ["w2s"]
     output: "PASS_FAIL"
+    handler: "evaluateMathRule"
     description: "At least one W-2 with wages > 0"
     remediation: "Add W-2 with wages"
     shortCircuit: false
@@ -123,6 +126,7 @@ rules:
     type: "interpreted"
     inputs: ["w2s", "form1040"]
     output: "PASS_FAIL"
+    handler: "evaluateMathRule"
     description: "Sum W-2 box 1 equals Line 1a"
     remediation: "Reconcile W-2 total with Line 1a"
     shortCircuit: false
@@ -132,6 +136,7 @@ rules:
     type: "interpreted"
     inputs: ["form1040"]
     output: "PASS_FAIL"
+    handler: "evaluateMathRule"
     description: "Line 11 = Line 9 for simple"
     remediation: "AGI = total income for simple return"
     shortCircuit: false
@@ -141,6 +146,7 @@ rules:
     type: "interpreted"
     inputs: ["form1040"]
     output: "PASS_FAIL"
+    handler: "evaluateMathRule"
     description: "Line 15 = Line 11 - Line 14"
     remediation: "Recalculate taxable = AGI - standard deduction"
     shortCircuit: false
@@ -150,6 +156,7 @@ rules:
     type: "interpreted"
     inputs: ["form1040"]
     output: "PASS_FAIL"
+    handler: "evaluateMathRule"
     description: "Line 16 matches Tax Table"
     remediation: "Use IRS Tax Table"
     shortCircuit: false
@@ -159,6 +166,7 @@ rules:
     type: "interpreted"
     inputs: ["form1040"]
     output: "PASS_FAIL"
+    handler: "evaluateIdentificationRule"
     description: "Return signed and dated"
     remediation: "Sign and date the return"
     shortCircuit: false

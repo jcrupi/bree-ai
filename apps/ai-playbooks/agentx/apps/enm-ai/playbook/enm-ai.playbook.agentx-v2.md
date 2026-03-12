@@ -1,9 +1,9 @@
 ---
 agentx:
-  version: 1
-  created_at: "2025-03-06T00:00:00Z"
+  version: 2
+  created_at: "2026-03-12T16:00:00Z"
   type: playbook
-  filename: enm-ai.playbook.agentx-v1.md
+  filename: enm-ai.playbook.agentx-v2.md
 ---
 
 # E/M AI — Medical Rules & Codes Playbook
@@ -632,6 +632,50 @@ A document is a **valid E/M encounter** when it contains:
 - Same E/M codes (99202–99215) apply for telehealth when appropriate
 - Place of service may be 02 (telehealth) or 11 with modifier 95
 - Verify payer-specific telehealth policies
+
+## 14. Expanded Services
+
+### 14.1 Preventive Medicine Services (New Patient: 99381–99387)
+| Code | Age | Description |
+|------|-----|-------------|
+| 99381 | <1 year | Initial preventive medicine, new patient |
+| 99382 | 1–4 years | Initial preventive medicine, new patient |
+| 99383 | 5–11 years | Initial preventive medicine, new patient |
+| 99384 | 12–17 years | Initial preventive medicine, new patient |
+| 99385 | 18–39 years | Initial preventive medicine, new patient |
+| 99386 | 40–64 years | Initial preventive medicine, new patient |
+| 99387 | 65+ years | Initial preventive medicine, new patient |
+
+### 14.2 Preventive Medicine Services (Established Patient: 99391–99397)
+| Code | Age | Description |
+|------|-------------|-----------------------------------|
+| 99391 | <1 year | Periodic preventive medicine, established |
+| 99392 | 1–4 years | Periodic preventive medicine, established |
+| 99393 | 5–11 years | Periodic preventive medicine, established |
+| 99394 | 12–17 years | Periodic preventive medicine, established |
+| 99395 | 18–39 years | Periodic preventive medicine, established |
+| 99396 | 40–64 years | Periodic preventive medicine, established |
+| 99397 | 65+ years | Periodic preventive medicine, established |
+
+### 14.3 Care Management Services
+- **Chronic Care Management (99490, 99439, 99491, 99437):** Monthly time-based reporting for patients with multiple chronic conditions.
+- **Principal Care Management (99424–99427):** Monthly time-based reporting for a single high-risk condition.
+- **Transitional Care Management (99495–99496):** Post-discharge communication and face-to-face visit within 7–14 days.
+
+### 14.4 Counseling & Behavioral Interventions
+- **Risk Factor Reduction (99401–99404):** Time-based individual counseling (15, 30, 45, 60 min).
+- **Behavioral Change (99406–99409):** Tobacco cessation (3–10 min vs >10 min) and Alcohol/Substance screening.
+- **Group Counseling (99411–99412):** Group risk factor reduction (30 vs 60 min).
+
+## 15. E/M Modifiers
+
+| Modifier | Description | Use Case |
+|----------|-------------|----------|
+| **24** | Unrelated E/M during post-op | Reporting visit unrelated to global surgery |
+| **25** | Separate E/M on same day | E/M service provided with a procedure |
+| **95** | Synchronous Telemedicine | Real-time audio/video interaction |
+| **93** | Audio-only Telemedicine | Synchronous telephone/audio interaction |
+| **57** | Decision for Surgery | Made during E/M for a major surgery |
 
 ---
 

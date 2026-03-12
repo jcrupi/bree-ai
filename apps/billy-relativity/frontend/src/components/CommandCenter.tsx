@@ -23,7 +23,7 @@ const BILLY_ADMIN = {
 };
 
 /* ─────────────────────────────────────────────────────────────
-   Mock Data — mirrors the ER diagram entities
+   Mock Data — mirrors the ER diagram entitie
 ───────────────────────────────────────────────────────────── */
 
 interface CCUser    { id: number; name: string; email: string; role: string; lastLogin: string; }

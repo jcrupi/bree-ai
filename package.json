@@ -17,6 +17,8 @@
     "nx:test": "nx run-many -t test --parallel=3",
     "nx:test:affected": "nx affected -t test",
     "nx:reset": "nx reset",
+    "deploy:affected": "./scripts/deploy-affected.sh",
+    "deploy:dry-run": "DRY_RUN=true ./scripts/deploy-affected.sh",
     "dev:kat": "bun --filter kat-ai dev",
     "dev:habitaware": "bun --filter habitaware-ai dev",
     "dev:genius": "bun --filter live-ai-talent dev",

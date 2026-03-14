@@ -1,0 +1,25 @@
+{
+  "name": "@bree-ai/math-ai-engine",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Deterministic Math AI Engine - Declarative JSON execution for mathematical operations",
+  "main": "./src/engine.ts",
+  "exports": {
+    ".": "./src/engine.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "keywords": [
+    "math",
+    "calculator",
+    "declarative",
+    "json",
+    "engine"
+  ],
+  "author": "BREE AI",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

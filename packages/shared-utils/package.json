@@ -1,0 +1,30 @@
+{
+  "name": "@bree-ai/shared-utils",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shared utility functions for BREE AI monorepo",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./logger": "./src/logger.ts",
+    "./validation": "./src/validation.ts",
+    "./date": "./src/date.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "keywords": [
+    "utils",
+    "utilities",
+    "helpers"
+  ],
+  "author": "BREE AI",
+  "license": "MIT",
+  "dependencies": {
+    "@bree-ai/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}

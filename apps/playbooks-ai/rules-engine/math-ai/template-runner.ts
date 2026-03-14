@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { MathEngine } from './engine';
+import { MathEngine } from '@bree-ai/math-ai-engine';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 

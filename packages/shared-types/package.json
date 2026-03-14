@@ -1,0 +1,20 @@
+{
+  "name": "@bree-ai/shared-types",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shared TypeScript types for BREE AI monorepo",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "keywords": [
+    "typescript",
+    "types",
+    "shared"
+  ],
+  "author": "BREE AI",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

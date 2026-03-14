@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { MathEngine } from './engine';
+import { MathEngine } from '@bree-ai/math-ai-engine';
 
 /**
  * Math AI CLI — Deterministic Expression Solver with Variable Support

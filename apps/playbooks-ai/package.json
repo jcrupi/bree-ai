@@ -26,6 +26,8 @@
     "@bree-ai/math-ai-engine": "workspace:*",
     "@bree-ai/shared-types": "workspace:*",
     "@bree-ai/shared-utils": "workspace:*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "remark-gfm": "^4.0.1",
     "yaml": "^2.6.0"
   }

@@ -1,0 +1,32 @@
+{
+  "name": "playbooks-ai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "PORT=9001 bun run --cwd server dev & bun run --cwd client dev",
+    "dev:server": "bun run --cwd server dev",
+    "dev:client": "bun run --cwd client dev",
+    "build": "bun run --cwd client build && bun run --cwd server build",
+    "start": "bun run --cwd server start",
+    "typecheck": "bun run --cwd server typecheck && bun run --cwd client typecheck",
+    "rules-engine:example": "bun run rules-engine/example.ts",
+    "rules-engine:agentx": "WOUND_RULES_ENGINE=agentx bun run rules-engine/example.ts",
+    "rules-engine:typescript": "WOUND_RULES_ENGINE=typescript bun run rules-engine/example.ts",
+    "playbookx": "bun run playbookx/cli.ts",
+    "playbookx:validate": "bun run playbookx/cli.ts validate",
+    "playbookx:watch": "bun run playbookx/cli.ts watch",
+    "playbookx:learn": "bun run playbookx/cli.ts learn",
+    "learn": "bun run playbookx/cli.ts learn",
+    "learn:enm": "bun run playbookx/cli.ts learn enm-ai",
+    "learn:security": "bun run playbookx/cli.ts learn security-ai"
+  },
+  "workspaces": ["server", "client"],
+  "dependencies": {
+    "@bree-ai/math-ai-engine": "workspace:*",
+    "@bree-ai/shared-types": "workspace:*",
+    "@bree-ai/shared-utils": "workspace:*",
+    "remark-gfm": "^4.0.1",
+    "yaml": "^2.6.0"
+  }
+}

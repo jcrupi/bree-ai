@@ -192,6 +192,7 @@ main() {
             deploy_app "habitaware-ai"
             deploy_app "the-vineyard"
             deploy_app "talent-village-ai"
+            deploy_app "playbooks-ai"
 
             echo ""
             print_success "All apps deployed successfully!"
@@ -204,6 +205,7 @@ main() {
             echo "  - HabitAware:       https://habitaware-ai.fly.dev"
             echo "  - The Vineyard:     https://the-vineyard.fly.dev"
             echo "  - Talent Village:   https://talent-village-ai.fly.dev"
+            echo "  - Playbooks AI:     https://playbooks-ai.fly.dev"
             ;;
 
         "api")
@@ -234,6 +236,10 @@ main() {
             deploy_app "talent-village-ai"
             ;;
 
+        "playbooks-ai"|"playbooks")
+            deploy_app "playbooks-ai"
+            ;;
+
         "status")
             show_status "bree-api"
             show_status "bree-api-realtime"
@@ -242,6 +248,7 @@ main() {
             show_status "habitaware-ai"
             show_status "the-vineyard"
             show_status "talent-village-ai"
+            show_status "playbooks-ai"
             ;;
 
         "secrets")
@@ -260,6 +267,7 @@ main() {
             echo "  kat-ai           Deploy KAT.ai only"
             echo "  genius-talent    Deploy Genius Talent only"
             echo "  habitaware-ai    Deploy HabitAware AI only"
+            echo "  playbooks-ai     Deploy Playbooks AI only"
             echo "  status           Show status of all apps"
             echo "  secrets          Configure environment secrets for all apps"
             echo "  help             Show this help message"

@@ -159,6 +159,16 @@ export const SPECIALTY_CONFIG: SpecialtyConfig[] = [
     catalogId: "bree-ai",
     appRoot: "playbooks-ai/agentx/apps/drumming-rudiments",
   },
+  {
+    id: "pen-testing",
+    name: "Pen-Testing",
+    icon: "🔓",
+    app: "playbooks-ai",
+    baseName: "pen-testing",
+    rulesEngine: false,
+    catalogId: "bree-ai",
+    appRoot: "playbooks-ai/agentx/apps/pen-testing",
+  },
 
   // ── Grelin AI ──────────────────────────────────────────────────────────────
   {

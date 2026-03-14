@@ -74,3 +74,8 @@ scripts/feedback-downloads/
 *.MOVED
 apps/live-ai-talent.IGNORE
 
+
+
+
+.nx/cache
+.nx/workspace-data

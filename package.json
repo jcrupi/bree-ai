@@ -10,6 +10,13 @@
     "apps/playbook-ai/client"
   ],
   "scripts": {
+    "nx:graph": "nx graph",
+    "nx:affected": "nx affected:graph",
+    "nx:build": "nx run-many -t build --parallel=3",
+    "nx:build:affected": "nx affected -t build",
+    "nx:test": "nx run-many -t test --parallel=3",
+    "nx:test:affected": "nx affected -t test",
+    "nx:reset": "nx reset",
     "dev:kat": "bun --filter kat-ai dev",
     "dev:habitaware": "bun --filter habitaware-ai dev",
     "dev:genius": "bun --filter live-ai-talent dev",
@@ -48,7 +55,9 @@
     "build:playbook": "bun --filter playbook-ai build"
   },
   "devDependencies": {
+    "@nx/js": "^22.5.4",
     "@playwright/test": "^1.58.2",
+    "nx": "22.5.4",
     "typescript": "^5.9.3",
     "vite": "^5.4.21"
   },

@@ -11,7 +11,7 @@ ENV VITE_API_URL=$VITE_API_URL
 # Copy workspace manifests first so bun install can be cached
 COPY package.json bun.lock ./
 COPY packages/ ./packages/
-COPY apps/talent-village-ai/ ./apps/talent-village-ai/
+COPY apps/ ./apps/
 
 # Install all workspace deps
 RUN bun install

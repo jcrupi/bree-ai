@@ -125,8 +125,8 @@ export default function FatZeroChat() {
     }
   };
 
-  // Name entry screen
-  if (!chatId && !userName) {
+  // Name entry screen (creating new chat)
+  if (!chatIdFromUrl) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 flex items-center justify-center p-4">
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 max-w-md w-full border border-white/20 shadow-2xl">
@@ -172,8 +172,8 @@ export default function FatZeroChat() {
     );
   }
 
-  // Join existing chat screen
-  if (chatId && !userName) {
+  // Join existing chat screen (joining via invite link)
+  if (chatIdFromUrl && !userNameFromUrl) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-blue-900 flex items-center justify-center p-4">
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 max-w-md w-full border border-white/20 shadow-2xl">

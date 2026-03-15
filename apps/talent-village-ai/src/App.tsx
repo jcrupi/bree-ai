@@ -6,6 +6,7 @@ import { TalentVillageBoard } from './pages/TalentVillageBoard';
 import { TalentVillageSetup } from './pages/TalentVillageSetup';
 import { VinesEyeView } from './pages/VinesEyeView';
 import { CandidateSchedulePage } from './pages/CandidateSchedulePage';
+import FatZeroChat from './pages/FatZeroChat';
 
 export function App() {
   return (
@@ -17,6 +18,7 @@ export function App() {
         <Route path="/talent-village" element={<TalentVillageBoard />} />
         <Route path="/talent-village/vines-eye" element={<VinesEyeView />} />
         <Route path="/schedule" element={<CandidateSchedulePage />} />
+        <Route path="/fatzero" element={<FatZeroChat />} />
       </Routes>
     </Router>
   );

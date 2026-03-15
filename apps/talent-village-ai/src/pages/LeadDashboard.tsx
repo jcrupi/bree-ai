@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Network, Shield, Plus, ArrowRight, Calendar, Clock,
   Zap, Users, ExternalLink, RefreshCw, Trash2, Check,
-  ChevronRight, Activity, Lock
+  ChevronRight, Activity, Lock, MessageSquare
 } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -476,6 +476,14 @@ export function LeadDashboard() {
             <Shield size={10} className="text-indigo-400" />
             Lead Access
           </div>
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            onClick={() => navigate('/fatzero')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl text-xs font-bold hover:from-purple-500 hover:to-indigo-500 transition-all shadow-lg shadow-purple-900/30"
+          >
+            <MessageSquare size={14} />
+            FatZero-ai
+          </motion.button>
           <motion.button
             whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
             onClick={() => navigate('/setup')}

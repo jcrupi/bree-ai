@@ -1,0 +1,89 @@
+---
+description: Playbook-AI context — bree/grelin reconciliation, catalogs, sync workflow
+globs: ["apps/playbook-ai/**", "**/playbook-catalog-architecture*", "**/sync-wound-ai*"]
+alwaysApply: true
+---
+
+# Playbook-AI Context (Bree + Grelin)
+
+> Persisted context for playbook-ai development across machines. Bree-ai is the main source; grelin-ai holds medical playbooks.
+
+---
+
+## Repos & Paths
+
+| Repo | Path | Branch | Role |
+|------|------|--------|------|
+| **bree-ai** | `devel/bree-ai` | master | Main playbook-ai source, core UI/server |
+| **grelin-ai** | `devel/GrelinHealth/grelin-ai` | main | Medical playbooks (wound-ai, enm-ai, derm-ai, etc.) |
+
+**Git remotes:**
+- bree-ai: `https://github.com/jcrupi/bree-ai`
+- grelin-ai: `git@github.com:GrelinhealthTeam/grelin-ai.git`
+
+---
+
+## Core Playbook-AI (bree-ai)
+
+- **Location:** `apps/playbook-ai/`
+- **Run:** `bun run dev:playbook` (root) or `bun run dev` (from apps/playbook-ai)
+- **Playbooks:** `apps/playbook-ai/agentx/playbook/` (Bree catalog + wound-ai synced from grelin)
+
+---
+
+## Catalog Architecture
+
+- **Bree catalog:** Local (1040-simple, hipaa, disability, fmla, aml-kyc, gdpr-breach, ediscovery, wound-ai)
+- **Grelin catalog:** Medical specialties (wound-ai, enm-ai, derm-ai, pain-ai, urgent-ai, dme-ai, behavioral-health-ai)
+- **Target design:** Catalogs as URL pointers; core fetches from external repos. See `apps/playbook-ai/agentx/playbook-catalog-architecture.agentx.md`
+
+---
+
+## playbookX
+
+- **Per catalog:** bree playbookX for Bree catalog; grelin playbookX for Grelin catalog
+- **Location in bree:** `apps/playbook-ai/playbookx/`
+- **Commands:** `playbookx validate`, `playbookx watch`, `playbookx generate`
+
+---
+
+## Sync Workflow (wound-ai)
+
+- **Workflow:** `.github/workflows/sync-wound-ai-playbook.yml`
+- **Source:** `GrelinhealthTeam/grelin-ai` @ `apps/wound-ai/agentx/playbook/`
+- **Target:** `apps/playbook-ai/agentx/playbook/wound-ai.*.agentx-v1.md`
+- **Trigger:** `gh workflow run "Sync Wound-AI Playbook"` or weekly (Mondays 04:00 UTC)
+- **Private repo:** Add `WOUND_AI_TOKEN` secret if grelin-ai is private
+
+---
+
+## Reconciliation Workflow
+
+1. **Workspace:** Open bree-ai as main; add grelin-ai folder (multi-root)
+2. **Design doc:** `apps/playbook-ai/agentx/playbook-catalog-architecture.agentx.md`
+3. **Grelin wound-ai playbooks:** `grelin-ai/apps/wound-ai/agentx/playbook/` (canonical)
+4. **Sync script (grelin):** `scripts/sync-playbooks-to-bree.sh` — copies from grelin to bree
+
+---
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `apps/playbook-ai/shared/specialty-config.ts` | Catalog + specialty config, appRoot paths |
+| `apps/playbook-ai/server/src/playbook-loader.ts` | Loads playbooks (supports appRoot) |
+| `apps/playbook-ai/agentx/playbook-catalog-architecture.agentx.md` | Architecture design |
+
+---
+
+## Workspace Setup (Mac / other box)
+
+```bash
+# Pull both
+cd bree-ai && git pull
+cd ../GrelinHealth/grelin-ai && git pull
+
+# Multi-root workspace (optional)
+# File → Add Folder to Workspace → add grelin-ai
+# Save as bree-playbook.code-workspace
+```

@@ -1,0 +1,116 @@
+# ============================================================================
+# Sync Wound-AI Playbook from Source Repo
+# ============================================================================
+# Pulls wound-ai.playbook.agentx-v1.md and wound-ai.algos.agentx-v1.md from
+# the wound-ai repo (ground truth) into playbook-ai. Creates a PR when changes
+# are detected.
+#
+# Triggers:
+#   - Scheduled: Weekly (Mondays 04:00 UTC)
+#   - Manual: workflow_dispatch
+#
+# Config:
+#   - wound_ai_repo: Edit default in workflow_dispatch inputs, or pass when running manually
+#   - Private wound-ai: Add WOUND_AI_TOKEN secret (PAT with repo scope) to bree-ai
+# ============================================================================
+
+name: Sync Wound-AI Playbook
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'  # Mondays 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      wound_ai_repo:
+        description: 'wound-ai repo (owner/repo)'
+        required: false
+        type: string
+        default: 'jcrupi/wound-ai'
+      wound_ai_branch:
+        description: 'Branch to sync from'
+        required: false
+        type: string
+        default: 'main'
+
+env:
+  TARGET_DIR: apps/playbook-ai/agentx/playbook
+jobs:
+  sync:
+    name: Sync from wound-ai
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout bree-ai
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch wound-ai playbook files
+        id: fetch
+        env:
+          WOUND_AI_REPO: ${{ inputs.wound_ai_repo || 'jcrupi/wound-ai' }}
+          WOUND_AI_BRANCH: ${{ inputs.wound_ai_branch || 'main' }}
+          # Use PAT for private repos; GITHUB_TOKEN for public
+          FETCH_TOKEN: ${{ secrets.WOUND_AI_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          REPO="$WOUND_AI_REPO"
+          BRANCH="$WOUND_AI_BRANCH"
+          TARGET="${{ env.TARGET_DIR }}"
+          mkdir -p "$TARGET"
+
+          # Try common source paths: flat (agentx/playbook) or nested (agentx/apps/wound-ai/playbook)
+          for BASE in "agentx/playbook" "agentx/apps/wound-ai/playbook" "playbook"; do
+            OK=true
+            for F in wound-ai.playbook.agentx-v1.md wound-ai.algos.agentx-v1.md; do
+              URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/${BASE}/${F}"
+              if ! curl -sSfL -H "Authorization: token $FETCH_TOKEN" -o "$TARGET/$F" "$URL"; then
+                OK=false
+                break
+              fi
+              echo "Fetched $F from $BASE"
+            done
+            [ "$OK" = true ] && break
+          done
+
+          if [ ! -f "$TARGET/wound-ai.playbook.agentx-v1.md" ] || [ ! -f "$TARGET/wound-ai.algos.agentx-v1.md" ]; then
+            echo "::error::Could not fetch playbook files from $REPO. Check repo path, branch, and WOUND_AI_TOKEN for private repos."
+            exit 1
+          fi
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet "${{ env.TARGET_DIR }}/wound-ai.playbook.agentx-v1.md" "${{ env.TARGET_DIR }}/wound-ai.algos.agentx-v1.md" 2>/dev/null; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected."
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected."
+          fi
+
+      - name: Create Pull Request
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore(playbook-ai): sync wound-ai playbook from source repo'
+          committer: GitHub <noreply@github.com>
+          author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+          branch: sync/wound-ai-playbook
+          delete-branch: true
+          title: 'chore(playbook-ai): Sync wound-ai playbook from source'
+          body: |
+            ## Sync wound-ai playbook
+
+            Automated sync from the wound-ai repo (ground truth).
+
+            **Source:** `${{ inputs.wound_ai_repo || 'jcrupi/wound-ai' }}` @ `${{ inputs.wound_ai_branch || 'main' }}`
+
+            **Files updated:**
+            - `wound-ai.playbook.agentx-v1.md`
+            - `wound-ai.algos.agentx-v1.md`
+
+            Please review and merge.
+          labels: |
+            sync
+            playbook-ai

@@ -289,7 +289,7 @@ export function TabbedNotesPanel({
         <div>
           <h2 className="text-lg font-semibold text-slate-200">{label}</h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            Add tabs for different topics — everything auto-saves locally.
+            Add tabs for different topics — everything auto-saves to the server.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -415,7 +415,7 @@ export function TabbedNotesPanel({
       )}
 
       <p className="text-xs text-slate-600">
-        Tip: ⌘S to save &middot; Double-click tab name to rename &middot; Content auto-saves locally.
+        Tip: ⌘S to save &middot; Double-click tab name to rename &middot; Content auto-saves to the server.
       </p>
     </div>
   );

@@ -19,6 +19,7 @@ import { identityZeroRoutes } from './routes/identity-zero';
 import { assessmentQuestionsRoutes } from './routes/assessment-questions';
 import { talentVillageRoutes } from './routes/talent-village';
 import { crazyWeeksRoutes } from './routes/crazy-weeks';
+import { geniCrazyWeeksRoutes } from './routes/geni-crazy-weeks';
 import { positionRoutes } from './routes/positions';
 import { candidateRoutes } from './routes/candidates';
 import { dashboardRoutes } from './routes/dashboard';
@@ -175,6 +176,7 @@ export const app = new Elysia()
   .use(assessmentQuestionsRoutes)
   .use(talentVillageRoutes)
   .use(crazyWeeksRoutes)
+  .use(geniCrazyWeeksRoutes)
   .use(positionRoutes)
   .use(candidateRoutes)
   .use(dashboardRoutes)

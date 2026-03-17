@@ -1276,6 +1276,42 @@ textarea {
   padding: 0.5rem 0;
 }
 
+/* Code Mapping Container - Resizable */
+.code-mapping-container {
+  position: relative;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  transition: width 0.2s ease;
+}
+
+.code-mapping-container.collapsed {
+  min-width: 40px;
+  max-width: 40px;
+  border-left: 1px solid var(--border);
+}
+
+.code-mapping-container .resize-handle {
+  background: rgba(13, 148, 136, 0.05);
+  transition: background 0.15s ease;
+}
+
+.code-mapping-container .resize-handle:hover {
+  background: rgba(13, 148, 136, 0.2);
+}
+
+.code-mapping-container .collapse-toggle {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.06);
+  transition: all 0.15s ease;
+}
+
+.code-mapping-container .collapse-toggle:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* Observer panel */
 .content-row-observer {
   flex: 1;

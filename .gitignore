@@ -72,8 +72,6 @@ scripts/feedback-downloads/
 # ── Moved / deprecated apps ───────────────────────────────
 .MOVED
 *.MOVED
-apps/live-ai-talent.IGNORE
-
 
 
 

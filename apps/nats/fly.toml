@@ -1,0 +1,36 @@
+# fly.toml app configuration file for agent-collective-nats
+# Upgraded to NATS 2.12 with JetStream enabled
+
+app = "agent-collective-nats"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[processes]
+  app = "-c /etc/nats/nats.conf"
+
+[vm]
+  memory_mb = 512
+  cpu_kind = "shared"
+  cpus = 1
+
+[[mounts]]
+  source = "nats_data"
+  destination = "/nats_data"
+
+[[services]]
+  internal_port = 4222
+  protocol = "tcp"
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 4222
+
+[[services]]
+  internal_port = 8222
+  protocol = "tcp"
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 8222

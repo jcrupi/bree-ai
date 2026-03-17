@@ -10,10 +10,8 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy workspace files
-COPY package.json bun.lock ./
-COPY packages/ ./packages/
-COPY apps/api/ ./apps/api/
+# Copy full workspace (bun install needs all workspace members)
+COPY . .
 
 # Install dependencies
 RUN bun install

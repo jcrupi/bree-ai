@@ -1,6 +1,9 @@
 import { Elysia, t } from 'elysia';
+import { join } from 'path';
+import { mkdir, readdir } from 'node:fs/promises';
 
-const AGENTX_URL = process.env.VITE_AGENTX_URL || process.env.AGENTX_URL || 'http://localhost:9000';
+const CRAZY_WEEKS_DIR = process.env.CRAZY_WEEKS_DIR ||
+  (process.env.NODE_ENV === 'production' ? '/app/data/crazy-weeks' : join(process.cwd(), 'data', 'crazy-weeks'));
 
 /** Returns YYYY-MM-DD of the Monday of the given date */
 function weekKey(date: Date = new Date()): string {
@@ -11,23 +14,24 @@ function weekKey(date: Date = new Date()): string {
   return d.toISOString().split('T')[0];
 }
 
-async function readEntry(path: string): Promise<string | null> {
+function tabPath(week: string, tab: string): string {
+  return join(CRAZY_WEEKS_DIR, week, `${tab}.txt`);
+}
+
+async function readTab(week: string, tab: string): Promise<string | null> {
   try {
-    const res = await fetch(`${AGENTX_URL}/api/identity/entries?path=${encodeURIComponent(path)}`);
-    const data = await res.json();
-    if (data.success && data.data?.content) return data.data.content;
-    return null;
+    const file = Bun.file(tabPath(week, tab));
+    if (!(await file.exists())) return null;
+    return await file.text();
   } catch {
     return null;
   }
 }
 
-async function writeEntry(path: string, content: string, frontMatter: Record<string, string>): Promise<void> {
-  await fetch(`${AGENTX_URL}/api/identity/entries`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, content, frontMatter }),
-  });
+async function writeTab(week: string, tab: string, content: string): Promise<void> {
+  const dir = join(CRAZY_WEEKS_DIR, week);
+  await mkdir(dir, { recursive: true });
+  await Bun.write(tabPath(week, tab), content);
 }
 
 export const crazyWeeksRoutes = new Elysia({ prefix: '/api/crazy-weeks' })
@@ -35,9 +39,9 @@ export const crazyWeeksRoutes = new Elysia({ prefix: '/api/crazy-weeks' })
   .get('/current', async () => {
     const week = weekKey();
     const [tech, biz, marketing] = await Promise.all([
-      readEntry(`crazy-weeks/${week}/tech.agentx.md`),
-      readEntry(`crazy-weeks/${week}/biz.agentx.md`),
-      readEntry(`crazy-weeks/${week}/marketing.agentx.md`),
+      readTab(week, 'tech'),
+      readTab(week, 'biz'),
+      readTab(week, 'marketing'),
     ]);
     return { week, tech, biz, marketing };
   })
@@ -45,12 +49,10 @@ export const crazyWeeksRoutes = new Elysia({ prefix: '/api/crazy-weeks' })
   // GET /api/crazy-weeks/list — returns available week keys
   .get('/list', async () => {
     try {
-      const res = await fetch(`${AGENTX_URL}/api/identity/entries?dir=crazy-weeks`);
-      const data = await res.json();
-      const weeks = (data.entries || [])
-        .map((e: any) => e.frontMatter?.week)
-        .filter(Boolean)
-        .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+      const entries = await readdir(CRAZY_WEEKS_DIR, { withFileTypes: true });
+      const weeks = entries
+        .filter((e) => e.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(e.name))
+        .map((e) => e.name)
         .sort()
         .reverse();
       return { weeks };
@@ -63,7 +65,7 @@ export const crazyWeeksRoutes = new Elysia({ prefix: '/api/crazy-weeks' })
   .get('/:week/:tab', async ({ params: { week, tab } }) => {
     const validTabs = ['tech', 'biz', 'marketing'];
     if (!validTabs.includes(tab)) return { error: 'Invalid tab' };
-    const content = await readEntry(`crazy-weeks/${week}/${tab}.agentx.md`);
+    const content = await readTab(week, tab);
     return { week, tab, content };
   }, {
     params: t.Object({ week: t.String(), tab: t.String() })
@@ -74,18 +76,7 @@ export const crazyWeeksRoutes = new Elysia({ prefix: '/api/crazy-weeks' })
     const validTabs = ['tech', 'biz', 'marketing'];
     if (!validTabs.includes(tab)) return { error: 'Invalid tab' };
     const { content } = body as { content: string };
-    const labels: Record<string, string> = { tech: 'Tech Tasks', biz: 'Business Notes', marketing: 'Marketing Notes' };
-    await writeEntry(
-      `crazy-weeks/${week}/${tab}.agentx.md`,
-      content,
-      {
-        type: 'crazy-week-note',
-        week,
-        tab,
-        label: labels[tab],
-        updatedAt: new Date().toISOString(),
-      }
-    );
+    await writeTab(week, tab, content ?? '');
     return { success: true, week, tab };
   }, {
     params: t.Object({ week: t.String(), tab: t.String() }),

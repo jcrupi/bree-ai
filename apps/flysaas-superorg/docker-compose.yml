@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_DB: flysaas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  superorg:
+    build:
+      context: ../..
+      dockerfile: apps/flysaas-superorg/Dockerfile
+      target: development
+    ports:
+      - '7800:7800'
+    environment:
+      PORT: 7800
+      NODE_ENV: development
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/flysaas
+      JWT_SECRET: local-dev-secret-change-in-production
+      BASE_URL: http://localhost:7800
+      JWKS_URL: http://localhost:7800/auth/jwks
+      FLY_API_TOKEN: ${FLY_API_TOKEN:-}
+      SUPERORG_JWKS_URL: http://superorg:7800/auth/jwks
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "cd /app && bun apps/flysaas-superorg/src/db/migrate.ts && bun --watch apps/flysaas-superorg/src/index.ts"
+    volumes:
+      - ../../packages:/app/packages:ro
+      - ./src:/app/apps/flysaas-superorg/src:ro
+
+  client-corp-ai:
+    build:
+      context: ../..
+      dockerfile: apps/flysaas-client-template/Dockerfile
+      target: development
+    ports:
+      - '7801:7801'
+    environment:
+      PORT: 7801
+      NODE_ENV: development
+      ORG_ID: corp-ai
+      DB_PATH: /app/data/corp-ai.db
+      SUPERORG_JWKS_URL: http://superorg:7800/auth/jwks
+    volumes:
+      - client_data:/app/data
+      - ../../packages:/app/packages:ro
+      - ../flysaas-client-template/src:/app/apps/flysaas-client-template/src:ro
+    command: sh -c "cd /app && bun apps/flysaas-client-template/src/db/migrate.ts && bun apps/flysaas-client-template/src/db/seed.ts && bun --watch apps/flysaas-client-template/src/index.ts"
+    depends_on:
+      - superorg
+
+volumes:
+  postgres_data:
+  client_data:

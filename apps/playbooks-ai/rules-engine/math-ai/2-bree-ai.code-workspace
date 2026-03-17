@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "../../../.."
+		},
+		{
+			"path": "../../../../../1-AI-Clients/GrelinAI/GRELIN-AI-PLATFORM/DGX-SPARK/grelin-ai/apps/playbook-ai"
+		}
+	],
+	"settings": {}
+}

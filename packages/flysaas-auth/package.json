@@ -1,0 +1,22 @@
+{
+  "name": "@bree-ai/flysaas-auth",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./jwks-fetcher": "./src/jwks-fetcher.ts",
+    "./jwt-validator": "./src/jwt-validator.ts"
+  },
+  "dependencies": {
+    "jose": "^5.9.6",
+    "@bree-ai/flysaas-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  }
+}

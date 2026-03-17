@@ -1,0 +1,9 @@
+{
+  "name": "bree-ai-playbooks-build",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/playbooks-ai"
+  ]
+}

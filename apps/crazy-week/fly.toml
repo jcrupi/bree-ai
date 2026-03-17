@@ -2,8 +2,11 @@ app = 'crazy-week'
 primary_region = 'ord'
 
 [build]
+  dockerfile = "Dockerfile"
   [build.args]
     VITE_API_URL = "https://bree-api.fly.dev"
+  [build.context]
+    path = "../.."
 
 [http_service]
   internal_port = 8080

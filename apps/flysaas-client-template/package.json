@@ -1,0 +1,23 @@
+{
+  "name": "flysaas-client-template",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir=dist --target=bun",
+    "start": "bun dist/index.js",
+    "type-check": "tsc --noEmit",
+    "migrate": "bun src/db/migrate.ts"
+  },
+  "dependencies": {
+    "@bree-ai/flysaas-types": "workspace:*",
+    "@bree-ai/flysaas-auth": "workspace:*",
+    "elysia": "^1.2.24",
+    "@elysiajs/cors": "^1.2.3",
+    "@elysiajs/swagger": "^1.2.8"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}

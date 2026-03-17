@@ -16,8 +16,14 @@ services:
       - DEMO_MODE=true
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/bree_ai
       - IDENTITY_ZERO_DB_URL=postgres://postgres:postgres@postgres:5432/bree_ai
+      # Isolated data dirs for each crazy-week instance
+      - CRAZY_WEEKS_DIR=/app/data/crazy-weeks
+      - GENI_CRAZY_WEEKS_DIR=/app/data/geni-crazy-weeks
     env_file:
       - apps/api/.env
+    volumes:
+      - crazy_week_data:/app/data/crazy-weeks
+      - geni_crazy_week_data:/app/data/geni-crazy-weeks
     restart: unless-stopped
     depends_on:
       - postgres
@@ -96,5 +102,37 @@ services:
     depends_on:
       - bree-api
 
+  # ── crazy-week instances ────────────────────────────────────────────────────
+
+  bree-crazy-week:
+    image: bree-crazy-week:latest
+    build:
+      context: .
+      dockerfile: apps/crazy-week/Dockerfile
+      args:
+        VITE_API_URL: http://bree-api:3000
+    container_name: bree-crazy-week
+    ports:
+      - "8086:8080"
+    depends_on:
+      - bree-api
+    restart: unless-stopped
+
+  bree-geni-crazy-week:
+    image: bree-geni-crazy-week:latest
+    build:
+      context: .
+      dockerfile: apps/geni-crazy-week/Dockerfile
+      args:
+        VITE_API_URL: http://bree-api:3000
+    container_name: bree-geni-crazy-week
+    ports:
+      - "8087:8080"
+    depends_on:
+      - bree-api
+    restart: unless-stopped
+
 volumes:
   bree_db_data:
+  crazy_week_data:
+  geni_crazy_week_data:

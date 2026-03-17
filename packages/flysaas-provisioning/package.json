@@ -1,0 +1,21 @@
+{
+  "name": "@bree-ai/flysaas-provisioning",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fly-client": "./src/fly-client.ts",
+    "./provision": "./src/provision.ts"
+  },
+  "dependencies": {
+    "@bree-ai/flysaas-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  }
+}

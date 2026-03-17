@@ -132,6 +132,9 @@ export default function App() {
   const isObserverTab = tab === "observer";
   const [leftPanelWidth, setLeftPanelWidth] = useState(380);
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [codeMappingWidth, setCodeMappingWidth] = useState(600);
+  const [codeMappingCollapsed, setCodeMappingCollapsed] = useState(false);
+  const [codeMappingPopup, setCodeMappingPopup] = useState(false);
 
   const content = tab === "playbook" ? playbook : algos;
   const meta = tab === "playbook" ? playbookMeta : algosMeta;
@@ -417,7 +420,91 @@ export default function App() {
             ) : tab === "analysis-algos" ? (
               <AnalysisPanel specialty={specialty} type="algos" />
             ) : isCodeMappingTab ? (
-              <CodeMappingPanel specialty={specialty} />
+              <div
+                className={`code-mapping-container ${codeMappingCollapsed ? "collapsed" : ""}`}
+                style={{
+                  width: codeMappingCollapsed ? 40 : codeMappingWidth,
+                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%"
+                }}
+              >
+                {!codeMappingCollapsed && (
+                  <>
+                    <div style={{ flex: 1, overflow: "auto" }}>
+                      <CodeMappingPanel specialty={specialty} />
+                    </div>
+                    <div
+                      className="resize-handle"
+                      style={{
+                        position: "absolute",
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: 4,
+                        cursor: "ew-resize",
+                        background: "rgba(255,255,255,0.1)",
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        const startX = e.clientX;
+                        const startW = codeMappingWidth;
+                        const onMove = (e2: MouseEvent) => {
+                          const dx = e2.clientX - startX;
+                          const next = Math.min(1200, Math.max(400, startW + dx));
+                          setCodeMappingWidth(next);
+                        };
+                        const onUp = () => {
+                          document.removeEventListener("mousemove", onMove);
+                          document.removeEventListener("mouseup", onUp);
+                        };
+                        document.addEventListener("mousemove", onMove);
+                        document.addEventListener("mouseup", onUp);
+                      }}
+                    />
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="collapse-toggle"
+                  style={{
+                    position: "absolute",
+                    right: codeMappingCollapsed ? 8 : -12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    zIndex: 10,
+                  }}
+                  onClick={() => setCodeMappingCollapsed(!codeMappingCollapsed)}
+                  title={codeMappingCollapsed ? "Expand Code Mapping" : "Collapse Code Mapping"}
+                  aria-label={codeMappingCollapsed ? "Expand" : "Collapse"}
+                >
+                  {codeMappingCollapsed ? "◀" : "▶"}
+                </button>
+                {!codeMappingCollapsed && (
+                  <button
+                    type="button"
+                    style={{
+                      position: "absolute",
+                      right: 16,
+                      top: 16,
+                      background: "rgba(59,130,246,0.8)",
+                      border: "none",
+                      borderRadius: 8,
+                      padding: "8px 12px",
+                      color: "white",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: 500,
+                      zIndex: 5,
+                    }}
+                    onClick={() => setCodeMappingPopup(true)}
+                    title="Open in Popup"
+                  >
+                    ⤢ Popup
+                  </button>
+                )}
+              </div>
             ) : isDesignTab ? (
               <DesignPanel specialty={specialty} />
             ) : isObserverTab ? (
@@ -427,6 +514,75 @@ export default function App() {
 
         </div>
       </div>
+
+      {/* Code Mapping Popup Modal */}
+      {codeMappingPopup && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            backdropFilter: "blur(8px)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCodeMappingPopup(false);
+          }}
+        >
+          <div
+            style={{
+              background: "#0f172a",
+              border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: 16,
+              width: "90%",
+              maxWidth: 1400,
+              height: "90%",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.8)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "16px 24px",
+                borderBottom: "1px solid rgba(255,255,255,0.1)",
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#f1f5f9" }}>
+                Code Mapping — {SPECIALTY_CONFIG.find(s => s.id === specialty)?.name ?? specialty}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setCodeMappingPopup(false)}
+                style={{
+                  background: "rgba(255,255,255,0.1)",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 16px",
+                  color: "#f1f5f9",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  fontWeight: 500,
+                }}
+                title="Close Popup"
+              >
+                ✕ Close
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: "auto", padding: 24 }}>
+              <CodeMappingPanel specialty={specialty} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Observer FAB — visible on all non-observer tabs */}
       {!isObserverTab && <Observer />}

@@ -46,13 +46,24 @@ Playbook-ai loads the **latest versioned** playbook and algos from each app's `a
 | Specialty | Path |
 |-----------|------|
 | E/M | `apps/enm-ai/agentx/playbook/*-vN.md` |
-| Wound | `apps/wound-ai/agentx/playbook/*-vN.md` |
+| Wound | `apps/wound-ai/agentx/playbook/*-vN.md` or `agentx/agentx-archive/playbook/*-vN.md` |
 | Derm | `apps/derm-ai/agentx/playbook/*-vN.md` |
 | Pain | `apps/pain-ai/agentx/playbook/*-vN.md` |
 | Urgent | `apps/urgent-ai/agentx/playbook/*-vN.md` |
 
 Version and creation timestamp are shown in the UI. To bump a version: run `scripts/version-playbook.sh <app> <playbook|algos>` from repo root.
 
+## Playbook Sync (Grelin ↔ Bree)
+
+The wound AI playbook is authored in the **Grelin** repo. Playbook.ai is deployed from the **Bree** repo. To keep playbooks in sync:
+
+```bash
+# From grelin-ai repo root
+BREE_REPO=/path/to/bree-repo ./scripts/sync-playbooks-to-bree.sh
+```
+
+This copies `apps/wound-ai/agentx/playbook/` and `agentx/agentx-archive/playbook/` from Grelin to Bree. Run after updating wound playbooks in Grelin, before deploying from Bree.
+
 ---
 
-*Part of BREE AI monorepo — copied from Grelin AI*
+*Part of Grelin Health AI monorepo*

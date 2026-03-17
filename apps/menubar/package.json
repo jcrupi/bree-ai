@@ -1,0 +1,20 @@
+{
+  "name": "flysaas-menubar",
+  "version": "1.0.0",
+  "description": "FlySaaS Electron Menubar App",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "tsc && electron .",
+    "build": "tsc",
+    "start": "electron .",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "electron": "^28.2.0",
+    "menubar": "^9.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@bree-ai/flysaas-types",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./org": "./src/org.ts",
+    "./crm": "./src/crm.ts",
+    "./auth": "./src/auth.ts"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

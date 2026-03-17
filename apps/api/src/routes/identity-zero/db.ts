@@ -177,4 +177,9 @@ export async function initializeIdentityDatabase() {
 }
 
 // Initialize database
-initializeIdentityDatabase().catch(console.error);
+if (process.env.DATABASE_URL || process.env.NODE_ENV !== 'production') {
+  initializeIdentityDatabase().catch(err => {
+    console.warn('⚠️ Identity Zero (Postgres) not available. Some identity features will be disabled.');
+    if (process.env.NODE_ENV === 'production') throw err;
+  });
+}

@@ -1,0 +1,40 @@
+{
+  "name": "figler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "agent": "bun src/agent.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "0.0.50",
+    "@ai-sdk/google": "^3.0.43",
+    "@ai-sdk/openai": "^3.0.41",
+    "@bree-ai/core": "workspace:*",
+    "@elysiajs/eden": "^1.2.0",
+    "ai": "3.3.0",
+    "elysia": "^1.2.14",
+    "framer-motion": "^11.5.4",
+    "lucide-react": "^0.473.0",
+    "nats": "^2.29.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^6.26.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.18",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@tailwindcss/postcss": "latest",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.31",
+    "tailwindcss": "latest",
+    "typescript": "^5.5.4",
+    "vite": "^5.2.0"
+  }
+}

@@ -19,6 +19,9 @@ import { identityZeroRoutes } from './routes/identity-zero';
 import { assessmentQuestionsRoutes } from './routes/assessment-questions';
 import { talentVillageRoutes } from './routes/talent-village';
 import { crazyWeeksRoutes } from './routes/crazy-weeks';
+import { positionRoutes } from './routes/positions';
+import { figlerRoutes } from './routes/figler';
+import { agentxGlobalRoutes } from './routes/agentx';
 import * as jose from 'jose';
 import { sql, decryptKey } from './routes/identity-zero/db';
 import { AUTH_PROVIDER, verifyToken, isBetterAuth } from './auth-provider';
@@ -168,6 +171,9 @@ export const app = new Elysia()
   .use(assessmentQuestionsRoutes)
   .use(talentVillageRoutes)
   .use(crazyWeeksRoutes)
+  .use(positionRoutes)
+  .use(figlerRoutes)
+  .use(agentxGlobalRoutes)
 
   // Knowledge (Ragster) Proxy Group
   .group('/api/knowledge', (app) =>
@@ -1266,7 +1272,7 @@ if (import.meta.main) {
     console.log(`📦 Serving static assets from ${process.env.STATIC_ASSETS_PATH}`);
   }
 
-  app.listen(3000);
+  app.listen(process.env.PORT || 3000);
   console.log(
     `🦊 BREE AI Gateway is running at ${app.server?.hostname}:${app.server?.port}`
   );

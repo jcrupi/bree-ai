@@ -7,6 +7,9 @@ app = 'bree-api'
 primary_region = 'iad'
 
 [build]
+  dockerfile = "Dockerfile"
+  [build.context]
+    path = "../.."
 
 [http_service]
   internal_port = 3000

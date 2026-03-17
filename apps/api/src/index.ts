@@ -20,6 +20,9 @@ import { assessmentQuestionsRoutes } from './routes/assessment-questions';
 import { talentVillageRoutes } from './routes/talent-village';
 import { crazyWeeksRoutes } from './routes/crazy-weeks';
 import { positionRoutes } from './routes/positions';
+import { candidateRoutes } from './routes/candidates';
+import { dashboardRoutes } from './routes/dashboard';
+import { usersRoutes } from './routes/users';
 import { figlerRoutes } from './routes/figler';
 import { agentxGlobalRoutes } from './routes/agentx';
 import * as jose from 'jose';
@@ -172,6 +175,9 @@ export const app = new Elysia()
   .use(talentVillageRoutes)
   .use(crazyWeeksRoutes)
   .use(positionRoutes)
+  .use(candidateRoutes)
+  .use(dashboardRoutes)
+  .use(usersRoutes)
   .use(figlerRoutes)
   .use(agentxGlobalRoutes)
 

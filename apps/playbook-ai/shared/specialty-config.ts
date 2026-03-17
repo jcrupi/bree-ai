@@ -5,7 +5,7 @@
  * Catalogs group specialties by platform origin:
  *  - Bree AI:   1040-simple, hipaa (agentx lives in playbook-ai/)
  *  - Grelin AI: wound-ai, behavioral-health-ai, pain-ai, derm-ai,
- *               dme-ai, enm-ai, urgent-ai (agentx lives in ai-playbooks/)
+ *               dme-ai, enm-ai, urgent-ai (agentx lives in playbook-ai/ or ai-playbooks/)
  */
 
 // ─── Catalogs ─────────────────────────────────────────────────────────────────
@@ -118,12 +118,12 @@ export const SPECIALTY_CONFIG = [
     id: "wound-ai",
     name: "Wound Care",
     icon: "🩹",
-    app: "wound-ai",
+    app: "playbook-ai",
     baseName: "wound-ai",
     rulesEngine: false,
     catalogId: "grelin-ai" as CatalogId,
-    // agentx lives in ai-playbooks/agentx/apps/wound-ai/playbook/
-    appRoot: "ai-playbooks/agentx/apps/wound-ai",
+    // agentx lives in playbook-ai/agentx/playbook/ (flat, same as Bree specialties)
+    appRoot: "playbook-ai/agentx",
   },
   {
     id: "behavioral-health-ai",

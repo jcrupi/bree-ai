@@ -25,7 +25,7 @@ on:
         description: 'wound-ai repo (owner/repo)'
         required: false
         type: string
-        default: 'jcrupi/wound-ai'
+        default: 'GrelinhealthTeam/grelin-ai'
       wound_ai_branch:
         description: 'Branch to sync from'
         required: false
@@ -48,7 +48,7 @@ jobs:
       - name: Fetch wound-ai playbook files
         id: fetch
         env:
-          WOUND_AI_REPO: ${{ inputs.wound_ai_repo || 'jcrupi/wound-ai' }}
+          WOUND_AI_REPO: ${{ inputs.wound_ai_repo || 'GrelinhealthTeam/grelin-ai' }}
           WOUND_AI_BRANCH: ${{ inputs.wound_ai_branch || 'main' }}
           # Use PAT for private repos; GITHUB_TOKEN for public
           FETCH_TOKEN: ${{ secrets.WOUND_AI_TOKEN || secrets.GITHUB_TOKEN }}
@@ -58,8 +58,8 @@ jobs:
           TARGET="${{ env.TARGET_DIR }}"
           mkdir -p "$TARGET"
 
-          # Try common source paths: flat (agentx/playbook) or nested (agentx/apps/wound-ai/playbook)
-          for BASE in "agentx/playbook" "agentx/apps/wound-ai/playbook" "playbook"; do
+          # Grelin-ai: apps/wound-ai/agentx/playbook; also try flat/nested variants
+          for BASE in "apps/wound-ai/agentx/playbook" "agentx/playbook" "agentx/apps/wound-ai/playbook" "playbook"; do
             OK=true
             for F in wound-ai.playbook.agentx-v1.md wound-ai.algos.agentx-v1.md; do
               URL="https://raw.githubusercontent.com/${REPO}/${BRANCH}/${BASE}/${F}"
@@ -104,7 +104,7 @@ jobs:
 
             Automated sync from the wound-ai repo (ground truth).
 
-            **Source:** `${{ inputs.wound_ai_repo || 'jcrupi/wound-ai' }}` @ `${{ inputs.wound_ai_branch || 'main' }}`
+            **Source:** `${{ inputs.wound_ai_repo || 'GrelinhealthTeam/grelin-ai' }}` @ `${{ inputs.wound_ai_branch || 'main' }}`
 
             **Files updated:**
             - `wound-ai.playbook.agentx-v1.md`

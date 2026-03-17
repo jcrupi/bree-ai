@@ -23,6 +23,7 @@ import { positionRoutes } from './routes/positions';
 import { candidateRoutes } from './routes/candidates';
 import { dashboardRoutes } from './routes/dashboard';
 import { usersRoutes } from './routes/users';
+import { assessmentRoutes } from './routes/assessments';
 import { figlerRoutes } from './routes/figler';
 import { agentxGlobalRoutes } from './routes/agentx';
 import * as jose from 'jose';
@@ -178,6 +179,7 @@ export const app = new Elysia()
   .use(candidateRoutes)
   .use(dashboardRoutes)
   .use(usersRoutes)
+  .use(assessmentRoutes)
   .use(figlerRoutes)
   .use(agentxGlobalRoutes)
 

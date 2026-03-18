@@ -3,8 +3,8 @@ import { join } from 'path';
 import { mkdir, readdir } from 'node:fs/promises';
 
 // Isolated data directory — completely separate from the main crazy-week instance
-const GENI_CRAZY_WEEKS_DIR = process.env.GENI_CRAZY_WEEKS_DIR ||
-  (process.env.NODE_ENV === 'production' ? '/app/data/grelin-crazy-weeks' : join(process.cwd(), 'data', 'grelin-crazy-weeks'));
+const GRELIN_CRAZY_WEEKS_DIR = process.env.GRELIN_CRAZY_WEEKS_DIR ||
+  (process.env.NODE_ENV === 'production' ? '/app/data/crazy-weeks' : join(process.cwd(), 'data', 'crazy-weeks'));
 
 /** Returns YYYY-MM-DD of the Monday of the given date */
 function weekKey(date: Date = new Date()): string {
@@ -16,7 +16,7 @@ function weekKey(date: Date = new Date()): string {
 }
 
 function tabPath(week: string, tab: string): string {
-  return join(GENI_CRAZY_WEEKS_DIR, week, `${tab}.txt`);
+  return join(GRELIN_CRAZY_WEEKS_DIR, week, `${tab}.txt`);
 }
 
 async function readTab(week: string, tab: string): Promise<string | null> {
@@ -30,7 +30,7 @@ async function readTab(week: string, tab: string): Promise<string | null> {
 }
 
 async function writeTab(week: string, tab: string, content: string): Promise<void> {
-  const dir = join(GENI_CRAZY_WEEKS_DIR, week);
+  const dir = join(GRELIN_CRAZY_WEEKS_DIR, week);
   await mkdir(dir, { recursive: true });
   await Bun.write(tabPath(week, tab), content);
 }
@@ -38,7 +38,7 @@ async function writeTab(week: string, tab: string, content: string): Promise<voi
 // Global Config
 async function readGlobalConfig(): Promise<string | null> {
   try {
-    const file = Bun.file(join(GENI_CRAZY_WEEKS_DIR, 'global_config.json'));
+    const file = Bun.file(join(GRELIN_CRAZY_WEEKS_DIR, 'global_config.json'));
     if (!(await file.exists())) return null;
     return await file.text();
   } catch {
@@ -47,8 +47,8 @@ async function readGlobalConfig(): Promise<string | null> {
 }
 
 async function writeGlobalConfig(content: string): Promise<void> {
-  await mkdir(GENI_CRAZY_WEEKS_DIR, { recursive: true });
-  await Bun.write(join(GENI_CRAZY_WEEKS_DIR, 'global_config.json'), content);
+  await mkdir(GRELIN_CRAZY_WEEKS_DIR, { recursive: true });
+  await Bun.write(join(GRELIN_CRAZY_WEEKS_DIR, 'global_config.json'), content);
 }
 
 export const grelinCrazyWeeksRoutes = new Elysia({ prefix: '/api/grelin-crazy-weeks' })
@@ -66,7 +66,7 @@ export const grelinCrazyWeeksRoutes = new Elysia({ prefix: '/api/grelin-crazy-we
   // GET /api/grelin-crazy-weeks/list — returns available week keys
   .get('/list', async () => {
     try {
-      const entries = await readdir(GENI_CRAZY_WEEKS_DIR, { withFileTypes: true });
+      const entries = await readdir(GRELIN_CRAZY_WEEKS_DIR, { withFileTypes: true });
       const weeks = entries
         .filter((e) => e.isDirectory() && /^\d{4}-\d{2}-\d{2}$/.test(e.name))
         .map((e) => e.name)

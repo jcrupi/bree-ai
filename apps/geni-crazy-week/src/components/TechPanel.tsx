@@ -217,7 +217,7 @@ export function TechPanel({ tasks, aiSuggestions, onDescriptionUpdate, onAssigne
   // ── Table state ──
   const [search,       setSearch]       = useState('');
   const [sortCol,      setSortCol]      = useState<SortCol>('createdDate');
-  const [sortDir,      setSortDir]      = useState<'asc' | 'desc'>('asc');
+  const [sortDir,      setSortDir]      = useState<'asc' | 'desc'>('desc');
   const [descEdits,    setDescEdits]    = useState<Record<string, string>>({});
   const [assigneeEdits, setAssigneeEdits] = useState<Record<string, string>>({});
   const [techSummary,  setTechSummary]  = useState('');

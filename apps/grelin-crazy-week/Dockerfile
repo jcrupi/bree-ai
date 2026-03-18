@@ -8,7 +8,7 @@ ARG VITE_API_URL=https://bree-api.fly.dev
 # Copy workspace
 COPY package.json bun.lock ./
 COPY packages/ ./packages/
-COPY apps/geni-crazy-week/ ./apps/geni-crazy-week/
+COPY apps/grelin-crazy-week/ ./apps/grelin-crazy-week/
 
 # Satisfy workspace deps (playbook-ai stubs)
 RUN mkdir -p apps/playbook-ai/server apps/playbook-ai/client && \
@@ -18,15 +18,15 @@ RUN mkdir -p apps/playbook-ai/server apps/playbook-ai/client && \
 
 RUN bun install
 
-WORKDIR /app/apps/geni-crazy-week
+WORKDIR /app/apps/grelin-crazy-week
 ENV VITE_API_URL=$VITE_API_URL
 RUN bun run build
 
 # Runtime stage
 FROM nginx:alpine
 
-COPY --from=build /app/apps/geni-crazy-week/dist /usr/share/nginx/html
-COPY apps/geni-crazy-week/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/apps/grelin-crazy-week/dist /usr/share/nginx/html
+COPY apps/grelin-crazy-week/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]

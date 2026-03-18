@@ -7,17 +7,12 @@ import { LeadNotesTab } from './components/LeadNotesTab';
 import { TabbedNotesPanel } from './components/TabbedNotesPanel';
 import { WeeklyNewsTab } from './components/WeeklyNewsTab';
 import { TabChat } from './components/TabChat';
-import { StatsBar } from './components/StatsBar';
-import { ConfiguratorTab } from './components/ConfiguratorTab';
-import { SplashScreen } from './components/SplashScreen';
-import { SecurityGate } from './components/SecurityGate';
-import { loadConfig, saveConfig, AppConfig } from './services/config';
 import { Task, ProductName } from './types/task';
 import { Plus, RefreshCw, Code2, Briefcase, Megaphone, DollarSign, Newspaper, Calendar, Zap } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type MainTab = 'tech' | 'biz' | 'marketing' | 'sales' | 'news' | 'configurator';
+type MainTab = 'tech' | 'biz' | 'marketing' | 'sales' | 'news';
 
 const MAIN_TABS: { id: MainTab; label: string; icon: React.ReactNode }[] = [
   { id: 'tech',      label: '⚡ Tech',      icon: <Code2      className="w-4 h-4" /> },
@@ -27,11 +22,11 @@ const MAIN_TABS: { id: MainTab; label: string; icon: React.ReactNode }[] = [
   { id: 'news',      label: '📰 AI News',   icon: <Newspaper  className="w-4 h-4" /> },
 ];
 
-// Base PRODUCTS will be filtered later
-const BASE_PRODUCTS = [
-  'Wound AI',
-  'Performance AI',
-  'Extraction AI',
+const PRODUCTS: Array<{ key: ProductName | 'all'; label: string }> = [
+  { key: 'all',           label: 'All Products' },
+  { key: 'Wound AI',       label: '🩹 Wound AI' },
+  { key: 'Performance AI', label: '📊 Performance AI' },
+  { key: 'Extraction AI',  label: '📄 Extraction AI' },
 ];
 
 const BIZ_DEFAULT = ``;
@@ -64,18 +59,6 @@ export function App() {
   const [bizContext, setBizContext]     = useState('');
   const [marketingContext, setMarketingContext] = useState('');
   const [salesContext, setSalesContext] = useState('');
-  const [config, setConfig] = useState<AppConfig | null>(null);
-  const [dismissedSplash, setDismissedSplash] = useState(false);
-  const [unlocked, setUnlocked] = useState(false);
-
-  React.useEffect(() => {
-    loadConfig().then(setConfig);
-  }, []);
-
-  const handleSaveConfig = async (newConf: AppConfig) => {
-    await saveConfig(newConf);
-    setConfig(newConf);
-  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -94,41 +77,6 @@ export function App() {
     active:    filteredTasks.filter(t => t.status === 'active' || t.status === 'investigating').length,
     complete:  filteredTasks.filter(t => t.status === 'complete').length,
   }), [filteredTasks]);
-
-  const activeTabs = useMemo(() => {
-    if (!config) return [];
-    const tabs = [{ id: 'tech', label: '⚡ Tech', icon: <Code2 className="w-4 h-4" /> }];
-    if (config.enabledTabs.biz) tabs.push({ id: 'biz', label: '💼 Biz', icon: <Briefcase className="w-4 h-4" /> });
-    if (config.enabledTabs.marketing) tabs.push({ id: 'marketing', label: '📣 Marketing', icon: <Megaphone className="w-4 h-4" /> });
-    if (config.enabledTabs.sales) tabs.push({ id: 'sales', label: '💰 Sales', icon: <DollarSign className="w-4 h-4" /> });
-    if (config.enabledTabs.news) tabs.push({ id: 'news', label: '📰 AI News', icon: <Newspaper className="w-4 h-4" /> });
-    
-    // Always add Configurator
-    tabs.push({ id: 'configurator', label: '⚙️ Configurator', icon: <Zap className="w-4 h-4" /> });
-    return tabs;
-  }, [config]);
-
-  const activeProducts = useMemo(() => {
-    if (!config) return [];
-    const arr: Array<{ key: ProductName | 'all'; label: string }> = [{ key: 'all', label: 'All' }];
-    config.enabledProducts.forEach(p => {
-      arr.push({ key: p as ProductName, label: p });
-    });
-    return arr;
-  }, [config]);
-
-  if (!config) {
-    return <div className="flex h-screen items-center justify-center text-slate-500 font-mono">Loading config...</div>;
-  }
-
-  // Security gate evaluation
-  if (config.requireSecurityCode && !unlocked) {
-    return <SecurityGate correctCode={config.securityCode} onUnlock={() => setUnlocked(true)} />;
-  }
-
-  if (config.showSplashScreen && !dismissedSplash) {
-    return <SplashScreen onDismiss={() => setDismissedSplash(true)} />;
-  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary, #f8fafc)', fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -290,7 +238,7 @@ export function App() {
               <div className="cw-brand-name">crazy-week.ai</div>
               <div className="cw-brand-sub">
                 <div className="cw-status-dot" />
-                <span>Geni AI &nbsp;·&nbsp;</span>
+                <span>Bree AI &nbsp;·&nbsp;</span>
                 <Calendar size={11} />
                 <span>{currentWeekLabel()}</span>
               </div>
@@ -299,9 +247,9 @@ export function App() {
 
           {/* Main tabs */}
           <div className="cw-main-tabs">
-            {activeTabs.map(t => (
+            {MAIN_TABS.map(t => (
               <button key={t.id} className={`cw-main-tab${mainTab === t.id ? ' active' : ''}`}
-                onClick={() => setMainTab(t.id as MainTab)}>
+                onClick={() => setMainTab(t.id)}>
                 {t.label}
               </button>
             ))}
@@ -311,12 +259,10 @@ export function App() {
           <div style={{ display: 'flex', gap: 8 }}>
             {mainTab === 'tech' && (
               <>
-                {config.showSyncLinear && (
-                  <button className="btn-secondary" disabled={isRefreshing} onClick={handleRefresh}>
-                    <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-                    {isRefreshing ? 'Syncing…' : 'Sync Linear'}
-                  </button>
-                )}
+                <button className="btn-secondary" disabled={isRefreshing} onClick={handleRefresh}>
+                  <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+                  {isRefreshing ? 'Syncing…' : 'Sync Linear'}
+                </button>
                 <button className="btn-primary" onClick={() => setIsAddOpen(true)}>
                   <Plus size={14} /> Add Task
                 </button>
@@ -328,7 +274,7 @@ export function App() {
         {/* Product sub-tabs — only on Tech */}
         {mainTab === 'tech' && (
           <div className="cw-sub-tabs">
-            {activeProducts.map(p => (
+            {PRODUCTS.map(p => (
               <button key={p.key}
                 className={`cw-sub-tab${productFilter === p.key ? ' active' : ''}`}
                 onClick={() => setProductFilter(p.key)}>
@@ -345,10 +291,8 @@ export function App() {
         {/* ── TECH TAB ── */}
         {mainTab === 'tech' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {config.showBubbles && <StatsBar stats={stats} />}
             <TechPanel
               tasks={filteredTasks}
-              aiSuggestions={config.aiSuggestions || []}
               onDescriptionUpdate={(id, desc) => updateTask(id, { description: desc })}
               onAssigneeUpdate={(id, assignee) => updateTask(id, { assignee })}
               onStatusUpdate={(id, status) => updateTask(id, { status })}
@@ -395,22 +339,12 @@ export function App() {
 
         {/* ── NEWS TAB ── */}
         {mainTab === 'news' && <WeeklyNewsTab />}
-
-        {/* ── CONFIGURATOR TAB ── */}
-        {mainTab === 'configurator' && <ConfiguratorTab config={config} onSave={handleSaveConfig} onBack={() => setMainTab('tech')} />}
       </main>
 
       {/* ── Modals ── */}
       <EditTaskModal task={editingTask} isOpen={!!editingTask}
         onClose={() => setEditingTask(null)} onSave={updateTask} />
-      {config && (
-        <AddTaskModal
-          isOpen={isAddOpen}
-          onClose={() => setIsAddOpen(false)}
-          productOptions={config.enabledProducts}
-          onAdd={addTask}
-        />
-      )}
+      <AddTaskModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} onAdd={addTask} />
     </div>
   );
 }

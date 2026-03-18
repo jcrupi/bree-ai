@@ -37,10 +37,10 @@ export function SplashScreen({ onDismiss }: SplashScreenProps) {
       {/* Huge Serif Header matching "Build fast. Run any code fearlessly." */}
       <div className="relative z-10 w-full max-w-4xl px-6 -mt-16 text-center space-y-6 flex flex-col items-center">
         
-        <h1 className="text-6xl md:text-[5.5rem] font-serif font-medium text-slate-900 tracking-tight leading-[1.05]">
-          Tame craziness. <br />
+        <h1 className="text-[5.5rem] md:text-[6.5rem] font-serif font-medium text-slate-900 tracking-tight leading-[1.05] uppercase">
+          Tame <br />
           <span className="italic text-[#6d28d9] font-medium relative inline-block">
-            Organize fearlessly.
+            the crazy!
             <svg className="absolute -bottom-2 left-0 w-full h-3 text-[#a78bfa] opacity-60 pointer-events-none" viewBox="0 0 100 20" preserveAspectRatio="none">
               <path d="M0 10 Q50 20 100 10" stroke="currentColor" strokeWidth="4" fill="none" strokeLinecap="round" />
             </svg>

@@ -24,58 +24,7 @@ interface Article {
 }
 
 // ─── Static seed articles (always shown while live fetch loads) ───────────────
-const SEED_ARTICLES: Article[] = [
-  {
-    title: 'Waystar Expands Google Cloud Collaboration to Advance Agentic AI for Autonomous Revenue Cycle',
-    summary:
-      'Waystar deepened its partnership with Google Cloud, leveraging Gemini models and BigQuery to accelerate agentic AI capabilities in revenue cycle management — directly relevant to Grelin AI\'s chart & claims automation roadmap.',
-    source: 'PR Newswire',
-    url: 'https://www.prnewswire.com',
-    date: 'Mar 2026',
-    tags: ['Agentic AI', 'RCM', 'Claims'],
-    relevance: 'High — autonomous claims processing aligned with Grelin AI\'s core offering',
-  },
-  {
-    title: 'Elation Health Launches AI-Powered Billing Workflows Connecting Chart Context to Claims',
-    summary:
-      'Elation Health announced AI billing workflows that bridge clinical documentation, chart context, and past claims data to auto-generate bill-ready claims — a direct competitor signal for Grelin AI\'s Chart/Claims AI product.',
-    source: 'Elation Health',
-    url: 'https://www.elationhealth.com',
-    date: 'Mar 2026',
-    tags: ['Chart AI', 'Claims AI', 'Billing'],
-    relevance: 'High — competitor launch in chart-to-claim automation space',
-  },
-  {
-    title: 'Procode AI Launches Surgical Billing AI Copilot to Slash Coding Denials by 40%',
-    summary:
-      'Procode AI unveiled an AI coding copilot that translates operative reports into ICD-10 and CPT codes with 95%+ accuracy. Surgical specialties like Interventional Pain — a Grelin AI prospect — are primary targets.',
-    source: 'Fierce Healthcare',
-    url: 'https://www.fiercehealthcare.com',
-    date: 'Mar 2026',
-    tags: ['Coding AI', 'Denials', 'Claims'],
-    relevance: 'High — maps directly to pain specialty prospects in Grelin AI pipeline',
-  },
-  {
-    title: 'Ease Health Emerges from Stealth with $41M to Unify EHR, RCM, and CRM with AI',
-    summary:
-      'Ease Health raised $41M to build an AI-infused platform unifying EHR, RCM, and CRM — reducing manual billing and utilization work. A new entrant positioning in the integrated care management space Grelin AI operates in.',
-    source: 'Behavioral Health Business',
-    url: 'https://bhbusiness.com',
-    date: 'Mar 2026',
-    tags: ['EHR', 'RCM', 'Claims AI', 'Funding'],
-    relevance: 'Medium — competitive entrant, also validates market demand',
-  },
-  {
-    title: 'AI Claims Automation Projected to Help Providers Recover 40% More Revenue in 2026',
-    summary:
-      'New industry data shows organizations using AI-powered RCM systems recover 40% more revenue than manual-only shops. Predictive denial prevention and auto-correction of chart-coding mismatches are the top ROI drivers.',
-    source: 'Medical Economics',
-    url: 'https://www.medicaleconomics.com',
-    date: 'Mar 2026',
-    tags: ['RCM', 'Revenue Recovery', 'AI ROI'],
-    relevance: 'High — strong sales proof point for Grelin AI conversations',
-  },
-];
+const SEED_ARTICLES: Article[] = [];
 
 const TAG_COLORS: Record<string, string> = {
   'Agentic AI':   'bg-violet-500/15 text-violet-300 border-violet-500/30',

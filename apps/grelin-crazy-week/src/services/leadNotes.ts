@@ -4,14 +4,7 @@
  * as AgentX markdown files: crazy-weeks/YYYY-MM-DD/{tech,biz,marketing}.agentx.md
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://bree-api.fly.dev';
-
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('bree_jwt');
-  return token
-    ? { 'Content-Type': 'application/json', authorization: `Bearer ${token}` }
-    : { 'Content-Type': 'application/json' };
-}
+import { API_BASE, authHeaders } from './apiConfig';
 
 /** Returns YYYY-MM-DD of the Monday of the current week (client-side) */
 export function currentWeekKey(): string {
@@ -34,7 +27,7 @@ export interface WeekData {
 /** Load all three tabs for the current week at once */
 export async function loadCurrentWeek(): Promise<WeekData> {
   try {
-    const res = await fetch(`${API_BASE}/api/crazy-weeks/current`, {
+    const res = await fetch(`${API_BASE}/api/grelin-crazy-weeks/current`, {
       headers: authHeaders(),
     });
     if (!res.ok) return { week: currentWeekKey(), tech: null, biz: null, marketing: null };
@@ -47,7 +40,7 @@ export async function loadCurrentWeek(): Promise<WeekData> {
 /** Save a single tab's content for the current week */
 export async function saveWeekTab(tab: WeekTab, content: string): Promise<void> {
   const week = currentWeekKey();
-  await fetch(`${API_BASE}/api/crazy-weeks/${week}/${tab}`, {
+  await fetch(`${API_BASE}/api/grelin-crazy-weeks/${week}/${tab}`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ content }),

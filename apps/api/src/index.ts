@@ -20,6 +20,8 @@ import { assessmentQuestionsRoutes } from './routes/assessment-questions';
 import { talentVillageRoutes } from './routes/talent-village';
 import { crazyWeeksRoutes } from './routes/crazy-weeks';
 import { geniCrazyWeeksRoutes } from './routes/geni-crazy-weeks';
+import { breeCrazyWeeksRoutes } from './routes/bree-crazy-weeks';
+import { grelinCrazyWeeksRoutes } from './routes/grelin-crazy-weeks';
 import { positionRoutes } from './routes/positions';
 import { candidateRoutes } from './routes/candidates';
 import { dashboardRoutes } from './routes/dashboard';
@@ -177,6 +179,8 @@ export const app = new Elysia()
   .use(talentVillageRoutes)
   .use(crazyWeeksRoutes)
   .use(geniCrazyWeeksRoutes)
+  .use(breeCrazyWeeksRoutes)
+  .use(grelinCrazyWeeksRoutes)
   .use(positionRoutes)
   .use(candidateRoutes)
   .use(dashboardRoutes)

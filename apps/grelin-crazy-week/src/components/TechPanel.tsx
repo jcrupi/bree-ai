@@ -196,6 +196,7 @@ function StatusSelector({ status, onSelect }: { status: TaskStatus; onSelect: (s
 
 interface TechPanelProps {
   tasks: Task[];
+  aiSuggestions: string[];
   onDescriptionUpdate?: (id: string, description: string) => void;
   onAssigneeUpdate?: (id: string, assignee: string) => void;
   onStatusUpdate?: (id: string, status: TaskStatus) => void;
@@ -203,9 +204,7 @@ interface TechPanelProps {
 
 type SortCol = 'taskId' | 'description' | 'createdDate' | 'status' | 'assignee';
 
-// ─── Main Panel ───────────────────────────────────────────────────────────────
-
-export function TechPanel({ tasks, onDescriptionUpdate, onAssigneeUpdate, onStatusUpdate }: TechPanelProps) {
+export function TechPanel({ tasks, aiSuggestions, onDescriptionUpdate, onAssigneeUpdate, onStatusUpdate }: TechPanelProps) {
   // ── AI state ──
   const [messages,    setMessages]    = useState<Message[]>([]);
   const [input,       setInput]       = useState('');
@@ -220,15 +219,6 @@ export function TechPanel({ tasks, onDescriptionUpdate, onAssigneeUpdate, onStat
   const [sortDir,      setSortDir]      = useState<'asc' | 'desc'>('asc');
   const [descEdits,    setDescEdits]    = useState<Record<string, string>>({});
   const [assigneeEdits, setAssigneeEdits] = useState<Record<string, string>>({});
-
-  // Suggestion chips
-  const SUGGESTIONS = [
-    'Which tasks are about wounds?',
-    'Show me pending tasks',
-    'What are the highest priority bugs?',
-    'Which tasks are assigned to Alex?',
-    'Summarize this sprint',
-  ];
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -393,9 +383,9 @@ Be concise. Use bullet points when listing multiple items.`;
         </div>
 
         {/* Suggestion chips (shown when empty) */}
-        {messages.length === 0 && (
+        {messages.length === 0 && aiSuggestions.length > 0 && (
           <div style={{ padding: '14px 18px 10px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {SUGGESTIONS.map(s => (
+            {aiSuggestions.map(s => (
               <button key={s} onClick={() => send(s)} style={{
                 padding: '5px 13px', fontSize: 12, fontWeight: 500,
                 background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 99,

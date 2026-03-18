@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface AddTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
+  productOptions: string[];
   onAdd: (task: {
     taskId: string;
     productName: ProductName;
@@ -16,25 +17,38 @@ interface AddTaskModalProps {
   }) => void;
 }
 
-const productOptions: ProductName[] = ['Wound AI', 'Performance AI', 'Extraction AI'];
 const statusOptions: TaskStatus[] = ['pending', 'investigating', 'active', 'complete'];
 
-export function AddTaskModal({ isOpen, onClose, onAdd }: AddTaskModalProps) {
+const generateCrazyId = () => `CRZ-${Math.floor(Math.random() * 9000) + 1000}`;
+
+export function AddTaskModal({ isOpen, onClose, productOptions, onAdd }: AddTaskModalProps) {
+  const [taskType, setTaskType] = useState<'Crazy' | 'Linear'>('Linear');
+  
   const [formData, setFormData] = useState({
     taskId: '',
-    productName: 'Wound AI' as ProductName,
+    productName: (productOptions[0] as ProductName) || 'Wound AI',
     description: '',
     link: '',
     createdDate: new Date().toISOString().split('T')[0],
     status: 'pending' as TaskStatus,
   });
 
+  // Re-generate ID if user switches to Crazy
+  const handleTypeChange = (type: 'Crazy' | 'Linear') => {
+    setTaskType(type);
+    if (type === 'Crazy') {
+      setFormData(prev => ({ ...prev, taskId: generateCrazyId() }));
+    } else {
+      setFormData(prev => ({ ...prev, taskId: '' }));
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onAdd(formData);
     setFormData({
-      taskId: '',
-      productName: 'Wound AI',
+      taskId: taskType === 'Crazy' ? generateCrazyId() : '',
+      productName: (productOptions[0] as ProductName) || 'Wound AI',
       description: '',
       link: '',
       createdDate: new Date().toISOString().split('T')[0],
@@ -71,7 +85,28 @@ export function AddTaskModal({ isOpen, onClose, onAdd }: AddTaskModalProps) {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Task Type</label>
+                  <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => handleTypeChange('Linear')}
+                      className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-all ${taskType === 'Linear' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                    >
+                      Linear
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTypeChange('Crazy')}
+                      className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-all ${taskType === 'Crazy' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                    >
+                      Crazy
+                    </button>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1.5">Task ID</label>
                   <input
@@ -79,10 +114,14 @@ export function AddTaskModal({ isOpen, onClose, onAdd }: AddTaskModalProps) {
                     required
                     value={formData.taskId}
                     onChange={(e) => setFormData({ ...formData, taskId: e.target.value })}
-                    placeholder="GRE-XXX"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                    placeholder={taskType === 'Linear' ? "LIN-123" : "CRZ-1234"}
+                    readOnly={taskType === 'Crazy'}
+                    className={`w-full bg-slate-800 border ${taskType === 'Crazy' ? 'border-slate-800 text-indigo-300 cursor-not-allowed font-mono' : 'border-slate-700 text-slate-200'} rounded-lg px-3 py-2 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50`}
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1.5">Product</label>
                   <select

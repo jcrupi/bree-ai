@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Send, Sparkles, Loader2, Search, X, ArrowUp, ArrowDown, ExternalLink, RotateCcw, Clock, Search as SearchIcon, Zap, CheckCircle2, ChevronDown } from 'lucide-react';
+import { Send, Sparkles, Loader2, Search, X, ArrowUp, ArrowDown, ExternalLink, RotateCcw, Clock, Search as SearchIcon, Zap, CheckCircle2 } from 'lucide-react';
 import { Task, TaskStatus } from '../types/task';
-import { loadCurrentWeek, saveWeekTab } from '../services/leadNotes';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'https://bree-api.fly.dev';
 
@@ -197,7 +196,6 @@ function StatusSelector({ status, onSelect }: { status: TaskStatus; onSelect: (s
 
 interface TechPanelProps {
   tasks: Task[];
-  aiSuggestions: string[];
   onDescriptionUpdate?: (id: string, description: string) => void;
   onAssigneeUpdate?: (id: string, assignee: string) => void;
   onStatusUpdate?: (id: string, status: TaskStatus) => void;
@@ -205,7 +203,9 @@ interface TechPanelProps {
 
 type SortCol = 'taskId' | 'description' | 'createdDate' | 'status' | 'assignee';
 
-export function TechPanel({ tasks, aiSuggestions, onDescriptionUpdate, onAssigneeUpdate, onStatusUpdate }: TechPanelProps) {
+// ─── Main Panel ───────────────────────────────────────────────────────────────
+
+export function TechPanel({ tasks, onDescriptionUpdate, onAssigneeUpdate, onStatusUpdate }: TechPanelProps) {
   // ── AI state ──
   const [messages,    setMessages]    = useState<Message[]>([]);
   const [input,       setInput]       = useState('');
@@ -220,15 +220,19 @@ export function TechPanel({ tasks, aiSuggestions, onDescriptionUpdate, onAssigne
   const [sortDir,      setSortDir]      = useState<'asc' | 'desc'>('asc');
   const [descEdits,    setDescEdits]    = useState<Record<string, string>>({});
   const [assigneeEdits, setAssigneeEdits] = useState<Record<string, string>>({});
-  const [techSummary,  setTechSummary]  = useState('');
+
+  // Suggestion chips
+  const SUGGESTIONS = [
+    'Which tasks are about wounds?',
+    'Show me pending tasks',
+    'What are the highest priority bugs?',
+    'Which tasks are assigned to Alex?',
+    'Summarize this sprint',
+  ];
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
-
-  useEffect(() => {
-    loadCurrentWeek().then(data => setTechSummary(data.tech || ''));
-  }, []);
 
   // Build context string for AI from all tasks
   const contextStr = useMemo(() =>
@@ -348,33 +352,6 @@ Be concise. Use bullet points when listing multiple items.`;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* ── What are we doing this week? ── */}
-      <div className="w-full bg-slate-800/40 border border-slate-700/50 rounded-2xl overflow-hidden backdrop-blur-sm transition-all shadow-sm">
-        <details className="group">
-          <summary className="cursor-pointer px-6 py-4 flex items-center justify-between hover:bg-slate-800/80 transition-colors select-none marker:hidden">
-            <span className="text-lg font-semibold text-slate-100 flex items-center gap-3">
-              <Sparkles className="w-5 h-5 text-indigo-400" />
-              What are we doing this week?
-            </span>
-            <ChevronDown className="w-5 h-5 text-slate-400 group-open:rotate-180 transition-transform" />
-          </summary>
-          
-          <div className="p-6 pt-2 border-t border-slate-700/50 bg-slate-900/50">
-            <textarea
-              value={techSummary}
-              onChange={(e) => setTechSummary(e.target.value)}
-              onBlur={() => saveWeekTab('tech', techSummary)}
-              placeholder="Describe what will happen in tech this week..."
-              rows={5}
-              className="w-full bg-slate-800/80 border border-slate-700 rounded-xl p-4 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-y min-h-[120px]"
-            />
-            <div className="mt-3 flex justify-end">
-              <span className="text-xs text-slate-500 italic flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Auto-saves on blur</span>
-            </div>
-          </div>
-        </details>
-      </div>
-
       {/* ══ AI CHAT PANEL ══ */}
       <div style={{
         background: '#fff', border: '1.5px solid #ede9fe', borderRadius: 12,
@@ -416,9 +393,9 @@ Be concise. Use bullet points when listing multiple items.`;
         </div>
 
         {/* Suggestion chips (shown when empty) */}
-        {messages.length === 0 && aiSuggestions.length > 0 && (
+        {messages.length === 0 && (
           <div style={{ padding: '14px 18px 10px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {aiSuggestions.map(s => (
+            {SUGGESTIONS.map(s => (
               <button key={s} onClick={() => send(s)} style={{
                 padding: '5px 13px', fontSize: 12, fontWeight: 500,
                 background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 99,

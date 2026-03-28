@@ -15,6 +15,7 @@ import { mightyRoutes as habitawareMighty } from './routes/habitaware/mighty';
 import { chatRoutes as habitawareChat } from './routes/habitaware/chat';
 import { agentxRoutes as habitawareAgentx } from './routes/habitaware/agentx';
 import { snapshotRoutes as habitawareSnapshots } from './routes/habitaware/snapshots';
+import { intelligenceRoutes as habitawareIntelligence } from './routes/habitaware/intelligence';
 import { identityZeroRoutes } from './routes/identity-zero';
 import { assessmentQuestionsRoutes } from './routes/assessment-questions';
 import { talentVillageRoutes } from './routes/talent-village';
@@ -565,6 +566,7 @@ export const app = new Elysia()
     app
       .use(habitawareMighty) // mighty.ts still has internal prefix: "/mighty"
       .use(habitawareSnapshots) // snapshots has prefix: "/snapshots"
+      .use(habitawareIntelligence) // intelligence has prefix: "/intelligence"
       .group('/chat', (app) => app.use(habitawareChat))
       .group('/agentx', (app) => app.use(habitawareAgentx))
   )

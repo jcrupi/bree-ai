@@ -32,20 +32,25 @@ async function writeEntry(path: string, content: string, frontMatter: Record<str
 
 export const crazyWeeksRoutes = new Elysia({ prefix: '/api/crazy-weeks' })
   // GET /api/crazy-weeks/current — returns { week, tech, biz, marketing }
-  .get('/current', async () => {
+  .get('/current', async ({ headers }) => {
     const week = weekKey();
+    const brandId = headers['x-brand-id'];
+    const pathPrefix = brandId ? `crazy-weeks/${brandId}/${week}` : `crazy-weeks/${week}`;
+    
     const [tech, biz, marketing] = await Promise.all([
-      readEntry(`crazy-weeks/${week}/tech.agentx.md`),
-      readEntry(`crazy-weeks/${week}/biz.agentx.md`),
-      readEntry(`crazy-weeks/${week}/marketing.agentx.md`),
+      readEntry(`${pathPrefix}/tech.agentx.md`),
+      readEntry(`${pathPrefix}/biz.agentx.md`),
+      readEntry(`${pathPrefix}/marketing.agentx.md`),
     ]);
     return { week, tech, biz, marketing };
   })
 
   // GET /api/crazy-weeks/list — returns available week keys
-  .get('/list', async () => {
+  .get('/list', async ({ headers }) => {
     try {
-      const res = await fetch(`${AGENTX_URL}/api/identity/entries?dir=crazy-weeks`);
+      const brandId = headers['x-brand-id'];
+      const dir = brandId ? `crazy-weeks/${brandId}` : `crazy-weeks`;
+      const res = await fetch(`${AGENTX_URL}/api/identity/entries?dir=${dir}`);
       const data = await res.json();
       const weeks = (data.entries || [])
         .map((e: any) => e.frontMatter?.week)
@@ -60,28 +65,38 @@ export const crazyWeeksRoutes = new Elysia({ prefix: '/api/crazy-weeks' })
   })
 
   // GET /api/crazy-weeks/:week/:tab
-  .get('/:week/:tab', async ({ params: { week, tab } }) => {
+  .get('/:week/:tab', async ({ params: { week, tab }, headers }) => {
     const validTabs = ['tech', 'biz', 'marketing'];
     if (!validTabs.includes(tab)) return { error: 'Invalid tab' };
-    const content = await readEntry(`crazy-weeks/${week}/${tab}.agentx.md`);
+    const brandId = headers['x-brand-id'];
+    const path = brandId 
+      ? `crazy-weeks/${brandId}/${week}/${tab}.agentx.md`
+      : `crazy-weeks/${week}/${tab}.agentx.md`;
+    const content = await readEntry(path);
     return { week, tab, content };
   }, {
     params: t.Object({ week: t.String(), tab: t.String() })
   })
 
   // POST /api/crazy-weeks/:week/:tab
-  .post('/:week/:tab', async ({ params: { week, tab }, body }) => {
+  .post('/:week/:tab', async ({ params: { week, tab }, body, headers }) => {
     const validTabs = ['tech', 'biz', 'marketing'];
     if (!validTabs.includes(tab)) return { error: 'Invalid tab' };
     const { content } = body as { content: string };
+    const brandId = headers['x-brand-id'];
+    const path = brandId 
+      ? `crazy-weeks/${brandId}/${week}/${tab}.agentx.md`
+      : `crazy-weeks/${week}/${tab}.agentx.md`;
+      
     const labels: Record<string, string> = { tech: 'Tech Tasks', biz: 'Business Notes', marketing: 'Marketing Notes' };
     await writeEntry(
-      `crazy-weeks/${week}/${tab}.agentx.md`,
+      path,
       content,
       {
         type: 'crazy-week-note',
         week,
         tab,
+        brandId: brandId || 'global',
         label: labels[tab],
         updatedAt: new Date().toISOString(),
       }

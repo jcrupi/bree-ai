@@ -588,6 +588,130 @@ function ClientCard({ domain, onMatterCreated }: { domain: ClientDomain; onMatte
   );
 }
 
+/** Relativity queryslim / REST often nests ArtifactID under Artifact, Value, etc. */
+function extractRelArtifactId(value: unknown, depth = 0): number | null {
+  if (depth > 12 || value == null) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === 'string') {
+    const t = value.trim();
+    if (/^-?\d+$/.test(t)) return parseInt(t, 10);
+    return null;
+  }
+  if (Array.isArray(value)) {
+    for (const el of value) {
+      const id = extractRelArtifactId(el, depth + 1);
+      if (id != null) return id;
+    }
+    return null;
+  }
+  if (typeof value === 'object') {
+    const o = value as Record<string, unknown>;
+    if (typeof o.ArtifactID === 'number') return o.ArtifactID;
+    if (typeof o.ArtifactID === 'string' && /^-?\d+$/.test(o.ArtifactID.trim())) {
+      return parseInt(o.ArtifactID.trim(), 10);
+    }
+    for (const k of ['Artifact', 'Value', 'Object', 'Data', 'Item', 'FieldValue', 'RawValue']) {
+      if (k in o) {
+        const id = extractRelArtifactId(o[k], depth + 1);
+        if (id != null) return id;
+      }
+    }
+  }
+  return null;
+}
+
+function extractRelDisplayName(value: unknown, depth = 0): string | null {
+  if (depth > 12 || value == null) return null;
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number') return String(value);
+  if (Array.isArray(value)) {
+    for (const el of value) {
+      const n = extractRelDisplayName(el, depth + 1);
+      if (n) return n;
+    }
+    return null;
+  }
+  if (typeof value === 'object') {
+    const o = value as Record<string, unknown>;
+    if (typeof o.Name === 'string' && o.Name.trim()) return o.Name.trim();
+    if (o.Value !== undefined) {
+      const inner = extractRelDisplayName(o.Value, depth + 1);
+      if (inner) return inner;
+    }
+    for (const k of ['Artifact', 'Object', 'Data']) {
+      if (k in o) {
+        const n = extractRelDisplayName(o[k], depth + 1);
+        if (n) return n;
+      }
+    }
+  }
+  return null;
+}
+
+const REL_CLIENT_TYPE_ID    = 5;
+const REL_MATTER_TYPE_ID    = 6;
+const REL_WORKSPACE_TYPE_ID = 8;
+const QUERY_PAGE_SIZE       = 500;
+
+async function queryRelSlimPage(
+  apiBase: string,
+  instanceUrl: string,
+  accessToken: string,
+  artifactTypeID: number,
+  fields: { name: string }[],
+  start: number,
+  length: number,
+): Promise<any[]> {
+  const base = instanceUrl.replace(/\/$/, '');
+  const res = await fetch(`${apiBase}/api/auth/proxy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      endpoint: `${base}/Relativity.Rest/api/Relativity.ObjectManager/v1/workspace/-1/object/queryslim`,
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'X-CSRF-Header': '-',
+      },
+      reqBody: {
+        request: {
+          objectType: { artifactTypeID },
+          condition: '',
+          fields,
+        },
+        start,
+        length,
+      },
+    }),
+  });
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error((json as { message?: string }).message || (json as { error?: string }).error || `queryslim failed (${res.status})`);
+  }
+  return (json as { Objects?: any[] }).Objects ?? [];
+}
+
+async function queryRelSlimAll(
+  apiBase: string,
+  instanceUrl: string,
+  accessToken: string,
+  artifactTypeID: number,
+  fields: { name: string }[],
+): Promise<any[]> {
+  const rows: any[] = [];
+  let start = 1;
+  for (;;) {
+    const chunk = await queryRelSlimPage(apiBase, instanceUrl, accessToken, artifactTypeID, fields, start, QUERY_PAGE_SIZE);
+    rows.push(...chunk);
+    if (chunk.length < QUERY_PAGE_SIZE) break;
+    start += QUERY_PAGE_SIZE;
+  }
+  return rows;
+}
+
+const MATTER_NUMBER_LIVE_RE = /^E-\d{8}$/;
+
 export function ClientDomainView() {
   const { isLive, auth } = useAppMode();
   const [data, setData]       = useState<ClientDomain[]>([]);
@@ -601,67 +725,175 @@ export function ClientDomainView() {
     if (isLive && auth?.accessToken) {
       try {
         const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-        const q = async (typeId: number) => {
-          const res = await fetch(`${apiBase}/api/auth/proxy`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              endpoint: `${auth.instanceUrl}/Relativity.Rest/api/Relativity.ObjectManager/v1/workspace/-1/object/queryslim`,
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${auth.accessToken}`, 'Content-Type': 'application/json', 'X-CSRF-Header': '-' },
-              reqBody: { request: { objectType: { artifactTypeID: typeId }, condition: "", fields: [{ name: "Name" }] }, start: 1, length: 100 }
-            })
-          });
-          const json = await res.json();
-          return json.Objects || [];
+        const token = auth.accessToken;
+        const iUrl  = auth.instanceUrl;
+
+        const [clientsRaw, mattersRaw, workspacesRaw] = await Promise.all([
+          queryRelSlimAll(apiBase, iUrl, token, REL_CLIENT_TYPE_ID, [{ name: 'Name' }]),
+          queryRelSlimAll(apiBase, iUrl, token, REL_MATTER_TYPE_ID, [{ name: 'Name' }, { name: 'Client' }]),
+          queryRelSlimAll(apiBase, iUrl, token, REL_WORKSPACE_TYPE_ID, [{ name: 'Name' }, { name: 'Matter' }, { name: 'Client' }]),
+        ]);
+
+        const domainsByClient = new Map<number, ClientDomain>();
+        const matterGroupById = new Map<number, MatterGroup>();
+        const matterToClient  = new Map<number, number>();
+        const orphans: Workspace[] = [];
+
+        const ensureDomain = (clientId: number, displayName?: string): ClientDomain => {
+          let d = domainsByClient.get(clientId);
+          if (!d) {
+            d = {
+              client: {
+                artifactID: clientId,
+                name:       displayName ?? `Client ${clientId}`,
+                industry:   'Live Rel',
+                contactEmail: 'live@relativity.com',
+              },
+              adminGroup: null,
+              admins:     [],
+              matters:    [],
+              totalWorkspaces: 0,
+              invalidMatterCount: 0,
+            };
+            domainsByClient.set(clientId, d);
+          } else if (displayName && (d.client.name === `Client ${clientId}` || d.client.name.startsWith('Client '))) {
+            d.client.name = displayName;
+          }
+          return d;
         };
 
-        const [clientsRaw, mattersRaw, workspacesRaw] = await Promise.all([q(5), q(6), q(8)]);
+        for (const c of clientsRaw) {
+          const id = c.ArtifactID as number;
+          ensureDomain(id, String(c.Values?.[0] ?? `Client ${id}`));
+        }
 
-        const liveClients: ClientDomain[] = clientsRaw.map((c: any) => ({
-          client: { artifactID: c.ArtifactID, name: c.Values[0], industry: 'Live Rel', contactEmail: 'live@relativity.com' },
-          adminGroup: null, admins: [], matters: [], totalWorkspaces: 0, invalidMatterCount: 0
-        })).sort((a: any, b: any) => a.client.name.localeCompare(b.client.name));
+        for (const m of mattersRaw) {
+          const matterId   = m.ArtifactID as number;
+          const matterName = String(m.Values?.[0] ?? `Matter ${matterId}`);
+          const clientAid  = extractRelArtifactId(m.Values?.[1]);
+          matterToClient.set(matterId, clientAid ?? 0);
+          if (!clientAid) continue;
+
+          const domain = ensureDomain(clientAid);
+          const noMatterNumber = '';
+          const mg: MatterGroup = {
+            matter: {
+              artifactID:   matterId,
+              name:         matterName,
+              matterNumber: noMatterNumber,
+              status:       'Active',
+              created:      new Date().toISOString(),
+            },
+            matterNumberValid: MATTER_NUMBER_LIVE_RE.test(noMatterNumber),
+            workspaces: [],
+          };
+          domain.matters.push(mg);
+          matterGroupById.set(matterId, mg);
+        }
+
+        for (const w of workspacesRaw) {
+          const wid   = w.ArtifactID as number;
+          const wname = String(w.Values?.[0] ?? `Workspace ${wid}`);
+          const matterRef = w.Values?.[1];
+          const clientRef = w.Values?.[2];
+          const matterAid = extractRelArtifactId(matterRef);
+          let clientAid   = extractRelArtifactId(clientRef);
+
+          if (matterAid != null && matterToClient.has(matterAid)) {
+            const mc = matterToClient.get(matterAid)!;
+            if (mc > 0) clientAid = clientAid ?? mc;
+          }
+
+          const ws: Workspace = {
+            artifactID: wid,
+            name: wname,
+            statusName: 'Active',
+            resourcePoolName: 'Relativity Pool',
+            enableDataGrid: false,
+            created: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+          };
+
+          let placed = false;
+
+          if (matterAid != null && matterGroupById.has(matterAid)) {
+            matterGroupById.get(matterAid)!.workspaces.push(ws);
+            placed = true;
+          } else if (matterAid != null && clientAid) {
+            const domain = ensureDomain(clientAid);
+            const nm = extractRelDisplayName(matterRef) ?? `Matter ${matterAid}`;
+            let mg = domain.matters.find(x => x.matter.artifactID === matterAid);
+            if (!mg) {
+              mg = {
+                matter: {
+                  artifactID: matterAid,
+                  name: nm,
+                  matterNumber: '',
+                  status: 'Active',
+                  created: new Date().toISOString(),
+                },
+                matterNumberValid: false,
+                workspaces: [],
+              };
+              domain.matters.push(mg);
+              matterGroupById.set(matterAid, mg);
+              matterToClient.set(matterAid, clientAid);
+            }
+            mg.workspaces.push(ws);
+            placed = true;
+          } else if (matterAid == null && clientAid) {
+            const domain = ensureDomain(clientAid);
+            const bucketId = -900_000_000 - Math.abs(clientAid);
+            let mg = domain.matters.find(x => x.matter.artifactID === bucketId);
+            if (!mg) {
+              mg = {
+                matter: {
+                  artifactID: bucketId,
+                  name: 'Workspaces without Matter link',
+                  matterNumber: '',
+                  status: 'Active',
+                  created: new Date().toISOString(),
+                },
+                matterNumberValid: false,
+                workspaces: [],
+              };
+              domain.matters.push(mg);
+            }
+            mg.workspaces.push(ws);
+            placed = true;
+          }
+
+          if (!placed) orphans.push(ws);
+        }
+
+        let liveClients = Array.from(domainsByClient.values());
+        liveClients.forEach(c => {
+          c.totalWorkspaces = c.matters.reduce((acc, m) => acc + m.workspaces.length, 0);
+          c.invalidMatterCount = c.matters.filter(m => !m.matterNumberValid).length;
+        });
+        liveClients.sort((a, b) => a.client.name.localeCompare(b.client.name));
 
         if (liveClients.length === 0) {
-          liveClients.push({
+          liveClients = [{
             client: { artifactID: -1, name: 'Live Connectivity Domain', industry: 'Live', contactEmail: auth.instanceUrl },
-            adminGroup: null, admins: [], matters: [], totalWorkspaces: 0, invalidMatterCount: 0
+            adminGroup: null, admins: [], matters: [], totalWorkspaces: 0, invalidMatterCount: 0,
+          }];
+        }
+
+        if (orphans.length > 0) {
+          liveClients.push({
+            client: { artifactID: -999, name: 'Orphaned Workspaces', industry: '—', contactEmail: 'No resolvable Client/Matter from API' },
+            adminGroup: null,
+            admins: [],
+            matters: [{
+              matter: { artifactID: -998, name: 'Unlinked', matterNumber: '', status: 'Active', created: new Date().toISOString() },
+              matterNumberValid: false,
+              workspaces: orphans,
+            }],
+            totalWorkspaces: orphans.length,
+            invalidMatterCount: 0,
           });
         }
-
-        const liveMatters = mattersRaw.map((m: any) => ({
-          matter: { artifactID: m.ArtifactID, name: m.Values[0], matterNumber: 'E-' + m.ArtifactID, status: 'Active', created: new Date().toISOString() },
-          matterNumberValid: true,
-          workspaces: []
-        }));
-
-        liveMatters.forEach((m: any, i: number) => {
-          liveClients[i % liveClients.length].matters.push(m);
-        });
-
-        const liveWorkspaces = workspacesRaw.map((w: any) => ({
-          artifactID: w.ArtifactID, name: w.Values[0], statusName: 'Active', resourcePoolName: 'Relativity Pool', enableDataGrid: false, created: new Date().toISOString(), lastModified: new Date().toISOString()
-        }));
-
-        const allMatters = liveClients.flatMap((c: any) => c.matters);
-        if (allMatters.length === 0) {
-          const dummyMatter = {
-            matter: { artifactID: -2, name: 'Unassigned Framework', matterNumber: 'E-00000000', status: 'Active', created: new Date().toISOString() },
-            matterNumberValid: true,
-            workspaces: []
-          };
-          liveClients[0].matters.push(dummyMatter);
-          allMatters.push(dummyMatter);
-        }
-
-        liveWorkspaces.forEach((w: any, i: number) => {
-          allMatters[i % allMatters.length].workspaces.push(w);
-        });
-
-        liveClients.forEach((c: any) => {
-          c.totalWorkspaces = c.matters.reduce((acc: number, m: any) => acc + m.workspaces.length, 0);
-        });
 
         setData(liveClients);
       } catch (err) {
@@ -695,6 +927,7 @@ export function ClientDomainView() {
 
   const totalWorkspaces = data.reduce((s, c) => s + c.totalWorkspaces, 0);
   const totalInvalid = data.reduce((s, c) => s + c.invalidMatterCount, 0);
+  const relClientCount = data.filter(c => c.client.artifactID >= 0).length;
 
   return (
     <div>
@@ -702,7 +935,7 @@ export function ClientDomainView() {
       {/* Summary bar — use inline styles for icon backgrounds to avoid Tailwind purge */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         {[
-          { label: 'Total Clients',    value: data.length,      icon: <Building2 className="w-5 h-5 text-indigo-600" />,                                                               bg: '#eef2ff' },
+          { label: 'Total Clients',    value: relClientCount,   icon: <Building2 className="w-5 h-5 text-indigo-600" />,                                                               bg: '#eef2ff' },
           { label: 'Total Workspaces', value: totalWorkspaces,  icon: <Layers className="w-5 h-5 text-blue-600" />,                                                                   bg: '#eff6ff' },
           { label: 'Invalid Matter #s',value: totalInvalid,     icon: <AlertTriangle className={`w-5 h-5 ${totalInvalid > 0 ? 'text-red-500' : 'text-emerald-500'}`} />,             bg: totalInvalid > 0 ? '#fef2f2' : '#ecfdf5' },
         ].map(({ label, value, icon, bg }) => (

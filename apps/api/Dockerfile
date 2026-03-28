@@ -10,30 +10,13 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy workspace files
-COPY package.json bun.lock ./
-COPY packages/ ./packages/
-COPY apps/api/ ./apps/api/
+# Copy everything (filtered by .dockerignore)
+COPY . .
 
 # Install dependencies
 RUN bun install
 
-# Build the API
+# Build/run directly (avoiding complex bundle issues)
 WORKDIR /app/apps/api
-RUN bun run build
-
-# Production stage
-FROM oven/bun:1-alpine
-
-WORKDIR /app
-
-# Copy built application and dependencies
-COPY --from=base /app/apps/api/dist ./dist
-COPY --from=base /app/apps/api/package.json ./
-COPY --from=base /app/node_modules ./node_modules
-
-# Expose the API port
 EXPOSE 3000
-
-# Run the API server
-CMD ["bun", "dist/index.js"]
+CMD ["bun", "src/index.ts"]

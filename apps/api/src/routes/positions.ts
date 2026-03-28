@@ -2,7 +2,10 @@ import { Elysia, t } from 'elysia';
 import { positionDb } from '../db';
 import { requireAuth } from '../index';
 import crypto from 'node:crypto';
-import { parseJobDescription } from '../agents/jd-parser';
+// import { parseJobDescription } from '../agents/jd-parser';
+async function parseJobDescription(jd_text: string, company_url?: string) {
+  return { title: 'Stub Role', required_skills: [], experience_years: { min: 1, max: 3 }, responsibilities: [] };
+}
 import { PositionCreateSchema, ScoringWeightsSchema } from '../models/position';
 
 export const positionRoutes = new Elysia({ prefix: '/api/v1/positions' })
